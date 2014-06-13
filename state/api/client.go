@@ -612,6 +612,7 @@ func (c *Client) Backup(backupFilePath string) (string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error creating backup file: %v", err)
 	}
+	defer file.Close()
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("Error writing the backing file: %v", err)
