@@ -20,12 +20,14 @@ import (
 	"github.com/juju/loggo"
 )
 
-// YYYYMMDD-HHMMSS
-const TimestampFormat = "20141231-235959"
-const FilenameTemplate = "jujubackup-%s.tar.gz"
+const (
+	TimestampFormat  = "20141231-235959" // YYYYMMDD-HHMMSS
+	FilenameTemplate = "jujubackup-%s.tar.gz"
+)
 
 var logger = loggo.GetLogger("juju.backup")
 
+// GetHash returns the SHA1 hash of the provided file.
 func GetHash(archive io.Reader) (string, error) {
 	shahash := sha1.New()
 	_, err := io.Copy(shahash, archive)
