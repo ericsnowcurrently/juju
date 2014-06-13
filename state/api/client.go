@@ -575,7 +575,7 @@ func (c *Client) DestroyEnvironment() error {
 }
 
 // Backup requests a state-server backup file from the server and saves it to
-// the local filesystem. It returns the name of the file creatd.
+// the local filesystem. It returns the name of the file created.
 // The backup can take a long time to prepare and be a large file, depending
 // on the system being backed up.
 func (c *Client) Backup(backupFilePath string) (string, error) {
@@ -612,7 +612,11 @@ func (c *Client) Backup(backupFilePath string) (string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error creating backup file: %v", err)
 	}
-	io.Copy(file, resp.Body)
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Error writing the backing file: %v", err)
+	}
+
 	return backupFilePath, nil
 }
 
