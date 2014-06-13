@@ -574,6 +574,48 @@ func (c *Client) DestroyEnvironment() error {
 	return c.call("DestroyEnvironment", nil, nil)
 }
 
+// Backup requests a state-server backup file from the server and saves it to
+// the local filesystem. It returns the name of the file creatd.
+// The backup can take a long time to prepare and be a large file, depending
+// on the system being backed up.
+func (c *Client) Backup(backupFilePath string) (string, error) {
+	// Prepare the upload request.
+	url := fmt.Sprintf("%s/backup", c.st.serverRoot)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create backup request: %v", err)
+	}
+	req.SetBasicAuth(c.st.tag, c.st.password)
+
+	// Send the request.
+	resp, err := utils.GetNonValidatingHTTPClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cannot fetch backup: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read backup response: %v", err)
+		}
+		var jsonResponse params.BackupResponse
+		if err := json.Unmarshal(body, &jsonResponse); err != nil {
+			return nil, fmt.Errorf("cannot unmarshal backup response: %v", err)
+		}
+
+		return nil, fmt.Errorf("error fetching backup: %v", jsonResponse.Error)
+	}
+	if backupFilePath == "" {
+		backupFilePath = fmt.Sprintf("jujubackup-%s.tar.gz", "timestamp")
+	}
+	file, err := os.Create(backupFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating backup file: %v", err)
+	}
+	io.Copy(file, resp.Body)
+	return backupFilePath, nil
+}
+
 // AddLocalCharm prepares the given charm with a local: schema in its
 // URL, and uploads it via the API server, returning the assigned
 // charm URL. If the API server does not support charm uploads, an
