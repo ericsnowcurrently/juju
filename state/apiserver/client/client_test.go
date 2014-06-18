@@ -11,12 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/charm"
+	charmtesting "github.com/juju/charm/testing"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm"
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
@@ -24,6 +25,7 @@ import (
 	envstorage "github.com/juju/juju/environs/storage"
 	toolstesting "github.com/juju/juju/environs/tools/testing"
 	"github.com/juju/juju/instance"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/provider/dummy"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api"
@@ -31,11 +33,16 @@ import (
 	"github.com/juju/juju/state/apiserver/client"
 	"github.com/juju/juju/state/presence"
 	coretesting "github.com/juju/juju/testing"
+	"github.com/juju/juju/testing/factory"
 	"github.com/juju/juju/version"
 )
 
 type clientSuite struct {
 	baseSuite
+}
+
+type Killer interface {
+	Kill() error
 }
 
 var _ = gc.Suite(&clientSuite{})
@@ -313,7 +320,7 @@ func (s *clientSuite) TestClientAnnotations(c *gc.C) {
 	entities := []taggedAnnotator{service, unit, machine, environment}
 	for i, t := range clientAnnotationsTests {
 		for _, entity := range entities {
-			id := entity.Tag()
+			id := entity.Tag().String() // this is WRONG, it should be Tag().Id() but the code is wrong.
 			c.Logf("test %d. %s. entity %s", i, t.about, id)
 			// Set initial entity annotations.
 			err := entity.SetAnnotations(t.initial)
@@ -510,6 +517,10 @@ func assertRemoved(c *gc.C, entity state.Living) {
 	c.Assert(err, jc.Satisfies, errors.IsNotFound)
 }
 
+func assertKill(c *gc.C, killer Killer) {
+	c.Assert(killer.Kill(), gc.IsNil)
+}
+
 func (s *clientSuite) setupDestroyMachinesTest(c *gc.C) (*state.Machine, *state.Machine, *state.Machine, *state.Unit) {
 	m0, err := s.State.AddMachine("quantal", state.JobManageEnviron)
 	c.Assert(err, gc.IsNil)
@@ -691,7 +702,7 @@ func (s *clientSuite) TestClientServiceDeployWithNetworks(c *gc.C) {
 		curl.String(), "service", 3, "", cons, "",
 		[]string{"net1", "net2"},
 	)
-	c.Assert(err, gc.ErrorMatches, `"net1" is not a valid network tag`)
+	c.Assert(err, gc.ErrorMatches, `"net1" is not a valid tag`)
 
 	err = s.APIState.Client().ServiceDeployWithNetworks(
 		curl.String(), "service", 3, "", cons, "",
@@ -835,8 +846,8 @@ func (s *clientSuite) TestClientServiceDeployServiceOwner(c *gc.C) {
 	defer restore()
 	curl, _ := addCharm(c, store, "dummy")
 
-	s.AddUser(c, "foobar")
-	s.APIState = s.OpenAPIAs(c, "user-foobar", "password")
+	user := s.Factory.MakeUser(factory.UserParams{Password: "password"})
+	s.APIState = s.OpenAPIAs(c, user.Tag().String(), "password")
 
 	err := s.APIState.Client().ServiceDeploy(
 		curl.String(), "service", 3, "", constraints.Value{}, "",
@@ -845,10 +856,10 @@ func (s *clientSuite) TestClientServiceDeployServiceOwner(c *gc.C) {
 
 	service, err := s.State.Service("service")
 	c.Assert(err, gc.IsNil)
-	c.Assert(service.GetOwnerTag(), gc.Equals, "user-foobar")
+	c.Assert(service.GetOwnerTag(), gc.Equals, user.Tag().String())
 }
 
-func (s *clientSuite) deployServiceForTests(c *gc.C, store *coretesting.MockCharmStore) {
+func (s *clientSuite) deployServiceForTests(c *gc.C, store *charmtesting.MockCharmStore) {
 	curl, _ := addCharm(c, store, "dummy")
 	err := s.APIState.Client().ServiceDeploy(curl.String(),
 		"service", 1, "", constraints.Value{}, "",
@@ -1140,19 +1151,19 @@ func (s *clientSuite) TestClientServiceSetCharmErrors(c *gc.C) {
 	}
 }
 
-func makeMockCharmStore() (store *coretesting.MockCharmStore, restore func()) {
-	mockStore := coretesting.NewMockCharmStore()
+func makeMockCharmStore() (store *charmtesting.MockCharmStore, restore func()) {
+	mockStore := charmtesting.NewMockCharmStore()
 	origStore := client.CharmStore
 	client.CharmStore = mockStore
 	return mockStore, func() { client.CharmStore = origStore }
 }
 
-func addCharm(c *gc.C, store *coretesting.MockCharmStore, name string) (*charm.URL, charm.Charm) {
+func addCharm(c *gc.C, store *charmtesting.MockCharmStore, name string) (*charm.URL, charm.Charm) {
 	return addSeriesCharm(c, store, "precise", name)
 }
 
-func addSeriesCharm(c *gc.C, store *coretesting.MockCharmStore, series, name string) (*charm.URL, charm.Charm) {
-	bundle := coretesting.Charms.Bundle(c.MkDir(), name)
+func addSeriesCharm(c *gc.C, store *charmtesting.MockCharmStore, series, name string) (*charm.URL, charm.Charm) {
+	bundle := charmtesting.Charms.Bundle(c.MkDir(), name)
 	scurl := fmt.Sprintf("cs:%s/%s-%d", series, name, bundle.Revision())
 	curl := charm.MustParseURL(scurl)
 	err := store.SetCharm(curl, bundle)
@@ -1337,7 +1348,7 @@ func (s *clientSuite) TestClientWatchAll(c *gc.C) {
 			Life:                    params.Alive,
 			Series:                  "quantal",
 			Jobs:                    []params.MachineJob{state.JobManageEnviron.ToParams()},
-			Addresses:               []instance.Address{},
+			Addresses:               []network.Address{},
 			HardwareCharacteristics: &instance.HardwareCharacteristics{},
 		},
 	}}) {
@@ -1429,12 +1440,12 @@ func (s *clientSuite) TestClientPublicAddressErrors(c *gc.C) {
 func (s *clientSuite) TestClientPublicAddressMachine(c *gc.C) {
 	s.setUpScenario(c)
 
-	// Internally, instance.SelectPublicAddress is used; the "most public"
+	// Internally, network.SelectPublicAddress is used; the "most public"
 	// address is returned.
 	m1, err := s.State.Machine("1")
 	c.Assert(err, gc.IsNil)
-	cloudLocalAddress := instance.NewAddress("cloudlocal", instance.NetworkCloudLocal)
-	publicAddress := instance.NewAddress("public", instance.NetworkPublic)
+	cloudLocalAddress := network.NewAddress("cloudlocal", network.ScopeCloudLocal)
+	publicAddress := network.NewAddress("public", network.ScopePublic)
 	err = m1.SetAddresses(cloudLocalAddress)
 	c.Assert(err, gc.IsNil)
 	addr, err := s.APIState.Client().PublicAddress("1")
@@ -1450,7 +1461,7 @@ func (s *clientSuite) TestClientPublicAddressUnit(c *gc.C) {
 	s.setUpScenario(c)
 
 	m1, err := s.State.Machine("1")
-	publicAddress := instance.NewAddress("public", instance.NetworkPublic)
+	publicAddress := network.NewAddress("public", network.ScopePublic)
 	err = m1.SetAddresses(publicAddress)
 	c.Assert(err, gc.IsNil)
 	addr, err := s.APIState.Client().PublicAddress("wordpress/0")
@@ -1471,12 +1482,12 @@ func (s *clientSuite) TestClientPrivateAddressErrors(c *gc.C) {
 func (s *clientSuite) TestClientPrivateAddress(c *gc.C) {
 	s.setUpScenario(c)
 
-	// Internally, instance.SelectInternalAddress is used; the public
+	// Internally, network.SelectInternalAddress is used; the public
 	// address if no cloud-local one is available.
 	m1, err := s.State.Machine("1")
 	c.Assert(err, gc.IsNil)
-	cloudLocalAddress := instance.NewAddress("cloudlocal", instance.NetworkCloudLocal)
-	publicAddress := instance.NewAddress("public", instance.NetworkPublic)
+	cloudLocalAddress := network.NewAddress("cloudlocal", network.ScopeCloudLocal)
+	publicAddress := network.NewAddress("public", network.ScopePublic)
 	err = m1.SetAddresses(publicAddress)
 	c.Assert(err, gc.IsNil)
 	addr, err := s.APIState.Client().PrivateAddress("1")
@@ -1492,7 +1503,7 @@ func (s *clientSuite) TestClientPrivateAddressUnit(c *gc.C) {
 	s.setUpScenario(c)
 
 	m1, err := s.State.Machine("1")
-	privateAddress := instance.NewAddress("private", instance.NetworkCloudLocal)
+	privateAddress := network.NewAddress("private", network.ScopeCloudLocal)
 	err = m1.SetAddresses(privateAddress)
 	c.Assert(err, gc.IsNil)
 	addr, err := s.APIState.Client().PrivateAddress("wordpress/0")
@@ -1782,7 +1793,7 @@ func (s *clientSuite) TestClientAddMachinesSomeErrors(c *gc.C) {
 
 func (s *clientSuite) TestClientAddMachinesWithInstanceIdSomeErrors(c *gc.C) {
 	apiParams := make([]params.AddMachineParams, 3)
-	addrs := []instance.Address{instance.NewAddress("1.2.3.4", instance.NetworkUnknown)}
+	addrs := []network.Address{network.NewAddress("1.2.3.4", network.ScopeUnknown)}
 	hc := instance.MustParseHardware("mem=4G")
 	for i := 0; i < 3; i++ {
 		apiParams[i] = params.AddMachineParams{
@@ -1812,7 +1823,7 @@ func (s *clientSuite) TestClientAddMachinesWithInstanceIdSomeErrors(c *gc.C) {
 }
 
 func (s *clientSuite) checkInstance(c *gc.C, id, instanceId, nonce string,
-	hc instance.HardwareCharacteristics, addr []instance.Address) {
+	hc instance.HardwareCharacteristics, addr []network.Address) {
 
 	machine, err := s.BackingState.Machine(id)
 	c.Assert(err, gc.IsNil)
@@ -1962,7 +1973,7 @@ func (s *clientSuite) TestAddCharm(c *gc.C) {
 
 	// Add a charm, without uploading it to storage, to
 	// check that AddCharm does not try to do it.
-	charmDir := coretesting.Charms.Dir("dummy")
+	charmDir := charmtesting.Charms.Dir("dummy")
 	ident := fmt.Sprintf("%s-%d", charmDir.Meta().Name, charmDir.Revision())
 	curl := charm.MustParseURL("cs:quantal/" + ident)
 	bundleURL, err := url.Parse("http://bundles.testing.invalid/" + ident)
@@ -2167,7 +2178,7 @@ func (s *clientSuite) TestRetryProvisioning(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = machine.SetStatus(params.StatusError, "error", nil)
 	c.Assert(err, gc.IsNil)
-	_, err = s.APIState.Client().RetryProvisioning(machine.Tag())
+	_, err = s.APIState.Client().RetryProvisioning(machine.Tag().String())
 	c.Assert(err, gc.IsNil)
 
 	status, info, data, err := machine.Status()
@@ -2177,13 +2188,13 @@ func (s *clientSuite) TestRetryProvisioning(c *gc.C) {
 	c.Assert(data["transient"], gc.Equals, true)
 }
 
-func (s *clientSuite) setAgentAlive(c *gc.C, machineId string) *presence.Pinger {
+func (s *clientSuite) setAgentPresence(c *gc.C, machineId string) *presence.Pinger {
 	m, err := s.BackingState.Machine(machineId)
 	c.Assert(err, gc.IsNil)
-	pinger, err := m.SetAgentAlive()
+	pinger, err := m.SetAgentPresence()
 	c.Assert(err, gc.IsNil)
 	s.BackingState.StartSync()
-	err = m.WaitAgentAlive(coretesting.LongWait)
+	err = m.WaitAgentPresence(coretesting.LongWait)
 	c.Assert(err, gc.IsNil)
 	return pinger
 }
@@ -2198,23 +2209,37 @@ func (s *clientSuite) TestClientEnsureAvailabilitySeries(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	// We have to ensure the agents are alive, or EnsureAvailability will
 	// create more to replace them.
-	pinger := s.setAgentAlive(c, "0")
-	defer pinger.Kill()
+	pingerA := s.setAgentPresence(c, "0")
+	defer assertKill(c, pingerA)
+
 	machines, err := s.State.AllMachines()
 	c.Assert(err, gc.IsNil)
 	c.Assert(machines, gc.HasLen, 1)
 	c.Assert(machines[0].Series(), gc.Equals, "quantal")
-	err = s.APIState.Client().EnsureAvailability(3, emptyCons, defaultSeries)
+	ensureAvailabilityResult, err := s.APIState.Client().EnsureAvailability(3, emptyCons, defaultSeries)
 	c.Assert(err, gc.IsNil)
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-1", "machine-2"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	machines, err = s.State.AllMachines()
 	c.Assert(err, gc.IsNil)
 	c.Assert(machines, gc.HasLen, 3)
 	c.Assert(machines[0].Series(), gc.Equals, "quantal")
 	c.Assert(machines[1].Series(), gc.Equals, "quantal")
 	c.Assert(machines[2].Series(), gc.Equals, "quantal")
-	defer s.setAgentAlive(c, "1").Kill()
-	defer s.setAgentAlive(c, "2").Kill()
-	err = s.APIState.Client().EnsureAvailability(5, emptyCons, "non-default")
+
+	pingerB := s.setAgentPresence(c, "1")
+	defer assertKill(c, pingerB)
+
+	pingerC := s.setAgentPresence(c, "2")
+	defer assertKill(c, pingerC)
+
+	ensureAvailabilityResult, err = s.APIState.Client().EnsureAvailability(5, emptyCons, "non-default")
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0", "machine-1", "machine-2"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-3", "machine-4"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	c.Assert(err, gc.IsNil)
 	machines, err = s.State.AllMachines()
 	c.Assert(err, gc.IsNil)
@@ -2229,11 +2254,17 @@ func (s *clientSuite) TestClientEnsureAvailabilitySeries(c *gc.C) {
 func (s *clientSuite) TestClientEnsureAvailabilityConstraints(c *gc.C) {
 	_, err := s.State.AddMachine("quantal", state.JobManageEnviron)
 	c.Assert(err, gc.IsNil)
-	pinger := s.setAgentAlive(c, "0")
-	defer pinger.Kill()
-	err = s.APIState.Client().EnsureAvailability(
+
+	pinger := s.setAgentPresence(c, "0")
+	defer assertKill(c, pinger)
+
+	ensureAvailabilityResult, err := s.APIState.Client().EnsureAvailability(
 		3, constraints.MustParse("mem=4G"), defaultSeries)
 	c.Assert(err, gc.IsNil)
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-1", "machine-2"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	machines, err := s.State.AllMachines()
 	c.Assert(err, gc.IsNil)
 	c.Assert(machines, gc.HasLen, 3)
@@ -2252,19 +2283,31 @@ func (s *clientSuite) TestClientEnsureAvailabilityConstraints(c *gc.C) {
 func (s *clientSuite) TestClientEnsureAvailability0Preserves(c *gc.C) {
 	_, err := s.State.AddMachine("quantal", state.JobManageEnviron)
 	c.Assert(err, gc.IsNil)
-	pinger := s.setAgentAlive(c, "0")
-	defer pinger.Kill()
+	pingerA := s.setAgentPresence(c, "0")
+	defer assertKill(c, pingerA)
+
 	// A value of 0 says either "if I'm not HA, make me HA" or "preserve my
 	// current HA settings".
-	err = s.APIState.Client().EnsureAvailability(0, emptyCons, defaultSeries)
+	ensureAvailabilityResult, err := s.APIState.Client().EnsureAvailability(0, emptyCons, defaultSeries)
 	c.Assert(err, gc.IsNil)
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-1", "machine-2"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	machines, err := s.State.AllMachines()
 	c.Assert(machines, gc.HasLen, 3)
-	defer s.setAgentAlive(c, "1").Kill()
+
+	pingerB := s.setAgentPresence(c, "1")
+	defer assertKill(c, pingerB)
+
 	// Now, we keep agent 1 alive, but not agent 2, calling
 	// EnsureAvailability(0) again will cause us to start another machine
-	err = s.APIState.Client().EnsureAvailability(0, emptyCons, defaultSeries)
+	ensureAvailabilityResult, err = s.APIState.Client().EnsureAvailability(0, emptyCons, defaultSeries)
 	c.Assert(err, gc.IsNil)
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0", "machine-1"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-3"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	machines, err = s.State.AllMachines()
 	c.Assert(machines, gc.HasLen, 4)
 }
@@ -2272,18 +2315,32 @@ func (s *clientSuite) TestClientEnsureAvailability0Preserves(c *gc.C) {
 func (s *clientSuite) TestClientEnsureAvailability0Preserves5(c *gc.C) {
 	_, err := s.State.AddMachine("quantal", state.JobManageEnviron)
 	c.Assert(err, gc.IsNil)
-	pinger := s.setAgentAlive(c, "0")
-	defer pinger.Kill()
+	pingerA := s.setAgentPresence(c, "0")
+	defer assertKill(c, pingerA)
+
 	// Start off with 5 servers
-	err = s.APIState.Client().EnsureAvailability(5, emptyCons, defaultSeries)
+	ensureAvailabilityResult, err := s.APIState.Client().EnsureAvailability(5, emptyCons, defaultSeries)
 	c.Assert(err, gc.IsNil)
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-1", "machine-2", "machine-3", "machine-4"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	machines, err := s.State.AllMachines()
 	c.Assert(machines, gc.HasLen, 5)
-	defer s.setAgentAlive(c, "1").Kill()
-	defer s.setAgentAlive(c, "2").Kill()
-	defer s.setAgentAlive(c, "3").Kill()
+	pingerB := s.setAgentPresence(c, "1")
+	defer assertKill(c, pingerB)
+
+	pingerC := s.setAgentPresence(c, "2")
+	defer assertKill(c, pingerC)
+
+	pingerD := s.setAgentPresence(c, "3")
+	defer assertKill(c, pingerD)
 	// Keeping all alive but one, will bring up 1 more server to preserve 5
-	err = s.APIState.Client().EnsureAvailability(0, emptyCons, defaultSeries)
+	ensureAvailabilityResult, err = s.APIState.Client().EnsureAvailability(0, emptyCons, defaultSeries)
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0", "machine-1", "machine-2", "machine-3"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-5"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
 	c.Assert(err, gc.IsNil)
 	machines, err = s.State.AllMachines()
 	c.Assert(machines, gc.HasLen, 6)
@@ -2292,14 +2349,20 @@ func (s *clientSuite) TestClientEnsureAvailability0Preserves5(c *gc.C) {
 func (s *clientSuite) TestClientEnsureAvailabilityErrors(c *gc.C) {
 	_, err := s.State.AddMachine("quantal", state.JobManageEnviron)
 	c.Assert(err, gc.IsNil)
-	pinger := s.setAgentAlive(c, "0")
-	defer pinger.Kill()
-	err = s.APIState.Client().EnsureAvailability(-1, emptyCons, defaultSeries)
+
+	pinger := s.setAgentPresence(c, "0")
+	assertKill(c, pinger)
+
+	_, err = s.APIState.Client().EnsureAvailability(-1, emptyCons, defaultSeries)
 	c.Assert(err, gc.ErrorMatches, "number of state servers must be odd and non-negative")
-	err = s.APIState.Client().EnsureAvailability(3, emptyCons, defaultSeries)
+	ensureAvailabilityResult, err := s.APIState.Client().EnsureAvailability(3, emptyCons, defaultSeries)
 	c.Assert(err, gc.IsNil)
-	err = s.APIState.Client().EnsureAvailability(1, emptyCons, defaultSeries)
-	c.Assert(err, gc.ErrorMatches, "cannot reduce state server count")
+	c.Assert(ensureAvailabilityResult.Maintained, gc.DeepEquals, []string{"machine-0"})
+	c.Assert(ensureAvailabilityResult.Added, gc.DeepEquals, []string{"machine-1", "machine-2"})
+	c.Assert(ensureAvailabilityResult.Removed, gc.HasLen, 0)
+
+	_, err = s.APIState.Client().EnsureAvailability(1, emptyCons, defaultSeries)
+	c.Assert(err, gc.ErrorMatches, "failed to create new state server machines: cannot reduce state server count")
 }
 
 func (s *clientSuite) TestAPIHostPorts(c *gc.C) {
@@ -2307,25 +2370,25 @@ func (s *clientSuite) TestAPIHostPorts(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(apiHostPorts, gc.HasLen, 0)
 
-	server1Addresses := []instance.Address{{
-		Value:        "server-1",
-		Type:         instance.HostName,
-		NetworkScope: instance.NetworkPublic,
+	server1Addresses := []network.Address{{
+		Value: "server-1",
+		Type:  network.HostName,
+		Scope: network.ScopePublic,
 	}, {
-		Value:        "10.0.0.1",
-		Type:         instance.Ipv4Address,
-		NetworkName:  "internal",
-		NetworkScope: instance.NetworkCloudLocal,
+		Value:       "10.0.0.1",
+		Type:        network.IPv4Address,
+		NetworkName: "internal",
+		Scope:       network.ScopeCloudLocal,
 	}}
-	server2Addresses := []instance.Address{{
-		Value:        "::1",
-		Type:         instance.Ipv6Address,
-		NetworkName:  "loopback",
-		NetworkScope: instance.NetworkMachineLocal,
+	server2Addresses := []network.Address{{
+		Value:       "::1",
+		Type:        network.IPv6Address,
+		NetworkName: "loopback",
+		Scope:       network.ScopeMachineLocal,
 	}}
-	stateAPIHostPorts := [][]instance.HostPort{
-		instance.AddressesWithPort(server1Addresses, 123),
-		instance.AddressesWithPort(server2Addresses, 456),
+	stateAPIHostPorts := [][]network.HostPort{
+		network.AddressesWithPort(server1Addresses, 123),
+		network.AddressesWithPort(server2Addresses, 456),
 	}
 
 	err = s.State.SetAPIHostPorts(stateAPIHostPorts)

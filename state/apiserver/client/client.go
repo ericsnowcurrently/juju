@@ -9,18 +9,19 @@ import (
 	"os"
 	"strings"
 
+	"github.com/juju/charm"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
 	"github.com/juju/utils"
 
-	"github.com/juju/juju/charm"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/manual"
 	envtools "github.com/juju/juju/environs/tools"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/api/params"
@@ -164,7 +165,7 @@ func (c *Client) PublicAddress(p params.PublicAddress) (results params.PublicAdd
 		if err != nil {
 			return results, err
 		}
-		addr := instance.SelectPublicAddress(machine.Addresses())
+		addr := network.SelectPublicAddress(machine.Addresses())
 		if addr == "" {
 			return results, fmt.Errorf("machine %q has no public address", machine)
 		}
@@ -192,7 +193,7 @@ func (c *Client) PrivateAddress(p params.PrivateAddress) (results params.Private
 		if err != nil {
 			return results, err
 		}
-		addr := instance.SelectInternalAddress(machine.Addresses(), false)
+		addr := network.SelectInternalAddress(machine.Addresses(), false)
 		if addr == "" {
 			return results, fmt.Errorf("machine %q has no internal address", machine)
 		}
@@ -237,11 +238,11 @@ var CharmStore charm.Repository = charm.Store
 func networkTagsToNames(tags []string) ([]string, error) {
 	netNames := make([]string, len(tags))
 	for i, tag := range tags {
-		_, name, err := names.ParseTag(tag, names.NetworkTagKind)
+		t, err := names.ParseNetworkTag(tag)
 		if err != nil {
 			return nil, err
 		}
-		netNames[i] = name
+		netNames[i] = t.Id()
 	}
 	return netNames, nil
 }
@@ -1065,27 +1066,55 @@ func (c *Client) APIHostPorts() (result params.APIHostPortsResult, err error) {
 	return result, nil
 }
 
+// Convert machine ids to tags.
+func machineIdsToTags(ids ...string) []string {
+	var result []string
+	for _, id := range ids {
+		result = append(result, names.NewMachineTag(id).String())
+	}
+	return result
+}
+
+// Generate a StateServersChanges structure.
+func stateServersChanges(change state.StateServersChanges) params.StateServersChanges {
+	return params.StateServersChanges{
+		Added:      machineIdsToTags(change.Added...),
+		Maintained: machineIdsToTags(change.Maintained...),
+		Removed:    machineIdsToTags(change.Removed...),
+		Promoted:   machineIdsToTags(change.Promoted...),
+		Demoted:    machineIdsToTags(change.Demoted...),
+	}
+}
+
 // EnsureAvailability ensures the availability of Juju state servers.
-func (c *Client) EnsureAvailability(args params.EnsureAvailability) error {
+func (c *Client) EnsureAvailability(args params.StateServersSpec) (params.StateServersChanges, error) {
 	series := args.Series
+
 	if series == "" {
 		ssi, err := c.api.state.StateServerInfo()
 		if err != nil {
-			return err
+			return params.StateServersChanges{}, err
 		}
+
 		// We should always have at least one voting machine
 		// If we *really* wanted we could just pick whatever series is
 		// in the majority, but really, if we always copy the value of
 		// the first one, then they'll stay in sync.
 		if len(ssi.VotingMachineIds) == 0 {
 			// Better than a panic()?
-			return fmt.Errorf("internal error, failed to find any voting machines")
+			return params.StateServersChanges{}, fmt.Errorf("internal error, failed to find any voting machines")
 		}
 		templateMachine, err := c.api.state.Machine(ssi.VotingMachineIds[0])
 		if err != nil {
-			return err
+			return params.StateServersChanges{}, err
 		}
 		series = templateMachine.Series()
 	}
-	return c.api.state.EnsureAvailability(args.NumStateServers, args.Constraints, series)
+	changes, err := c.api.state.EnsureAvailability(args.NumStateServers, args.Constraints, series)
+	if err != nil {
+		return params.StateServersChanges{}, err
+	}
+	chg := stateServersChanges(changes)
+
+	return chg, nil
 }

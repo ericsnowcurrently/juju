@@ -11,20 +11,23 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api/params"
+	"github.com/juju/juju/state/backup"
 )
 
-func doBackup(tempDir string) (backupFile string, sha string, err error) {
-	// stub temporary implementation
-	return backupFile, sha, err
-}
-
-var DoBackup = doBackup
+var Backup = backup.Backup
 
 // backupHandler handles backup requests
 type backupHandler struct {
 	httpHandler
 }
+
+func getMongoConnectionInfo(state *state.State) (info *state.Info) {
+	return state.MongoConnectionInfo()
+}
+
+var GetMongoConnectionInfo = getMongoConnectionInfo
 
 func (h *backupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.authenticate(r); err != nil {
@@ -34,22 +37,9 @@ func (h *backupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "POST":
-		tempDir, err := ioutil.TempDir("", "jujuBackup")
+		file, sha, err := h.doBackup()
 		if err != nil {
-			h.sendError(w, http.StatusInternalServerError, fmt.Sprintf("backup failed: %v", err))
-			return
-		}
-
-		defer os.RemoveAll(tempDir)
-		filename, sha, err := DoBackup(tempDir)
-		if err != nil {
-			h.sendError(w, http.StatusInternalServerError, fmt.Sprintf("backup failed: %v", err))
-			return
-		}
-
-		file, err := os.Open(filename)
-		if err != nil {
-			h.sendError(w, http.StatusInternalServerError, fmt.Sprintf("backup failed: missing backup file"))
+			h.sendError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -61,6 +51,27 @@ func (h *backupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.sendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
 	}
+}
+
+func (h *backupHandler) doBackup() (*os.File, string, error) {
+	tempDir, err := ioutil.TempDir("", "jujuBackup")
+	if err != nil {
+		return nil, "", fmt.Errorf("creating backup directory failed: %v", err)
+	}
+
+	defer os.RemoveAll(tempDir)
+
+	info := GetMongoConnectionInfo(h.state)
+	filename, sha, err := Backup(info.Password, info.Tag, tempDir, info.Addrs[0])
+	if err != nil {
+		return nil, "", fmt.Errorf("backup failed: %v", err)
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, "", fmt.Errorf("backup failed: missing backup file")
+	}
+	return file, sha, nil
 }
 
 // sendError sends a JSON-encoded error response.

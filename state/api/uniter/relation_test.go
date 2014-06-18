@@ -4,10 +4,10 @@
 package uniter_test
 
 import (
+	"github.com/juju/charm"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/api/uniter"
 )
@@ -26,7 +26,7 @@ func (s *relationSuite) SetUpTest(c *gc.C) {
 	s.commonRelationSuiteMixin.SetUpTest(c, s.uniterSuite)
 
 	var err error
-	s.apiRelation, err = s.uniter.Relation(s.stateRelation.Tag())
+	s.apiRelation, err = s.uniter.Relation(s.stateRelation.Tag().String())
 	c.Assert(err, gc.IsNil)
 }
 

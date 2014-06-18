@@ -9,8 +9,8 @@ import (
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/testing"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/api/deployer"
@@ -46,7 +46,7 @@ var _ = gc.Suite(&deployerSuite{})
 func (s *deployerSuite) SetUpTest(c *gc.C) {
 	s.JujuConnSuite.SetUpTest(c)
 	s.stateAPI, s.machine = s.OpenAPIAsNewMachine(c, state.JobManageEnviron, state.JobHostUnits)
-	err := s.machine.SetAddresses(instance.NewAddress("0.1.2.3", instance.NetworkUnknown))
+	err := s.machine.SetAddresses(network.NewAddress("0.1.2.3", network.ScopeUnknown))
 	c.Assert(err, gc.IsNil)
 
 	// Create the needed services and relate them.
@@ -105,7 +105,7 @@ func (s *deployerSuite) TestWatchUnitsWrongMachine(c *gc.C) {
 }
 
 func (s *deployerSuite) TestWatchUnits(c *gc.C) {
-	machine, err := s.st.Machine(s.machine.Tag())
+	machine, err := s.st.Machine(s.machine.Tag().String())
 	c.Assert(err, gc.IsNil)
 	w, err := machine.WatchUnits()
 	c.Assert(err, gc.IsNil)
@@ -153,21 +153,21 @@ func (s *deployerSuite) TestUnit(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = principal1.AssignToMachine(machine)
 	c.Assert(err, gc.IsNil)
-	unit, err = s.st.Unit(principal1.Tag())
+	unit, err = s.st.Unit(principal1.Tag().String())
 	s.assertUnauthorized(c, err)
 	c.Assert(unit, gc.IsNil)
 
 	// Get the principal and subordinate we're responsible for.
-	unit, err = s.st.Unit(s.principal.Tag())
+	unit, err = s.st.Unit(s.principal.Tag().String())
 	c.Assert(err, gc.IsNil)
 	c.Assert(unit.Name(), gc.Equals, "mysql/0")
-	unit, err = s.st.Unit(s.subordinate.Tag())
+	unit, err = s.st.Unit(s.subordinate.Tag().String())
 	c.Assert(err, gc.IsNil)
 	c.Assert(unit.Name(), gc.Equals, "logging/0")
 }
 
 func (s *deployerSuite) TestUnitLifeRefresh(c *gc.C) {
-	unit, err := s.st.Unit(s.subordinate.Tag())
+	unit, err := s.st.Unit(s.subordinate.Tag().String())
 	c.Assert(err, gc.IsNil)
 
 	c.Assert(unit.Life(), gc.Equals, params.Alive)
@@ -185,7 +185,7 @@ func (s *deployerSuite) TestUnitLifeRefresh(c *gc.C) {
 }
 
 func (s *deployerSuite) TestUnitRemove(c *gc.C) {
-	unit, err := s.st.Unit(s.principal.Tag())
+	unit, err := s.st.Unit(s.principal.Tag().String())
 	c.Assert(err, gc.IsNil)
 
 	// It fails because the entity is still alive.
@@ -195,7 +195,7 @@ func (s *deployerSuite) TestUnitRemove(c *gc.C) {
 	c.Assert(params.ErrCode(err), gc.Equals, "")
 
 	// With the subordinate it also fails due to it being alive.
-	unit, err = s.st.Unit(s.subordinate.Tag())
+	unit, err = s.st.Unit(s.subordinate.Tag().String())
 	c.Assert(err, gc.IsNil)
 	err = unit.Remove()
 	c.Assert(err, gc.ErrorMatches, `cannot remove entity "unit-logging-0": still alive`)
@@ -210,13 +210,13 @@ func (s *deployerSuite) TestUnitRemove(c *gc.C) {
 	// Verify it's gone.
 	err = unit.Refresh()
 	s.assertUnauthorized(c, err)
-	unit, err = s.st.Unit(s.subordinate.Tag())
+	unit, err = s.st.Unit(s.subordinate.Tag().String())
 	s.assertUnauthorized(c, err)
 	c.Assert(unit, gc.IsNil)
 }
 
 func (s *deployerSuite) TestUnitSetPassword(c *gc.C) {
-	unit, err := s.st.Unit(s.principal.Tag())
+	unit, err := s.st.Unit(s.principal.Tag().String())
 	c.Assert(err, gc.IsNil)
 
 	// Change the principal's password and verify.
@@ -227,7 +227,7 @@ func (s *deployerSuite) TestUnitSetPassword(c *gc.C) {
 	c.Assert(s.principal.PasswordValid("foobar-12345678901234567890"), gc.Equals, true)
 
 	// Then the subordinate.
-	unit, err = s.st.Unit(s.subordinate.Tag())
+	unit, err = s.st.Unit(s.subordinate.Tag().String())
 	c.Assert(err, gc.IsNil)
 	err = unit.SetPassword("phony-12345678901234567890")
 	c.Assert(err, gc.IsNil)
@@ -237,7 +237,7 @@ func (s *deployerSuite) TestUnitSetPassword(c *gc.C) {
 }
 
 func (s *deployerSuite) TestStateAddresses(c *gc.C) {
-	err := s.machine.SetAddresses(instance.NewAddress("0.1.2.3", instance.NetworkUnknown))
+	err := s.machine.SetAddresses(network.NewAddress("0.1.2.3", network.ScopeUnknown))
 	c.Assert(err, gc.IsNil)
 
 	stateAddresses, err := s.State.Addresses()

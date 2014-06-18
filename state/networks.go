@@ -9,7 +9,7 @@ import (
 	"github.com/juju/names"
 	"labix.org/v2/mgo/bson"
 
-	"github.com/juju/juju/environs/network"
+	"github.com/juju/juju/network"
 )
 
 // Network represents the state of a network.
@@ -77,8 +77,8 @@ func (n *Network) ProviderId() network.Id {
 }
 
 // Tag returns the network tag.
-func (n *Network) Tag() string {
-	return names.NetworkTag(n.doc.Name)
+func (n *Network) Tag() names.Tag {
+	return names.NewNetworkTag(n.doc.Name)
 }
 
 // CIDR returns the network CIDR (e.g. 192.168.50.0/24).

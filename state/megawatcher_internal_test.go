@@ -10,12 +10,15 @@ import (
 	"sort"
 	"time"
 
+	"github.com/juju/charm"
+	"github.com/juju/names"
+	gitjujutesting "github.com/juju/testing"
 	"labix.org/v2/mgo"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm"
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/instance"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/multiwatcher"
 	"github.com/juju/juju/state/watcher"
@@ -29,7 +32,7 @@ options:
 
 type storeManagerStateSuite struct {
 	testing.BaseSuite
-	testing.MgoSuite
+	gitjujutesting.MgoSuite
 	State *State
 }
 
@@ -47,7 +50,7 @@ func (s *storeManagerStateSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.MgoSuite.SetUpTest(c)
 	s.State = TestingInitialize(c, nil, Policy(nil))
-	s.State.AddUser(AdminUser, "", "pass")
+	s.State.AddAdminUser("pass")
 }
 
 func (s *storeManagerStateSuite) TearDownTest(c *gc.C) {
@@ -72,12 +75,13 @@ func (s *storeManagerStateSuite) setUpScenario(c *gc.C) (entities entityInfoSlic
 	}
 	m, err := s.State.AddMachine("quantal", JobManageEnviron)
 	c.Assert(err, gc.IsNil)
-	c.Assert(m.Tag(), gc.Equals, "machine-0")
-	err = m.SetProvisioned(instance.Id("i-"+m.Tag()), "fake_nonce", nil)
+	c.Assert(m.Tag(), gc.Equals, names.NewMachineTag("0"))
+	// TODO(dfc) instance.Id should take a TAG!
+	err = m.SetProvisioned(instance.Id("i-"+m.Tag().String()), "fake_nonce", nil)
 	c.Assert(err, gc.IsNil)
 	hc, err := m.HardwareCharacteristics()
 	c.Assert(err, gc.IsNil)
-	err = m.SetAddresses(instance.NewAddress("example.com", instance.NetworkUnknown))
+	err = m.SetAddresses(network.NewAddress("example.com", network.ScopeUnknown))
 	c.Assert(err, gc.IsNil)
 	add(&params.MachineInfo{
 		Id:                      "0",
@@ -140,18 +144,18 @@ func (s *storeManagerStateSuite) setUpScenario(c *gc.C) (entities entityInfoSlic
 	for i := 0; i < 2; i++ {
 		wu, err := wordpress.AddUnit()
 		c.Assert(err, gc.IsNil)
-		c.Assert(wu.Tag(), gc.Equals, fmt.Sprintf("unit-wordpress-%d", i))
+		c.Assert(wu.Tag().String(), gc.Equals, fmt.Sprintf("unit-wordpress-%d", i))
 
 		m, err := s.State.AddMachine("quantal", JobHostUnits)
 		c.Assert(err, gc.IsNil)
-		c.Assert(m.Tag(), gc.Equals, fmt.Sprintf("machine-%d", i+1))
+		c.Assert(m.Tag().String(), gc.Equals, fmt.Sprintf("machine-%d", i+1))
 
 		add(&params.UnitInfo{
 			Name:      fmt.Sprintf("wordpress/%d", i),
 			Service:   wordpress.Name(),
 			Series:    m.Series(),
 			MachineId: m.Id(),
-			Ports:     []instance.Port{},
+			Ports:     []network.Port{},
 			Status:    params.StatusPending,
 		})
 		pairs := map[string]string{"name": fmt.Sprintf("bar %d", i)}
@@ -162,21 +166,21 @@ func (s *storeManagerStateSuite) setUpScenario(c *gc.C) (entities entityInfoSlic
 			Annotations: pairs,
 		})
 
-		err = m.SetProvisioned(instance.Id("i-"+m.Tag()), "fake_nonce", nil)
+		err = m.SetProvisioned(instance.Id("i-"+m.Tag().String()), "fake_nonce", nil)
 		c.Assert(err, gc.IsNil)
-		err = m.SetStatus(params.StatusError, m.Tag(), nil)
+		err = m.SetStatus(params.StatusError, m.Tag().String(), nil)
 		c.Assert(err, gc.IsNil)
 		hc, err := m.HardwareCharacteristics()
 		c.Assert(err, gc.IsNil)
 		add(&params.MachineInfo{
 			Id:                      fmt.Sprint(i + 1),
-			InstanceId:              "i-" + m.Tag(),
+			InstanceId:              "i-" + m.Tag().String(),
 			Status:                  params.StatusError,
-			StatusInfo:              m.Tag(),
+			StatusInfo:              m.Tag().String(),
 			Life:                    params.Alive,
 			Series:                  "quantal",
 			Jobs:                    []params.MachineJob{JobHostUnits.ToParams()},
-			Addresses:               []instance.Address{},
+			Addresses:               []network.Address{},
 			HardwareCharacteristics: hc,
 		})
 		err = wu.AssignToMachine(m)
@@ -184,7 +188,7 @@ func (s *storeManagerStateSuite) setUpScenario(c *gc.C) (entities entityInfoSlic
 
 		deployer, ok := wu.DeployerTag()
 		c.Assert(ok, gc.Equals, true)
-		c.Assert(deployer, gc.Equals, fmt.Sprintf("machine-%d", i+1))
+		c.Assert(deployer, gc.Equals, names.NewMachineTag(fmt.Sprintf("%d", i+1)))
 
 		wru, err := rel.Unit(wu)
 		c.Assert(err, gc.IsNil)
@@ -199,12 +203,12 @@ func (s *storeManagerStateSuite) setUpScenario(c *gc.C) (entities entityInfoSlic
 		c.Assert(lu.IsPrincipal(), gc.Equals, false)
 		deployer, ok = lu.DeployerTag()
 		c.Assert(ok, gc.Equals, true)
-		c.Assert(deployer, gc.Equals, fmt.Sprintf("unit-wordpress-%d", i))
+		c.Assert(deployer, gc.Equals, names.NewUnitTag(fmt.Sprintf("wordpress/%d", i)))
 		add(&params.UnitInfo{
 			Name:    fmt.Sprintf("logging/%d", i),
 			Service: "logging",
 			Series:  "quantal",
-			Ports:   []instance.Port{},
+			Ports:   []network.Port{},
 			Status:  params.StatusPending,
 		})
 	}
@@ -293,7 +297,7 @@ var allWatcherChangedTests = []struct {
 				Life:       params.Alive,
 				Series:     "quantal",
 				Jobs:       []params.MachineJob{JobHostUnits.ToParams()},
-				Addresses:  []instance.Address{},
+				Addresses:  []network.Address{},
 			},
 		},
 	},
@@ -328,7 +332,7 @@ var allWatcherChangedTests = []struct {
 				Life:                     params.Alive,
 				Series:                   "trusty",
 				Jobs:                     []params.MachineJob{JobManageEnviron.ToParams()},
-				Addresses:                []instance.Address{},
+				Addresses:                []network.Address{},
 				HardwareCharacteristics:  &instance.HardwareCharacteristics{},
 				SupportedContainers:      []instance.ContainerType{instance.LXC},
 				SupportedContainersKnown: true,
@@ -376,7 +380,7 @@ var allWatcherChangedTests = []struct {
 				Service:    "wordpress",
 				Series:     "quantal",
 				MachineId:  "0",
-				Ports:      []instance.Port{{"tcp", 12345}},
+				Ports:      []network.Port{{"tcp", 12345}},
 				Status:     params.StatusError,
 				StatusInfo: "failure",
 			},
@@ -404,7 +408,7 @@ var allWatcherChangedTests = []struct {
 				Name:       "wordpress/0",
 				Service:    "wordpress",
 				Series:     "quantal",
-				Ports:      []instance.Port{{"udp", 17070}},
+				Ports:      []network.Port{{"udp", 17070}},
 				Status:     params.StatusError,
 				StatusInfo: "another failure",
 			},
@@ -421,8 +425,8 @@ var allWatcherChangedTests = []struct {
 			c.Assert(err, gc.IsNil)
 			err = u.AssignToMachine(m)
 			c.Assert(err, gc.IsNil)
-			publicAddress := instance.NewAddress("public", instance.NetworkPublic)
-			privateAddress := instance.NewAddress("private", instance.NetworkCloudLocal)
+			publicAddress := network.NewAddress("public", network.ScopePublic)
+			privateAddress := network.NewAddress("private", network.ScopeCloudLocal)
 			err = m.SetAddresses(publicAddress, privateAddress)
 			c.Assert(err, gc.IsNil)
 			err = u.SetStatus(params.StatusError, "failure", nil)
@@ -440,7 +444,7 @@ var allWatcherChangedTests = []struct {
 				PublicAddress:  "public",
 				PrivateAddress: "private",
 				MachineId:      "0",
-				Ports:          []instance.Port{{"tcp", 12345}},
+				Ports:          []network.Port{{"tcp", 12345}},
 				Status:         params.StatusError,
 				StatusInfo:     "failure",
 			},
@@ -998,7 +1002,7 @@ func (s *storeManagerStateSuite) TestStateWatcher(c *gc.C) {
 			Life:      params.Alive,
 			Series:    "quantal",
 			Jobs:      []params.MachineJob{JobManageEnviron.ToParams()},
-			Addresses: []instance.Address{},
+			Addresses: []network.Address{},
 		},
 	}, {
 		Entity: &params.MachineInfo{
@@ -1007,7 +1011,7 @@ func (s *storeManagerStateSuite) TestStateWatcher(c *gc.C) {
 			Life:      params.Alive,
 			Series:    "saucy",
 			Jobs:      []params.MachineJob{JobHostUnits.ToParams()},
-			Addresses: []instance.Address{},
+			Addresses: []network.Address{},
 		},
 	}}, "")
 
@@ -1050,7 +1054,7 @@ func (s *storeManagerStateSuite) TestStateWatcher(c *gc.C) {
 			Life:      params.Alive,
 			Series:    "saucy",
 			Jobs:      []params.MachineJob{JobHostUnits.ToParams()},
-			Addresses: []instance.Address{},
+			Addresses: []network.Address{},
 		},
 	}, {
 		Entity: &params.MachineInfo{
@@ -1059,7 +1063,7 @@ func (s *storeManagerStateSuite) TestStateWatcher(c *gc.C) {
 			Life:      params.Alive,
 			Series:    "trusty",
 			Jobs:      []params.MachineJob{JobHostUnits.ToParams()},
-			Addresses: []instance.Address{},
+			Addresses: []network.Address{},
 		},
 	}, {
 		Entity: &params.MachineInfo{
@@ -1069,7 +1073,7 @@ func (s *storeManagerStateSuite) TestStateWatcher(c *gc.C) {
 			Life:                    params.Alive,
 			Series:                  "quantal",
 			Jobs:                    []params.MachineJob{JobManageEnviron.ToParams()},
-			Addresses:               []instance.Address{},
+			Addresses:               []network.Address{},
 			HardwareCharacteristics: hc,
 		},
 	}})

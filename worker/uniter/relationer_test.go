@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/juju/charm/hooks"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
 	ft "github.com/juju/testing/filetesting"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm/hooks"
-	"github.com/juju/juju/instance"
 	jujutesting "github.com/juju/juju/juju/testing"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api"
 	apiuniter "github.com/juju/juju/state/api/uniter"
@@ -60,13 +60,13 @@ func (s *RelationerSuite) SetUpTest(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = unit.SetPassword(password)
 	c.Assert(err, gc.IsNil)
-	s.st = s.OpenAPIAs(c, unit.Tag(), password)
+	s.st = s.OpenAPIAs(c, unit.Tag().String(), password)
 	s.uniter = s.st.Uniter()
 	c.Assert(s.uniter, gc.NotNil)
 
-	apiUnit, err := s.uniter.Unit(unit.Tag())
+	apiUnit, err := s.uniter.Unit(unit.Tag().String())
 	c.Assert(err, gc.IsNil)
-	apiRel, err := s.uniter.Relation(s.rel.Tag())
+	apiRel, err := s.uniter.Relation(s.rel.Tag().String())
 	c.Assert(err, gc.IsNil)
 	s.apiRelUnit, err = apiRel.Unit(apiUnit)
 	c.Assert(err, gc.IsNil)
@@ -80,8 +80,8 @@ func (s *RelationerSuite) AddRelationUnit(c *gc.C, name string) (*state.Relation
 	c.Assert(err, gc.IsNil)
 	err = u.AssignToMachine(machine)
 	c.Assert(err, gc.IsNil)
-	privateAddr := instance.NewAddress(
-		strings.Replace(name, "/", "-", 1)+".testing.invalid", instance.NetworkCloudLocal)
+	privateAddr := network.NewAddress(
+		strings.Replace(name, "/", "-", 1)+".testing.invalid", network.ScopeCloudLocal)
 	err = machine.SetAddresses(privateAddr)
 	c.Assert(err, gc.IsNil)
 	ru, err := s.rel.Unit(u)
@@ -409,7 +409,7 @@ func (s *RelationerImplicitSuite) TestImplicitRelationer(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = u.AssignToMachine(machine)
 	c.Assert(err, gc.IsNil)
-	err = machine.SetAddresses(instance.NewAddress("blah", instance.NetworkCloudLocal))
+	err = machine.SetAddresses(network.NewAddress("blah", network.ScopeCloudLocal))
 	c.Assert(err, gc.IsNil)
 	logging := s.AddTestingService(c, "logging", s.AddTestingCharm(c, "logging"))
 	eps, err := s.State.InferEndpoints([]string{"logging", "mysql"})
@@ -425,13 +425,13 @@ func (s *RelationerImplicitSuite) TestImplicitRelationer(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = u.SetPassword(password)
 	c.Assert(err, gc.IsNil)
-	st := s.OpenAPIAs(c, u.Tag(), password)
+	st := s.OpenAPIAs(c, u.Tag().String(), password)
 	uniterState := st.Uniter()
 	c.Assert(uniterState, gc.NotNil)
 
-	apiUnit, err := uniterState.Unit(u.Tag())
+	apiUnit, err := uniterState.Unit(u.Tag().String())
 	c.Assert(err, gc.IsNil)
-	apiRel, err := uniterState.Relation(rel.Tag())
+	apiRel, err := uniterState.Relation(rel.Tag().String())
 	c.Assert(err, gc.IsNil)
 	apiRelUnit, err := apiRel.Unit(apiUnit)
 	c.Assert(err, gc.IsNil)

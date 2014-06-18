@@ -17,6 +17,7 @@ import (
 	"github.com/juju/juju/container"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/testing"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
@@ -118,11 +119,11 @@ func (s *withoutStateServerSuite) TestProvisionerFailsWithNonMachineAgentNonMana
 func (s *withoutStateServerSuite) TestSetPasswords(c *gc.C) {
 	args := params.EntityPasswords{
 		Changes: []params.EntityPassword{
-			{Tag: s.machines[0].Tag(), Password: "xxx0-1234567890123457890"},
-			{Tag: s.machines[1].Tag(), Password: "xxx1-1234567890123457890"},
-			{Tag: s.machines[2].Tag(), Password: "xxx2-1234567890123457890"},
-			{Tag: s.machines[3].Tag(), Password: "xxx3-1234567890123457890"},
-			{Tag: s.machines[4].Tag(), Password: "xxx4-1234567890123457890"},
+			{Tag: s.machines[0].Tag().String(), Password: "xxx0-1234567890123457890"},
+			{Tag: s.machines[1].Tag().String(), Password: "xxx1-1234567890123457890"},
+			{Tag: s.machines[2].Tag().String(), Password: "xxx2-1234567890123457890"},
+			{Tag: s.machines[3].Tag().String(), Password: "xxx3-1234567890123457890"},
+			{Tag: s.machines[4].Tag().String(), Password: "xxx4-1234567890123457890"},
 			{Tag: "machine-42", Password: "foo"},
 			{Tag: "unit-foo-0", Password: "zzz"},
 			{Tag: "service-bar", Password: "abc"},
@@ -156,7 +157,7 @@ func (s *withoutStateServerSuite) TestSetPasswords(c *gc.C) {
 func (s *withoutStateServerSuite) TestShortSetPasswords(c *gc.C) {
 	args := params.EntityPasswords{
 		Changes: []params.EntityPassword{
-			{Tag: s.machines[1].Tag(), Password: "xxx1"},
+			{Tag: s.machines[1].Tag().String(), Password: "xxx1"},
 		},
 	}
 	results, err := s.provisioner.SetPasswords(args)
@@ -180,7 +181,7 @@ func (s *withoutStateServerSuite) TestLifeAsMachineAgent(c *gc.C) {
 	anAuthorizer := s.authorizer
 	anAuthorizer.MachineAgent = true
 	anAuthorizer.EnvironManager = false
-	anAuthorizer.Tag = s.machines[0].Tag()
+	anAuthorizer.Tag = s.machines[0].Tag().String()
 	aProvisioner, err := provisioner.NewProvisionerAPI(s.State, s.resources, anAuthorizer)
 	c.Assert(err, gc.IsNil)
 	c.Assert(aProvisioner, gc.NotNil)
@@ -205,11 +206,11 @@ func (s *withoutStateServerSuite) TestLifeAsMachineAgent(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: containers[0].Tag()},
-		{Tag: containers[1].Tag()},
-		{Tag: containers[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: containers[0].Tag().String()},
+		{Tag: containers[1].Tag().String()},
+		{Tag: containers[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -240,9 +241,9 @@ func (s *withoutStateServerSuite) TestLifeAsEnvironManager(c *gc.C) {
 	c.Assert(s.machines[2].Life(), gc.Equals, state.Alive)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: s.machines[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -268,7 +269,7 @@ func (s *withoutStateServerSuite) TestLifeAsEnvironManager(c *gc.C) {
 
 	result, err = s.provisioner.Life(params.Entities{
 		Entities: []params.Entity{
-			{Tag: s.machines[1].Tag()},
+			{Tag: s.machines[1].Tag().String()},
 		},
 	})
 	c.Assert(err, gc.IsNil)
@@ -287,9 +288,9 @@ func (s *withoutStateServerSuite) TestRemove(c *gc.C) {
 	s.assertLife(c, 2, state.Alive)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: s.machines[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -324,10 +325,10 @@ func (s *withoutStateServerSuite) TestSetStatus(c *gc.C) {
 
 	args := params.SetStatus{
 		Entities: []params.EntityStatus{
-			{Tag: s.machines[0].Tag(), Status: params.StatusError, Info: "not really",
+			{Tag: s.machines[0].Tag().String(), Status: params.StatusError, Info: "not really",
 				Data: params.StatusData{"foo": "bar"}},
-			{Tag: s.machines[1].Tag(), Status: params.StatusStopped, Info: "foobar"},
-			{Tag: s.machines[2].Tag(), Status: params.StatusStarted, Info: "again"},
+			{Tag: s.machines[1].Tag().String(), Status: params.StatusStopped, Info: "foobar"},
+			{Tag: s.machines[2].Tag().String(), Status: params.StatusStarted, Info: "again"},
 			{Tag: "machine-42", Status: params.StatusStarted, Info: "blah"},
 			{Tag: "unit-foo-0", Status: params.StatusStopped, Info: "foobar"},
 			{Tag: "service-bar", Status: params.StatusStopped, Info: "foobar"},
@@ -415,9 +416,9 @@ func (s *withoutStateServerSuite) TestEnsureDead(c *gc.C) {
 	s.assertLife(c, 2, state.Alive)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: s.machines[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -461,8 +462,8 @@ func (s *withoutStateServerSuite) TestWatchContainers(c *gc.C) {
 	c.Assert(s.resources.Count(), gc.Equals, 0)
 
 	args := params.WatchContainers{Params: []params.WatchContainer{
-		{MachineTag: s.machines[0].Tag(), ContainerType: string(instance.LXC)},
-		{MachineTag: s.machines[1].Tag(), ContainerType: string(instance.KVM)},
+		{MachineTag: s.machines[0].Tag().String(), ContainerType: string(instance.LXC)},
+		{MachineTag: s.machines[1].Tag().String(), ContainerType: string(instance.KVM)},
 		{MachineTag: "machine-42", ContainerType: ""},
 		{MachineTag: "unit-foo-0", ContainerType: ""},
 		{MachineTag: "service-bar", ContainerType: ""},
@@ -498,8 +499,8 @@ func (s *withoutStateServerSuite) TestWatchAllContainers(c *gc.C) {
 	c.Assert(s.resources.Count(), gc.Equals, 0)
 
 	args := params.WatchContainers{Params: []params.WatchContainer{
-		{MachineTag: s.machines[0].Tag()},
-		{MachineTag: s.machines[1].Tag()},
+		{MachineTag: s.machines[0].Tag().String()},
+		{MachineTag: s.machines[1].Tag().String()},
 		{MachineTag: "machine-42"},
 		{MachineTag: "unit-foo-0"},
 		{MachineTag: "service-bar"},
@@ -552,9 +553,9 @@ func (s *withoutStateServerSuite) TestStatus(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: s.machines[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -579,9 +580,9 @@ func (s *withoutStateServerSuite) TestSeries(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: foobarMachine.Tag()},
-		{Tag: s.machines[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: foobarMachine.Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -635,7 +636,7 @@ func (s *withoutStateServerSuite) TestDistributionGroup(c *gc.C) {
 	setProvisioned("3")
 
 	// Add a few state servers, provision two of them.
-	err = s.State.EnsureAvailability(3, constraints.Value{}, "quantal")
+	_, err = s.State.EnsureAvailability(3, constraints.Value{}, "quantal")
 	c.Assert(err, gc.IsNil)
 	setProvisioned("5")
 	setProvisioned("7")
@@ -652,10 +653,10 @@ func (s *withoutStateServerSuite) TestDistributionGroup(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: s.machines[2].Tag()},
-		{Tag: s.machines[3].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
+		{Tag: s.machines[3].Tag().String()},
 		{Tag: "machine-5"},
 	}}
 	result, err := s.provisioner.DistributionGroup(args)
@@ -740,8 +741,8 @@ func (s *withoutStateServerSuite) TestProvisioningInfo(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: placementMachine.Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: placementMachine.Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -772,16 +773,16 @@ func (s *withoutStateServerSuite) TestProvisioningInfoPermissions(c *gc.C) {
 	anAuthorizer := s.authorizer
 	anAuthorizer.MachineAgent = true
 	anAuthorizer.EnvironManager = false
-	anAuthorizer.Tag = s.machines[0].Tag()
+	anAuthorizer.Tag = s.machines[0].Tag().String()
 	aProvisioner, err := provisioner.NewProvisionerAPI(s.State, s.resources, anAuthorizer)
 	c.Assert(err, gc.IsNil)
 	c.Assert(aProvisioner, gc.NotNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[0].Tag() + "-lxc-0"},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[0].Tag().String() + "-lxc-0"},
 		{Tag: "machine-42"},
-		{Tag: s.machines[1].Tag()},
+		{Tag: s.machines[1].Tag().String()},
 		{Tag: "service-bar"},
 	}}
 
@@ -816,8 +817,8 @@ func (s *withoutStateServerSuite) TestConstraints(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: consMachine.Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: consMachine.Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -849,8 +850,8 @@ func (s *withoutStateServerSuite) TestRequestedNetworks(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: netsMachine.Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: netsMachine.Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -879,9 +880,9 @@ func (s *withoutStateServerSuite) TestSetProvisioned(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.SetProvisioned{Machines: []params.MachineSetProvisioned{
-		{Tag: s.machines[0].Tag(), InstanceId: "i-was", Nonce: "fake_nonce", Characteristics: nil},
-		{Tag: s.machines[1].Tag(), InstanceId: "i-will", Nonce: "fake_nonce", Characteristics: &hwChars},
-		{Tag: s.machines[2].Tag(), InstanceId: "i-am-too", Nonce: "fake", Characteristics: nil},
+		{Tag: s.machines[0].Tag().String(), InstanceId: "i-was", Nonce: "fake_nonce", Characteristics: nil},
+		{Tag: s.machines[1].Tag().String(), InstanceId: "i-will", Nonce: "fake_nonce", Characteristics: &hwChars},
+		{Tag: s.machines[2].Tag().String(), InstanceId: "i-am-too", Nonce: "fake", Characteristics: nil},
 		{Tag: "machine-42", InstanceId: "", Nonce: "", Characteristics: nil},
 		{Tag: "unit-foo-0", InstanceId: "", Nonce: "", Characteristics: nil},
 		{Tag: "service-bar", InstanceId: "", Nonce: "", Characteristics: nil},
@@ -977,18 +978,18 @@ func (s *withoutStateServerSuite) TestSetInstanceInfo(c *gc.C) {
 		IsVirtual:     false,
 	}}
 	args := params.InstancesInfo{Machines: []params.InstanceInfo{{
-		Tag:        s.machines[0].Tag(),
+		Tag:        s.machines[0].Tag().String(),
 		InstanceId: "i-was",
 		Nonce:      "fake_nonce",
 	}, {
-		Tag:             s.machines[1].Tag(),
+		Tag:             s.machines[1].Tag().String(),
 		InstanceId:      "i-will",
 		Nonce:           "fake_nonce",
 		Characteristics: &hwChars,
 		Networks:        networks,
 		Interfaces:      ifaces,
 	}, {
-		Tag:             s.machines[2].Tag(),
+		Tag:             s.machines[2].Tag().String(),
 		InstanceId:      "i-am-too",
 		Nonce:           "fake",
 		Characteristics: nil,
@@ -1039,7 +1040,7 @@ func (s *withoutStateServerSuite) TestSetInstanceInfo(c *gc.C) {
 		actual[i].MACAddress = iface.MACAddress()
 		actual[i].IsVirtual = iface.IsVirtual()
 		c.Check(iface.MachineId(), gc.Equals, s.machines[1].Id())
-		c.Check(iface.MachineTag(), gc.Equals, s.machines[1].Tag())
+		c.Check(iface.MachineTag(), gc.Equals, s.machines[1].Tag().String())
 	}
 	c.Assert(actual, jc.SameContents, ifaces[:4])
 	ifacesMachine2, err := s.machines[2].NetworkInterfaces()
@@ -1054,13 +1055,14 @@ func (s *withoutStateServerSuite) TestSetInstanceInfo(c *gc.C) {
 			// Last one was ignored, so don't check.
 			break
 		}
-		_, networkName, err := names.ParseTag(networks[i].Tag, names.NetworkTagKind)
+		tag, err := names.ParseNetworkTag(networks[i].Tag)
 		c.Assert(err, gc.IsNil)
+		networkName := tag.Id()
 		network, err := s.State.Network(networkName)
 		c.Assert(err, gc.IsNil)
 		c.Check(network.Name(), gc.Equals, networkName)
 		c.Check(network.ProviderId(), gc.Equals, networks[i].ProviderId)
-		c.Check(network.Tag(), gc.Equals, networks[i].Tag)
+		c.Check(network.Tag().String(), gc.Equals, networks[i].Tag)
 		c.Check(network.VLANTag(), gc.Equals, networks[i].VLANTag)
 		c.Check(network.CIDR(), gc.Equals, networks[i].CIDR)
 	}
@@ -1075,9 +1077,9 @@ func (s *withoutStateServerSuite) TestInstanceId(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	args := params.Entities{Entities: []params.Entity{
-		{Tag: s.machines[0].Tag()},
-		{Tag: s.machines[1].Tag()},
-		{Tag: s.machines[2].Tag()},
+		{Tag: s.machines[0].Tag().String()},
+		{Tag: s.machines[1].Tag().String()},
+		{Tag: s.machines[2].Tag().String()},
 		{Tag: "machine-42"},
 		{Tag: "unit-foo-0"},
 		{Tag: "service-bar"},
@@ -1173,7 +1175,7 @@ func (s *withoutStateServerSuite) TestToolsRefusesWrongAgent(c *gc.C) {
 	aProvisioner, err := provisioner.NewProvisionerAPI(s.State, s.resources, anAuthorizer)
 	c.Check(err, gc.IsNil)
 	args := params.Entities{
-		Entities: []params.Entity{{Tag: s.machines[0].Tag()}},
+		Entities: []params.Entity{{Tag: s.machines[0].Tag().String()}},
 	}
 	results, err := aProvisioner.Tools(args)
 	// It is not an error to make the request, but the specific item is rejected
@@ -1185,7 +1187,7 @@ func (s *withoutStateServerSuite) TestToolsRefusesWrongAgent(c *gc.C) {
 
 func (s *withoutStateServerSuite) TestToolsForAgent(c *gc.C) {
 	cur := version.Current
-	agent := params.Entity{Tag: s.machines[0].Tag()}
+	agent := params.Entity{Tag: s.machines[0].Tag().String()}
 
 	// The machine must have its existing tools set before we query for the
 	// next tools. This is so that we can grab Arch and Series without
@@ -1239,7 +1241,7 @@ func (s *withoutStateServerSuite) TestSetSupportedContainersPermissions(c *gc.C)
 	anAuthorizer := s.authorizer
 	anAuthorizer.MachineAgent = true
 	anAuthorizer.EnvironManager = false
-	anAuthorizer.Tag = s.machines[0].Tag()
+	anAuthorizer.Tag = s.machines[0].Tag().String()
 	aProvisioner, err := provisioner.NewProvisionerAPI(s.State, s.resources, anAuthorizer)
 	c.Assert(err, gc.IsNil)
 	c.Assert(aProvisioner, gc.NotNil)
@@ -1298,8 +1300,8 @@ func (s *withStateServerSuite) SetUpTest(c *gc.C) {
 }
 
 func (s *withStateServerSuite) TestAPIAddresses(c *gc.C) {
-	hostPorts := [][]instance.HostPort{{{
-		Address: instance.NewAddress("0.1.2.3", instance.NetworkUnknown),
+	hostPorts := [][]network.HostPort{{{
+		Address: network.NewAddress("0.1.2.3", network.ScopeUnknown),
 		Port:    1234,
 	}}}
 

@@ -4,11 +4,11 @@
 package uniter_test
 
 import (
+	"github.com/juju/charm"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm"
-	"github.com/juju/juju/instance"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/api/uniter"
@@ -55,9 +55,9 @@ func (s *relationUnitSuite) TearDownTest(c *gc.C) {
 func (s *relationUnitSuite) getRelationUnits(c *gc.C) (*state.RelationUnit, *uniter.RelationUnit) {
 	wpRelUnit, err := s.stateRelation.Unit(s.wordpressUnit)
 	c.Assert(err, gc.IsNil)
-	apiRelation, err := s.uniter.Relation(s.stateRelation.Tag())
+	apiRelation, err := s.uniter.Relation(s.stateRelation.Tag().String())
 	c.Assert(err, gc.IsNil)
-	apiUnit, err := s.uniter.Unit(s.wordpressUnit.Tag())
+	apiUnit, err := s.uniter.Unit(s.wordpressUnit.Tag().String())
 	c.Assert(err, gc.IsNil)
 	apiRelUnit, err := apiRelation.Unit(apiUnit)
 	c.Assert(err, gc.IsNil)
@@ -96,7 +96,7 @@ func (s *relationUnitSuite) TestPrivateAddress(c *gc.C) {
 	c.Assert(err, gc.ErrorMatches, `"unit-wordpress-0" has no private address set`)
 
 	// Set an address and try again.
-	err = s.wordpressMachine.SetAddresses(instance.NewAddress("1.2.3.4", instance.NetworkCloudLocal))
+	err = s.wordpressMachine.SetAddresses(network.NewAddress("1.2.3.4", network.ScopeCloudLocal))
 	c.Assert(err, gc.IsNil)
 	address, err = apiRelUnit.PrivateAddress()
 	c.Assert(err, gc.IsNil)
@@ -160,9 +160,9 @@ func (s *relationUnitSuite) TestEnterScopeErrCannotEnterScopeYet(c *gc.C) {
 	err = loggingSub.Destroy()
 	c.Assert(err, gc.IsNil)
 
-	apiUnit, err := s.uniter.Unit(s.wordpressUnit.Tag())
+	apiUnit, err := s.uniter.Unit(s.wordpressUnit.Tag().String())
 	c.Assert(err, gc.IsNil)
-	apiRel, err := s.uniter.Relation(subRel.Tag())
+	apiRel, err := s.uniter.Relation(subRel.Tag().String())
 	c.Assert(err, gc.IsNil)
 	apiRelUnit, err := apiRel.Unit(apiUnit)
 	c.Assert(err, gc.IsNil)
@@ -245,7 +245,7 @@ func (s *relationUnitSuite) TestWatchRelationUnits(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	s.assertInScope(c, myRelUnit, true)
 
-	apiRel, err := s.uniter.Relation(s.stateRelation.Tag())
+	apiRel, err := s.uniter.Relation(s.stateRelation.Tag().String())
 	c.Assert(err, gc.IsNil)
 	apiUnit, err := s.uniter.Unit("unit-wordpress-0")
 	c.Assert(err, gc.IsNil)

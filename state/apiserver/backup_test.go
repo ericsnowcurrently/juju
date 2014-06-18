@@ -19,7 +19,6 @@ import (
 
 type backupSuite struct {
 	authHttpSuite
-	tempDir string
 }
 
 var _ = gc.Suite(&backupSuite{})
@@ -31,7 +30,7 @@ func (s *backupSuite) backupURL(c *gc.C) string {
 }
 
 func (s *backupSuite) TestRequiresAuth(c *gc.C) {
-	resp, err := s.sendRequest(c, "", "", "GET", s.backupURL(c), "", nil)
+	resp, err := s.sendRequest(c, "", "", "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
 	s.assertErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 }
@@ -57,19 +56,32 @@ func (s *backupSuite) TestAuthRequiresUser(c *gc.C) {
 	err = machine.SetPassword(password)
 	c.Assert(err, gc.IsNil)
 
-	resp, err := s.sendRequest(c, machine.Tag(), password, "GET", s.backupURL(c), "", nil)
+	resp, err := s.sendRequest(c, machine.Tag().String(), password, "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
 	s.assertErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 
 	// Now try a user login.
+	// (Still with an invalid method so we don't actually attempt backup.)
 	resp, err = s.authRequest(c, "GET", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
 	s.assertErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
 }
 
-func (s *backupSuite) TestDoBackupCalledAndFileServed(c *gc.C) {
-	testBackup := func(tempDir string) (string, string, error) {
-		s.tempDir = tempDir
+func (s *backupSuite) TestBackupCalledAndFileServed(c *gc.C) {
+	testGetMongoConnectionInfo := func(thisState *state.State) *state.Info {
+		info := &state.Info{
+			Password: "foobar",
+			Tag:      "machine-0",
+		}
+		info.Addrs = append(info.Addrs, "localhost:80")
+		return info
+	}
+	var data struct{ tempDir, mongoPassword, username, address string }
+	testBackup := func(password string, username string, tempDir string, address string) (string, string, error) {
+		data.tempDir = tempDir
+		data.mongoPassword = password
+		data.username = username
+		data.address = address
 		backupFilePath := filepath.Join(tempDir, "testBackupFile")
 		file, err := os.Create(backupFilePath)
 		if err != nil {
@@ -79,57 +91,63 @@ func (s *backupSuite) TestDoBackupCalledAndFileServed(c *gc.C) {
 		file.Close()
 		return backupFilePath, "some-sha", nil
 	}
-	s.PatchValue(&apiserver.DoBackup, testBackup)
+	s.PatchValue(&apiserver.Backup, testBackup)
+	s.PatchValue(&apiserver.GetMongoConnectionInfo, testGetMongoConnectionInfo)
 
 	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
 	defer resp.Body.Close()
 
-	c.Assert(s.tempDir, gc.NotNil)
-	_, err = os.Stat(s.tempDir)
-	c.Assert(os.IsNotExist(err), jc.IsTrue)
+	c.Check(data.tempDir, gc.NotNil)
+	_, err = os.Stat(data.tempDir)
+	c.Check(err, jc.Satisfies, os.IsNotExist)
+	c.Check(data.mongoPassword, gc.Equals, "foobar")
+	c.Check(data.username, gc.Equals, "machine-0")
+	c.Check(data.address, gc.Equals, "localhost:80")
 
-	c.Assert(resp.StatusCode, gc.Equals, 200)
-	c.Assert(resp.Header.Get("X-Content-SHA"), gc.Equals, "some-sha")
-	c.Assert(resp.Header.Get("Content-Type"), gc.Equals, "application/octet-stream")
+	c.Check(resp.StatusCode, gc.Equals, 200)
+	c.Check(resp.Header.Get("X-Content-SHA"), gc.Equals, "some-sha")
+	c.Check(resp.Header.Get("Content-Type"), gc.Equals, "application/octet-stream")
 
 	body, _ := ioutil.ReadAll(resp.Body)
-	c.Assert(body, jc.DeepEquals, []byte("foobarbam"))
+	c.Check(body, jc.DeepEquals, []byte("foobarbam"))
 }
 
 func (s *backupSuite) TestErrorWhenBackupFails(c *gc.C) {
-	testBackup := func(tempDir string) (string, string, error) {
-		s.tempDir = tempDir
+	var data struct{ tempDir string }
+	testBackup := func(password string, username string, tempDir string, address string) (string, string, error) {
+		data.tempDir = tempDir
 		return "", "", fmt.Errorf("something bad")
 	}
-	s.PatchValue(&apiserver.DoBackup, testBackup)
+	s.PatchValue(&apiserver.Backup, testBackup)
 
 	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
 	defer resp.Body.Close()
 
-	c.Assert(s.tempDir, gc.NotNil)
-	_, err = os.Stat(s.tempDir)
-	c.Assert(os.IsNotExist(err), jc.IsTrue)
+	c.Assert(data.tempDir, gc.NotNil)
+	_, err = os.Stat(data.tempDir)
+	c.Check(err, jc.Satisfies, os.IsNotExist)
 
 	s.assertErrorResponse(c, resp, 500, "backup failed: something bad")
 }
 
 func (s *backupSuite) TestErrorWhenBackupFileDoesNotExist(c *gc.C) {
-	testBackup := func(tempDir string) (string, string, error) {
-		s.tempDir = tempDir
+	var data struct{ tempDir string }
+	testBackup := func(password string, username string, tempDir string, address string) (string, string, error) {
+		data.tempDir = tempDir
 		backupFilePath := filepath.Join(tempDir, "testBackupFile")
 		return backupFilePath, "some-sha", nil
 	}
-	s.PatchValue(&apiserver.DoBackup, testBackup)
+	s.PatchValue(&apiserver.Backup, testBackup)
 
 	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
 	defer resp.Body.Close()
 
-	c.Assert(s.tempDir, gc.NotNil)
-	_, err = os.Stat(s.tempDir)
-	c.Assert(os.IsNotExist(err), jc.IsTrue)
+	c.Assert(data.tempDir, gc.NotNil)
+	_, err = os.Stat(data.tempDir)
+	c.Check(err, jc.Satisfies, os.IsNotExist)
 
 	s.assertErrorResponse(c, resp, 500, "backup failed: missing backup file")
 }

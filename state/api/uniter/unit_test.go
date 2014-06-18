@@ -6,12 +6,12 @@ package uniter_test
 import (
 	"sort"
 
+	"github.com/juju/charm"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm"
-	"github.com/juju/juju/instance"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/api/uniter"
@@ -30,7 +30,7 @@ func (s *unitSuite) SetUpTest(c *gc.C) {
 	s.uniterSuite.SetUpTest(c)
 
 	var err error
-	s.apiUnit, err = s.uniter.Unit(s.wordpressUnit.Tag())
+	s.apiUnit, err = s.uniter.Unit(s.wordpressUnit.Tag().String())
 	c.Assert(err, gc.IsNil)
 }
 
@@ -203,7 +203,7 @@ func (s *unitSuite) TestPublicAddress(c *gc.C) {
 	address, err := s.apiUnit.PublicAddress()
 	c.Assert(err, gc.ErrorMatches, `"unit-wordpress-0" has no public address set`)
 
-	err = s.wordpressMachine.SetAddresses(instance.NewAddress("1.2.3.4", instance.NetworkPublic))
+	err = s.wordpressMachine.SetAddresses(network.NewAddress("1.2.3.4", network.ScopePublic))
 	c.Assert(err, gc.IsNil)
 
 	address, err = s.apiUnit.PublicAddress()
@@ -215,7 +215,7 @@ func (s *unitSuite) TestPrivateAddress(c *gc.C) {
 	address, err := s.apiUnit.PrivateAddress()
 	c.Assert(err, gc.ErrorMatches, `"unit-wordpress-0" has no private address set`)
 
-	err = s.wordpressMachine.SetAddresses(instance.NewAddress("1.2.3.4", instance.NetworkCloudLocal))
+	err = s.wordpressMachine.SetAddresses(network.NewAddress("1.2.3.4", network.ScopeCloudLocal))
 	c.Assert(err, gc.IsNil)
 
 	address, err = s.apiUnit.PrivateAddress()
@@ -236,7 +236,7 @@ func (s *unitSuite) TestOpenClosePort(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	ports = s.wordpressUnit.OpenedPorts()
 	// OpenedPorts returns a sorted slice.
-	c.Assert(ports, gc.DeepEquals, []instance.Port{
+	c.Assert(ports, gc.DeepEquals, []network.Port{
 		{Protocol: "bar", Number: 4321},
 		{Protocol: "foo", Number: 1234},
 	})
@@ -248,7 +248,7 @@ func (s *unitSuite) TestOpenClosePort(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	ports = s.wordpressUnit.OpenedPorts()
 	// OpenedPorts returns a sorted slice.
-	c.Assert(ports, gc.DeepEquals, []instance.Port{
+	c.Assert(ports, gc.DeepEquals, []network.Port{
 		{Protocol: "foo", Number: 1234},
 	})
 
@@ -366,11 +366,11 @@ func (s *unitSuite) TestJoinedRelations(c *gc.C) {
 	rel1, _, _ := s.addRelatedService(c, "wordpress", "monitoring", s.wordpressUnit)
 	joinedRelations, err = s.apiUnit.JoinedRelations()
 	c.Assert(err, gc.IsNil)
-	c.Assert(joinedRelations, gc.DeepEquals, []string{rel1.Tag()})
+	c.Assert(joinedRelations, gc.DeepEquals, []string{rel1.Tag().String()})
 
 	rel2, _, _ := s.addRelatedService(c, "wordpress", "logging", s.wordpressUnit)
 	joinedRelations, err = s.apiUnit.JoinedRelations()
 	c.Assert(err, gc.IsNil)
 	sort.Strings(joinedRelations)
-	c.Assert(joinedRelations, gc.DeepEquals, []string{rel2.Tag(), rel1.Tag()})
+	c.Assert(joinedRelations, gc.DeepEquals, []string{rel2.Tag().String(), rel1.Tag().String()})
 }

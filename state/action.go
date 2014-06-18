@@ -5,11 +5,19 @@ package state
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/juju/errors"
+	"github.com/juju/names"
 	"labix.org/v2/mgo/txn"
 )
 
 type actionDoc struct {
+	// Id is the key for this document.  Action.Id() has a specfic form
+	// to facilitate filtering the actions collection for a given unit,
+	// or in the future a given service.
+	// The format of the Action.Id() will be:
+	//   <unit globalKey> + actionMarker + <generated state sequence>
 	Id string `bson:"_id"`
 
 	// Name identifies the action; it should match an action defined by
@@ -37,20 +45,31 @@ func newAction(st *State, adoc actionDoc) *Action {
 }
 
 // actionPrefix returns a suitable prefix for an action given the
-// globalKey of a containing item
-func actionPrefix(globalKey string) string {
-	return globalKey + "#a#"
+// prefix of the Name() of a containing item
+func actionPrefix(prefix string) string {
+	return prefix + names.ActionMarker
 }
 
-// newActionId generates a new unique key from another globalKey as
+// newActionId generates a new unique key from another entity name as
 // a prefix, and a generated unique number
-func newActionId(st *State, globalKey string) (string, error) {
-	prefix := actionPrefix(globalKey)
+func newActionId(st *State, name string) (string, error) {
+	prefix := actionPrefix(name)
 	suffix, err := st.sequence(prefix)
 	if err != nil {
-		return "", fmt.Errorf("cannot assign new sequence for prefix '%s': %v", prefix, err)
+		return "", errors.Errorf("cannot assign new sequence for prefix '%s': %v", prefix, err)
 	}
 	return fmt.Sprintf("%s%d", prefix, suffix), nil
+}
+
+// getActionIdPrefix returns the prefix for the given action id.
+// Useful when finding a prefix to filter on.
+func getActionIdPrefix(actionId string) string {
+	return strings.Split(actionId, names.ActionMarker)[0]
+}
+
+// Id returns the id of the Action
+func (a *Action) Id() string {
+	return a.doc.Id
 }
 
 // Name returns the name of the Action
@@ -58,9 +77,9 @@ func (a *Action) Name() string {
 	return a.doc.Name
 }
 
-// Id returns the id of the Action
-func (a *Action) Id() string {
-	return a.doc.Id
+// Tag implements the Entity interface and returns an ActionTag representation.
+func (a *Action) Tag() names.Tag {
+	return names.NewActionTag(a.Id())
 }
 
 // Payload will contain a structure representing arguments or parameters to
@@ -70,14 +89,31 @@ func (a *Action) Payload() map[string]interface{} {
 	return a.doc.Payload
 }
 
-// Fail removes an Action from the queue, and documents the reason for the
-// failure.
+// Complete removes action from the pending queue and creates an ActionResult
+// to capture the output and end state of the action.
+func (a *Action) Complete(output string) error {
+	return a.removeAndLog(ActionCompleted, output)
+}
+
+// Fail removes an Action from the queue, and creates an ActionResult that
+// will capture the reason for the failure.
 func (a *Action) Fail(reason string) error {
-	// TODO(jcw4) replace with code to generate a result that records this failure
-	logger.Warningf("action '%s' failed because '%s'", a.doc.Name, reason)
-	return a.st.runTransaction([]txn.Op{{
-		C:      a.st.actions.Name,
-		Id:     a.doc.Id,
-		Remove: true,
-	}})
+	return a.removeAndLog(ActionFailed, reason)
+}
+
+// removeAndLog takes the action off of the pending queue, and creates an
+// actionresult to capture the outcome of the action.
+func (a *Action) removeAndLog(finalStatus ActionStatus, output string) error {
+	result, err := newActionResultDoc(a, finalStatus, output)
+	if err != nil {
+		return err
+	}
+	return a.st.runTransaction([]txn.Op{
+		addActionResultOp(a.st, result),
+		{
+			C:      a.st.actions.Name,
+			Id:     a.doc.Id,
+			Remove: true,
+		},
+	})
 }

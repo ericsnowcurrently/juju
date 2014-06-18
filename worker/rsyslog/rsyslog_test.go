@@ -16,8 +16,8 @@ import (
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/cert"
-	"github.com/juju/juju/instance"
 	jujutesting "github.com/juju/juju/juju/testing"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api"
 	coretesting "github.com/juju/juju/testing"
@@ -56,7 +56,7 @@ func (s *RsyslogSuite) SetUpTest(c *gc.C) {
 	s.PatchValue(rsyslog.RsyslogConfDir, c.MkDir())
 
 	s.st, s.machine = s.OpenAPIAsNewMachine(c, state.JobManageEnviron)
-	err := s.machine.SetAddresses(instance.NewAddress("0.1.2.3", instance.NetworkUnknown))
+	err := s.machine.SetAddresses(network.NewAddress("0.1.2.3", network.ScopeUnknown))
 	c.Assert(err, gc.IsNil)
 }
 
@@ -88,7 +88,7 @@ func waitForRestart(c *gc.C, restarted chan struct{}) {
 
 func (s *RsyslogSuite) TestStartStop(c *gc.C) {
 	st, m := s.OpenAPIAsNewMachine(c, state.JobHostUnits)
-	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeForwarding, m.Tag(), "", []string{"0.1.2.3"})
+	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeForwarding, m.Tag().String(), "", []string{"0.1.2.3"})
 	c.Assert(err, gc.IsNil)
 	worker.Kill()
 	c.Assert(worker.Wait(), gc.IsNil)
@@ -96,7 +96,7 @@ func (s *RsyslogSuite) TestStartStop(c *gc.C) {
 
 func (s *RsyslogSuite) TestTearDown(c *gc.C) {
 	st, m := s.st, s.machine
-	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeAccumulate, m.Tag(), "", []string{"0.1.2.3"})
+	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeAccumulate, m.Tag().String(), "", []string{"0.1.2.3"})
 	c.Assert(err, gc.IsNil)
 	confFile := filepath.Join(*rsyslog.RsyslogConfDir, "25-juju.conf")
 	// On worker teardown, the rsyslog config file should be removed.
@@ -114,7 +114,7 @@ func (s *RsyslogSuite) TestModeForwarding(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	st, m := s.OpenAPIAsNewMachine(c, state.JobHostUnits)
 	addrs := []string{"0.1.2.3", "0.2.4.6"}
-	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeForwarding, m.Tag(), "", addrs)
+	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeForwarding, m.Tag().String(), "", addrs)
 	c.Assert(err, gc.IsNil)
 	defer func() { c.Assert(worker.Wait(), gc.IsNil) }()
 	defer worker.Kill()
@@ -131,7 +131,7 @@ func (s *RsyslogSuite) TestModeForwarding(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	syslogPort := s.Conn.Environ.Config().SyslogPort()
-	syslogConfig := syslog.NewForwardConfig(m.Tag(), *rsyslog.LogDir, syslogPort, "", addrs)
+	syslogConfig := syslog.NewForwardConfig(m.Tag().String(), *rsyslog.LogDir, syslogPort, "", addrs)
 	syslogConfig.ConfigDir = *rsyslog.RsyslogConfDir
 	rendered, err := syslogConfig.Render()
 	c.Assert(err, gc.IsNil)
@@ -140,7 +140,7 @@ func (s *RsyslogSuite) TestModeForwarding(c *gc.C) {
 
 func (s *RsyslogSuite) TestModeAccumulate(c *gc.C) {
 	st, m := s.st, s.machine
-	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeAccumulate, m.Tag(), "", nil)
+	worker, err := rsyslog.NewRsyslogConfigWorker(st.Rsyslog(), rsyslog.RsyslogModeAccumulate, m.Tag().String(), "", nil)
 	c.Assert(err, gc.IsNil)
 	defer func() { c.Assert(worker.Wait(), gc.IsNil) }()
 	defer worker.Kill()
@@ -164,7 +164,7 @@ func (s *RsyslogSuite) TestModeAccumulate(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	syslogPort := s.Conn.Environ.Config().SyslogPort()
-	syslogConfig := syslog.NewAccumulateConfig(m.Tag(), *rsyslog.LogDir, syslogPort, "", []string{})
+	syslogConfig := syslog.NewAccumulateConfig(m.Tag().String(), *rsyslog.LogDir, syslogPort, "", []string{})
 	syslogConfig.ConfigDir = *rsyslog.RsyslogConfDir
 	rendered, err := syslogConfig.Render()
 	c.Assert(err, gc.IsNil)
@@ -174,7 +174,7 @@ func (s *RsyslogSuite) TestModeAccumulate(c *gc.C) {
 
 func (s *RsyslogSuite) TestAccumulateHA(c *gc.C) {
 	m := s.machine
-	syslogConfig := syslog.NewAccumulateConfig(m.Tag(), *rsyslog.LogDir, 6541, "", []string{"192.168.1", "127.0.0.1"})
+	syslogConfig := syslog.NewAccumulateConfig(m.Tag().String(), *rsyslog.LogDir, 6541, "", []string{"192.168.1", "127.0.0.1"})
 	rendered, err := syslogConfig.Render()
 	c.Assert(err, gc.IsNil)
 
@@ -219,8 +219,8 @@ func (s *RsyslogSuite) testNamespace(c *gc.C, st *api.State, tag, namespace, exp
 	defer worker.Kill()
 
 	// change the API HostPorts to trigger an rsyslog restart
-	newHostPorts := instance.AddressesWithPort(instance.NewAddresses("127.0.0.1"), 6541)
-	err = s.State.SetAPIHostPorts([][]instance.HostPort{newHostPorts})
+	newHostPorts := network.AddressesWithPort(network.NewAddresses("127.0.0.1"), 6541)
+	err = s.State.SetAPIHostPorts([][]network.HostPort{newHostPorts})
 	c.Assert(err, gc.IsNil)
 
 	// Wait for rsyslog to be restarted, so we can check to see

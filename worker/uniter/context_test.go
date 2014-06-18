@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/juju/charm"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
 	"github.com/juju/utils/proxy"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/charm"
-	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/testing"
+	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/api/params"
@@ -385,13 +385,13 @@ func (s *ContextRelationSuite) SetUpTest(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = unit.SetPassword(password)
 	c.Assert(err, gc.IsNil)
-	s.st = s.OpenAPIAs(c, unit.Tag(), password)
+	s.st = s.OpenAPIAs(c, unit.Tag().String(), password)
 	s.uniter = s.st.Uniter()
 	c.Assert(s.uniter, gc.NotNil)
 
-	apiRel, err := s.uniter.Relation(s.rel.Tag())
+	apiRel, err := s.uniter.Relation(s.rel.Tag().String())
 	c.Assert(err, gc.IsNil)
-	apiUnit, err := s.uniter.Unit(unit.Tag())
+	apiUnit, err := s.uniter.Unit(unit.Tag().String())
 	c.Assert(err, gc.IsNil)
 	s.apiRelUnit, err = apiRel.Unit(apiUnit)
 	c.Assert(err, gc.IsNil)
@@ -614,7 +614,7 @@ func (s *InterfaceSuite) TestUnitCaching(c *gc.C) {
 
 	// Change remote state.
 	err := s.machine.SetAddresses(
-		instance.NewAddress("blah.testing.invalid", instance.NetworkPublic))
+		network.NewAddress("blah.testing.invalid", network.ScopePublic))
 	c.Assert(err, gc.IsNil)
 
 	// Local view is unchanged.
@@ -668,7 +668,7 @@ func (s *HookContextSuite) SetUpTest(c *gc.C) {
 	password, err := utils.RandomPassword()
 	err = s.unit.SetPassword(password)
 	c.Assert(err, gc.IsNil)
-	s.st = s.OpenAPIAs(c, s.unit.Tag(), password)
+	s.st = s.OpenAPIAs(c, s.unit.Tag().String(), password)
 	s.uniter = s.st.Uniter()
 	c.Assert(s.uniter, gc.NotNil)
 
@@ -692,7 +692,7 @@ func (s *HookContextSuite) AddUnit(c *gc.C, svc *state.Service) *state.Unit {
 	err = unit.AssignToMachine(s.machine)
 	c.Assert(err, gc.IsNil)
 	name := strings.Replace(unit.Name(), "/", "-", 1)
-	privateAddr := instance.NewAddress(name+".testing.invalid", instance.NetworkCloudLocal)
+	privateAddr := network.NewAddress(name+".testing.invalid", network.ScopeCloudLocal)
 	err = s.machine.SetAddresses(privateAddr)
 	c.Assert(err, gc.IsNil)
 	return unit
@@ -709,9 +709,9 @@ func (s *HookContextSuite) AddContextRelation(c *gc.C, name string) {
 	s.relunits[rel.Id()] = ru
 	err = ru.EnterScope(map[string]interface{}{"relation-name": name})
 	c.Assert(err, gc.IsNil)
-	s.apiUnit, err = s.uniter.Unit(s.unit.Tag())
+	s.apiUnit, err = s.uniter.Unit(s.unit.Tag().String())
 	c.Assert(err, gc.IsNil)
-	apiRel, err := s.uniter.Relation(rel.Tag())
+	apiRel, err := s.uniter.Relation(rel.Tag().String())
 	c.Assert(err, gc.IsNil)
 	apiRelUnit, err := apiRel.Unit(s.apiUnit)
 	c.Assert(err, gc.IsNil)

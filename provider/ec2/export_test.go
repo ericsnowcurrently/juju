@@ -41,11 +41,11 @@ func InstanceEC2(inst instance.Instance) *ec2.Instance {
 	return inst.(*ec2Instance).Instance
 }
 
-func GetAvailabilityZones(e environs.Environ) ([]ec2.AvailabilityZoneInfo, error) {
-	return e.(*environ).getAvailabilityZones()
-}
-
-var EC2AvailabilityZones = &ec2AvailabilityZones
+var (
+	EC2AvailabilityZones        = &ec2AvailabilityZones
+	AvailabilityZoneAllocations = &availabilityZoneAllocations
+	RunInstances                = &runInstances
+)
 
 // BucketStorage returns a storage instance addressing
 // an arbitrary s3 bucket.
