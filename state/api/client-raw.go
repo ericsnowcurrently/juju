@@ -24,12 +24,46 @@ import (
 	"github.com/juju/utils"
 
 	"github.com/juju/juju/state/api/params"
+	"github.com/juju/juju/state/api/rawrpc"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"
 )
 
+// XXX Replace with Client.callWithData() that uses the state's RPC client.
+func (c *Client) sendRawRPC(
+	method string, args rawrpc.Args, data *rawrpc.RequestData, result rawrpc.RemoteResult,
+) rawrpc.Error {
+	// Prepare the HTTP request.
+	req, err := rawrpc.GetRequest(c.st.serverRoot, method, args, data)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(c.st.tag, c.st.password)
+
+	// Send the HTTP request.
+	client := c.rawHTTPClient()
+	resp, err := rawrpc.SendRequest(client, req)
+	if err != nil {
+		return err
+	}
+
+	// Handle the HTTP response.
+	err = rawrpc.HandleResponse(resp, result)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //----------------------
 // charms
+
+type CharmsResult params.CharmsResponse
+
+func (r *CharmsResult) RemoteError() error {
+	return fmt.Errorf(r.Error)
+}
 
 func (c *Client) bundleCharm(
 	ch charm.Charm,
@@ -76,56 +110,25 @@ func (c *Client) AddLocalCharm(curl *charm.URL, ch charm.Charm) (*charm.URL, err
 		return nil, err
 	}
 
-	// Prepare the upload request.
-	url := fmt.Sprintf("%s/charms?series=%s", c.st.serverRoot, curl.Series)
-	req, err := http.NewRequest("POST", url, archive)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create upload request: %v", err)
-	}
-	req.SetBasicAuth(c.st.tag, c.st.password)
-	req.Header.Set("Content-Type", "application/zip")
-
 	// Send the request.
-
-	// BUG(dimitern) 2013-12-17 bug #1261780
-	// Due to issues with go 1.1.2, fixed later, we cannot use a
-	// regular TLS client with the CACert here, because we get "x509:
-	// cannot validate certificate for 127.0.0.1 because it doesn't
-	// contain any IP SANs". Once we use a later go version, this
-	// should be changed to connect to the API server with a regular
-	// HTTP+TLS enabled client, using the CACert (possily cached, like
-	// the tag and password) passed in api.Open()'s info argument.
-	resp, err := utils.GetNonValidatingHTTPClient().Do(req)
+	var result CharmsResult
+	args := params.CharmsArgs{Series: curl.Series}
+	data := RequestData{Stream: archive, Mimetype: "application/zip"}
+	err = c.sendRawRPC("charms", args, data, &result)
 	if err != nil {
-		return nil, fmt.Errorf("cannot upload charm: %v", err)
+		return nil, err
 	}
-	if resp.StatusCode == http.StatusMethodNotAllowed {
-		// API server is 1.16 or older, so charm upload
-		// is not supported; notify the client.
-		return nil, &params.Error{
-			Message: "charm upload is not supported by the API server",
-			Code:    params.CodeNotImplemented,
-		}
-	}
-
-	// Now parse the response & return.
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read charm upload response: %v", err)
-	}
-	defer resp.Body.Close()
-	var jsonResponse params.CharmsResponse
-	if err := json.Unmarshal(body, &jsonResponse); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal upload response: %v", err)
-	}
-	if jsonResponse.Error != "" {
-		return nil, fmt.Errorf("error uploading charm: %v", jsonResponse.Error)
-	}
-	return charm.MustParseURL(jsonResponse.CharmURL), nil
+	return charm.MustParseURL(result.CharmURL), nil
 }
 
 //----------------------
 // tools
+
+type ToolsResult params.ToolsResult
+
+func (r *ToolsResult) RemoteError() error {
+	return fmt.Errorf(r.Error)
+}
 
 func (c *Client) UploadTools(
 	toolsFilename string, vers version.Binary, fakeSeries ...string,
@@ -138,52 +141,16 @@ func (c *Client) UploadTools(
 	}
 	defer toolsTarball.Close()
 
-	// Prepare the upload request.
-	url := fmt.Sprintf("%s/tools?binaryVersion=%s&series=%s", c.st.serverRoot, vers, strings.Join(fakeSeries, ","))
-	req, err := http.NewRequest("POST", url, toolsTarball)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create upload request: %v", err)
-	}
-	req.SetBasicAuth(c.st.tag, c.st.password)
-	req.Header.Set("Content-Type", "application/x-tar-gz")
-
 	// Send the request.
-
-	// BUG(dimitern) 2013-12-17 bug #1261780
-	// Due to issues with go 1.1.2, fixed later, we cannot use a
-	// regular TLS client with the CACert here, because we get "x509:
-	// cannot validate certificate for 127.0.0.1 because it doesn't
-	// contain any IP SANs". Once we use a later go version, this
-	// should be changed to connect to the API server with a regular
-	// HTTP+TLS enabled client, using the CACert (possily cached, like
-	// the tag and password) passed in api.Open()'s info argument.
-	resp, err := utils.GetNonValidatingHTTPClient().Do(req)
+	var result ToolsResult
+	series := strings.Join(fakeSeries, ",")
+	args := params.ToolsArgs{BinaryVersion: vers, Series: series}
+	data := RequestData{Stream: toolsTarball, Mimetype: "application/x-tar-gz"}
+	err = c.sendRawRPC("tools", args, data, &result)
 	if err != nil {
-		return nil, fmt.Errorf("cannot upload charm: %v", err)
+		return nil, err
 	}
-	if resp.StatusCode == http.StatusMethodNotAllowed {
-		// API server is older than 1.17.5, so tools upload
-		// is not supported; notify the client.
-		return nil, &params.Error{
-			Message: "tools upload is not supported by the API server",
-			Code:    params.CodeNotImplemented,
-		}
-	}
-
-	// Now parse the response & return.
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read tools upload response: %v", err)
-	}
-	defer resp.Body.Close()
-	var jsonResponse params.ToolsResult
-	if err := json.Unmarshal(body, &jsonResponse); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal upload response: %v", err)
-	}
-	if err := jsonResponse.Error; err != nil {
-		return nil, fmt.Errorf("error uploading tools: %v", err)
-	}
-	return jsonResponse.Tools, nil
+	return result.Tools, nil
 }
 
 //----------------------

@@ -1,0 +1,39 @@
+// Copyright 2014 Canonical Ltd.
+// Licensed under the AGPLv3, see LICENCE file for details.
+
+package rawrpc
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"os"
+
+	"github.com/juju/utils"
+
+	"github.com/juju/juju/state/api/params"
+)
+
+// Authentication
+
+type Auth interface {
+	Set(req *RawRequest) error
+}
+
+type BasicAuth struct {
+	username string
+	password string
+}
+
+func (a *BasicAuth) Set(req *RawRequest) error {
+	req.SetBasicAuth(a.username, a.password)
+	return nil
+}
+
+// RawRequest
+
+type RawRequest http.Request
+
+// RawResponse

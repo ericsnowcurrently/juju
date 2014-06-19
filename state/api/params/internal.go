@@ -572,6 +572,11 @@ type RelationUnitsWatchResults struct {
 	Results []RelationUnitsWatchResult
 }
 
+// CharmsArgs is sent as the args in an RPC request.
+type CharmsArgs struct {
+	Series string
+}
+
 // CharmsResponse is the server response to charm upload or GET requests.
 type CharmsResponse struct {
 	Error    string   `json:",omitempty"`

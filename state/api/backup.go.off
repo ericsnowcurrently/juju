@@ -1,0 +1,158 @@
+import (
+    "fmt"
+    "net/http"
+
+    "github.com/juju/utils"
+)
+
+const BackupFilenameTemplate = "jujubackup-%s.tar.gz"
+
+func openBackupFile(backupFilePath string) (*File, string, error) {
+    if backupFilePath == "" {
+        timestamp := fmt.Sprintf("%d", time.Now().Unix())
+        backupFilePath = fmt.Sprintf(BackupFilenameTemplate, timestamp)
+    }
+    file, err := os.Create(backupFilePath)
+    if err != nil {
+        return nil, "", fmt.Errorf("Error creating backup file: %v", err)
+    } else {
+        return file, backupFilePath, nil
+    }
+}
+
+type Auth interface {
+    Set(req http.Request) error
+}
+
+type BasicAuth struct {
+    Username
+    Password
+}
+
+func (ba *BasicAuth) Set(req Request) error {
+    req.SetBasicAuth(ba.Username, ba.Password)
+    return nil
+}
+
+type RPCClient struct {
+    ServerRoot string
+}
+
+type RPCClientErrorCode int
+
+const (
+    RequestCreationFailed RPCClientErrorCode = iota
+    RequestAuthenticationFailed
+    RequestSendFailed
+    ResponseBodyReadFailed
+    ResponseBodyDecodeFailed
+    RequestBadStatus
+)
+
+
+type RPCClientError struct {
+    Code RPCClientErrorCode
+    Cause error
+    Reason string
+}
+
+func (e *RPCClientError) Error() string {
+    if e.Reason == nil {
+        return e.Cause.Error()
+    } else {
+        return e.Reason
+    }
+}
+
+func (c *RPCClient) getRequest(api, meth string, auth *Auth) (http.Request, RPCClientError) {
+    url := fmt.Sprintf("%s/%s", c.ServerRoot, api)
+
+    req, err := http.NewRequest(meth, url, nil)
+    if err != nil {
+        return req, RPCClientError{RequestCreationFailed, err}
+    }
+
+    if auth != nil {
+        err = auth.Set(req)
+        if err != nil {
+            return req, RPCClientError{RequestAuthenticationFailed, err}
+        }
+    }
+
+    return req, nil
+}
+
+func (c *RPCClient) sendRequest(req *http.Request) (http.Response, RPCClientError) {
+    resp, err := utils.GetNonValidatingHTTPClient().Do(req)
+    if err != nil {
+        return fmt.Errorf("cannot fetch backup: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+            return fmt.Errorf("cannot read backup response: %v", err)
+        }
+
+        var jsonResponse params.BackupResponse
+        if err := json.Unmarshal(body, &jsonResponse); err != nil {
+            return fmt.Errorf("cannot unmarshal backup response: %v", err)
+        }
+
+        return fmt.Errorf("error fetching backup: %v", jsonResponse.Error)
+    }
+}
+
+func (c *RPCClient) Backup(auth *Auth, backupfile *File) error {
+    req, err := c.getRequest("backup", "POST", auth)
+    if err != nil {
+        switch err.Code {
+            case RequestCreationFailed:
+                return fmt.Errorf("cannot create backup request: %v", err)
+            case RequestAuthenticationFailed:
+                return fmt.Errorf("cannot set authentication: %v", err)
+            default:
+                return err
+        }
+    }
+
+    resp, err := utils.GetNonValidatingHTTPClient().Do(req)
+    if err != nil {
+        return fmt.Errorf("cannot fetch backup: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+            return fmt.Errorf("cannot read backup response: %v", err)
+        }
+
+        var jsonResponse params.BackupResponse
+        if err := json.Unmarshal(body, &jsonResponse); err != nil {
+            return fmt.Errorf("cannot unmarshal backup response: %v", err)
+        }
+
+        return fmt.Errorf("error fetching backup: %v", jsonResponse.Error)
+    }
+}
+
+// Backup requests a state-server backup file from the server and saves it to
+// the local filesystem. It returns the name of the file created.
+// The backup can take a long time to prepare and be a large file, depending
+// on the system being backed up.
+func (c *Client) Backup(backupFilePath string) (string, error) {
+    backupfile, backupFilePath, err := openBackupFile(backupFilePath)
+    if err != nil {
+        return "", err
+    }
+
+    rpcclient := rpc.RPCClient{c.st.serverRoot}
+    auth := BasicAuth{c.st.tag, c.st.password}
+    err = rpcclient.Backup(auth, backupfile)
+    if err != nil {
+        backupFilePath = ""
+    }
+    return backupFilePath, err
+}
