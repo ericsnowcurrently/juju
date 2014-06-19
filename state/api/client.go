@@ -602,39 +602,39 @@ func (c *Client) Backup(backupFilePath string) (string, error) {
 	url := fmt.Sprintf("%s/backup", c.st.serverRoot)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create backup request: %v", err)
+		return "", fmt.Errorf("cannot create backup request: %v", err)
 	}
 	req.SetBasicAuth(c.st.tag, c.st.password)
 
 	// Send the request.
 	resp, err := utils.GetNonValidatingHTTPClient().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot fetch backup: %v", err)
+		return "", fmt.Errorf("cannot fetch backup: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("cannot read backup response: %v", err)
+			return "", fmt.Errorf("cannot read backup response: %v", err)
 		}
 		var jsonResponse params.BackupResponse
 		if err := json.Unmarshal(body, &jsonResponse); err != nil {
-			return nil, fmt.Errorf("cannot unmarshal backup response: %v", err)
+			return "", fmt.Errorf("cannot unmarshal backup response: %v", err)
 		}
 
-		return nil, fmt.Errorf("error fetching backup: %v", jsonResponse.Error)
+		return "", fmt.Errorf("error fetching backup: %v", jsonResponse.Error)
 	}
 	if backupFilePath == "" {
 		backupFilePath = fmt.Sprintf("jujubackup-%s.tar.gz", "timestamp")
 	}
 	file, err := os.Create(backupFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating backup file: %v", err)
+		return "", fmt.Errorf("Error creating backup file: %v", err)
 	}
 	defer file.Close()
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Error writing the backup file: %v", err)
+		return "", fmt.Errorf("Error writing the backup file: %v", err)
 	}
 	return backupFilePath, nil
 }
