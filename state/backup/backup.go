@@ -13,14 +13,145 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+    os_user "os/user"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/juju/loggo"
+
+	"github.com/juju/juju/agent"
+	rsyslog_worker "github.com/juju/juju/worker/rsyslog/worker"
 )
 
 var logger = loggo.GetLogger("juju.backup")
+
+const StateServerTag = "machine-0"  // The bootstrap instance.
+
+const DefaultUser = "ubuntu"  // See environs.manual.InitUbuntuUser.
+
+type DataSubDir string
+
+const (
+    DataDir_Tools             DataSubDir = "tools"
+    DataDir_Storage           DataSubDir = "storage"
+    DataDir_Agents            DataSubDir = "agents"
+    DataDir_Locks             DataSubDir = "locks"
+    DataDir_DB                DataSubDir = "db"
+    DataDir_Containers        DataSubDir = "containers"
+    DataDir_RemovedContainers DataSubDir = "removed-containers"
+)
+
+var defaultStateFilenames []string = {
+    "{init}/jujud-machine-*.conf",
+    "{data-agents}/machine-*/",
+    "{rsyslogconf}/*juju.conf",
+    "{init}/juju-db.conf",
+    "{data-tools}/",
+    "{data}/server.pem",
+    "{data}/system-identity",
+    "{data}/nonce.txt",
+    "{data}/shared-secret",
+    "{user}/.ssh/authorized_keys",
+    "{log}/all-machines.log",
+    "{log}/machine-0.log",
+}
+// also: mongo dump files
+
+type StateFiles struct {
+    DataDir string  // See agent.DefaultDataDir.
+    InitDir string  // See upstart.Conf.InitDir.
+    RSyslogConfDir string
+    LogDir string
+    UserDir string
+    Filenames []string
+}
+
+machine init confs
+machine agents (dirs?)
+loging confs
+db init conf
+tools
+cert
+identity
+nonce.txt?
+secret
+user auth keys
+logs
+DB dump
+
+
+func getUserDir(username string) (string, error) {
+    if username == "" {
+        username = DefaultUser
+    }
+    user, err := os_user.Lookup(username)
+    if err != nil {
+        return "", err
+    }
+    return user.HomeDir, nil
+}
+
+func NewStateFiles(username string) (*StateFiles, error) {
+
+    initdir := ...
+
+    statefiles := StateFiles{
+        DataDir: agent.DefaultDataDir,
+        InitDir: initdir,
+        RSyslogConfDir: rsyslog_worker.
+        LogDir: agent.DefaultLogDir,
+        UserDir: getUserDir(username),
+        // We do not set Filenames here.
+    }
+
+    return statefiles, nil
+}
+
+
+
+
+
+
+{
+
+	const dataDir string = "/var/lib/juju"
+	initMachineConfs, err := filepath.Glob("/etc/init/jujud-machine-*.conf")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch machine upstart files: %v", err)
+	}
+	agentConfs, err := filepath.Glob(filepath.Join(dataDir, "agents", "machine-*"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch agent configuration files: %v", err)
+	}
+	jujuLogConfs, err := filepath.Glob("/etc/rsyslog.d/*juju.conf")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch juju log conf files: %v", err)
+	}
+
+	backupFiles := []string{
+		"/etc/init/juju-db.conf",
+		filepath.Join(dataDir, "tools"),
+		filepath.Join(dataDir, "server.pem"),
+		filepath.Join(dataDir, "system-identity"),
+		filepath.Join(dataDir, "nonce.txt"),
+		filepath.Join(dataDir, "shared-secret"),
+		"/home/ubuntu/.ssh/authorized_keys",
+		"/var/log/juju/all-machines.log",
+		"/var/log/juju/machine-0.log",
+	}
+	backupFiles = append(backupFiles, initMachineConfs...)
+	backupFiles = append(backupFiles, agentConfs...)
+	backupFiles = append(backupFiles, jujuLogConfs...)
+	return backupFiles, nil
+}
+
+type BackupArchive struct {
+    Filename string
+    handle *os.File
+}
+
+func (ba *BackupArchive) 
 
 // tarFiles creates a tar archive at targetPath holding the files listed
 // in fileList. If compress is true, the archive will also be gzip
