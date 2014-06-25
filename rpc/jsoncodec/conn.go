@@ -18,10 +18,12 @@ type wsJSONConn struct {
 }
 
 func (conn wsJSONConn) Send(msg interface{}) error {
+	// XXX Handle Payload.
 	return websocket.JSON.Send(conn.conn, msg)
 }
 
 func (conn wsJSONConn) Receive(msg interface{}) error {
+	// XXX Handle Stream.
 	return websocket.JSON.Receive(conn.conn, msg)
 }
 

@@ -465,6 +465,13 @@ type VersionResults struct {
 	Results []VersionResult
 }
 
+// ToolsParams hold the args for an RPC request.
+type ToolsParams struct {
+	BinaryVersion version.Binary
+	Series        string
+	Payload       io.Reader
+}
+
 // ToolsResult holds the tools and possibly error for a given
 // Tools() API call.
 type ToolsResult struct {
@@ -490,6 +497,12 @@ type FindToolsParams struct {
 type FindToolsResults struct {
 	List  tools.List
 	Error *Error
+}
+
+// StreamingLogResult holds the data stream.
+type StreamingLogResult struct {
+	ErrorResult
+	Stream io.ReadCloser
 }
 
 // Version holds a specific binary version.
@@ -570,6 +583,12 @@ type RelationUnitsWatchResult struct {
 // returning a list of RelationUnitsWatchers.
 type RelationUnitsWatchResults struct {
 	Results []RelationUnitsWatchResult
+}
+
+// CharmsParams is the RPC params for charms requests.
+type CharmsParams struct {
+	Series  string
+	Payload *io.Reader
 }
 
 // CharmsResponse is the server response to charm upload or GET requests.
