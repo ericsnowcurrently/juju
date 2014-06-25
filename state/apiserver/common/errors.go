@@ -9,6 +9,7 @@ import (
 
 	"github.com/juju/errors"
 
+	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/txn"
@@ -74,7 +75,7 @@ var (
 	ErrTryAgain       = stderrors.New("try again")
 )
 
-var singletonErrorCodes = map[error]string{
+var singletonErrorCodes = map[error]rpc.ErrorCode{
 	state.ErrCannotEnterScopeYet: params.CodeCannotEnterScopeYet,
 	state.ErrCannotEnterScope:    params.CodeCannotEnterScope,
 	state.ErrUnitHasSubordinates: params.CodeUnitHasSubordinates,
@@ -88,7 +89,7 @@ var singletonErrorCodes = map[error]string{
 	ErrTryAgain:                  params.CodeTryAgain,
 }
 
-func singletonCode(err error) (string, bool) {
+func singletonCode(err error) (rpc.ErrorCode, bool) {
 	// All error types may not be hashable; deal with
 	// that by catching the panic if we try to look up
 	// a non-hashable type.

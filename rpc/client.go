@@ -5,6 +5,7 @@ package rpc
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -22,18 +23,18 @@ type Call struct {
 // RequestError represents an error returned from an RPC request.
 type RequestError struct {
 	Message string
-	Code    string
+	Code    ErrorCode
 }
 
 func (e *RequestError) Error() string {
 	m := "request error: " + e.Message
 	if e.Code != "" {
-		m += " (" + e.Code + ")"
+		m += fmt.Sprintf(" (%s)", e.Code)
 	}
 	return m
 }
 
-func (e *RequestError) ErrorCode() string {
+func (e *RequestError) ErrorCode() ErrorCode {
 	return e.Code
 }
 

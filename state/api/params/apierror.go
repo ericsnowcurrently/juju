@@ -12,14 +12,14 @@ import (
 // Error is the type of error returned by any call to the state API
 type Error struct {
 	Message string
-	Code    string
+	Code    rpc.ErrorCode
 }
 
 func (e *Error) Error() string {
 	return e.Message
 }
 
-func (e *Error) ErrorCode() string {
+func (e *Error) ErrorCode() rpc.ErrorCode {
 	return e.Code
 }
 
@@ -33,26 +33,26 @@ func (e Error) GoString() string {
 
 // The Code constants hold error codes for some kinds of error.
 const (
-	CodeNotFound            = "not found"
-	CodeUnauthorized        = "unauthorized access"
-	CodeCannotEnterScope    = "cannot enter scope"
-	CodeCannotEnterScopeYet = "cannot enter scope yet"
-	CodeExcessiveContention = "excessive contention"
-	CodeUnitHasSubordinates = "unit has subordinates"
-	CodeNotAssigned         = "not assigned"
-	CodeStopped             = "stopped"
-	CodeHasAssignedUnits    = "machine has assigned units"
-	CodeNotProvisioned      = "not provisioned"
-	CodeNoAddressSet        = "no address set"
-	CodeTryAgain            = "try again"
-	CodeNotImplemented      = rpc.CodeNotImplemented
-	CodeAlreadyExists       = "already exists"
+	CodeNotFound            rpc.ErrorCode = "not found"
+	CodeUnauthorized        rpc.ErrorCode = "unauthorized access"
+	CodeCannotEnterScope    rpc.ErrorCode = "cannot enter scope"
+	CodeCannotEnterScopeYet rpc.ErrorCode = "cannot enter scope yet"
+	CodeExcessiveContention rpc.ErrorCode = "excessive contention"
+	CodeUnitHasSubordinates rpc.ErrorCode = "unit has subordinates"
+	CodeNotAssigned         rpc.ErrorCode = "not assigned"
+	CodeStopped             rpc.ErrorCode = "stopped"
+	CodeHasAssignedUnits    rpc.ErrorCode = "machine has assigned units"
+	CodeNotProvisioned      rpc.ErrorCode = "not provisioned"
+	CodeNoAddressSet        rpc.ErrorCode = "no address set"
+	CodeTryAgain            rpc.ErrorCode = "try again"
+	CodeNotImplemented      rpc.ErrorCode = rpc.CodeNotImplemented
+	CodeAlreadyExists       rpc.ErrorCode = "already exists"
 )
 
 // ErrCode returns the error code associated with
 // the given error, or the empty string if there
 // is none.
-func ErrCode(err error) string {
+func ErrCode(err error) rpc.ErrorCode {
 	if err, _ := err.(rpc.ErrorCoder); err != nil {
 		return err.ErrorCode()
 	}
@@ -72,7 +72,7 @@ func ClientError(err error) error {
 	// know that we're using the rpc package.
 	return &Error{
 		Message: rerr.Message,
-		Code:    rerr.Code,
+		Code:    rpc.ErrorCode(rerr.Code),
 	}
 }
 

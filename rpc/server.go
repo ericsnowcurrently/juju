@@ -61,7 +61,7 @@ type Header struct {
 	Error string
 
 	// ErrorCode holds the code of the error, if any.
-	ErrorCode string
+	ErrorCode ErrorCode
 }
 
 // Request represents an RPC to be performed, absent its parameters.
@@ -337,11 +337,13 @@ func (conn *Conn) Close() error {
 	return conn.inputLoopError
 }
 
+type ErrorCode string
+
 // ErrorCoder represents an any error that has an associated
 // error code. An error code is a short string that represents the
 // kind of an error.
 type ErrorCoder interface {
-	ErrorCode() string
+	ErrorCode() ErrorCode
 }
 
 // MethodFinder represents a type that can be used to lookup a Method and place
@@ -561,6 +563,6 @@ func (e *serverError) Error() string {
 	return e.Message
 }
 
-func (e *serverError) ErrorCode() string {
+func (e *serverError) ErrorCode() ErrorCode {
 	return e.Code
 }
