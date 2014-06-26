@@ -3,7 +3,9 @@
 
 package upgrades
 
-import "github.com/juju/utils/apt"
+import (
+	"github.com/juju/utils/apt"
+)
 
 // installRsyslogGnutls installs the rsyslog-gnutls package,
 // which is required for our rsyslog configuration from 1.18.0.

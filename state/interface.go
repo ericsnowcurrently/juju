@@ -4,11 +4,11 @@
 package state
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/names"
 
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/instance"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"
 )

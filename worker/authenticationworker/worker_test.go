@@ -8,13 +8,13 @@ import (
 	stdtesting "testing"
 	"time"
 
+	"github.com/juju/api"
+	"github.com/juju/api/keyupdater"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/agent"
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/keyupdater"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/utils/ssh"
 	sshtesting "github.com/juju/juju/utils/ssh/testing"

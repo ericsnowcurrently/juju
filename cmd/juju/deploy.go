@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	"github.com/juju/cmd"
 	"github.com/juju/names"
@@ -19,8 +21,6 @@ import (
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/juju"
 	"github.com/juju/juju/juju/osenv"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 )
 
 type DeployCommand struct {

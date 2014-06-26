@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	apiWatcher "github.com/juju/api/watcher"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 	"launchpad.net/tomb"
 
-	apiWatcher "github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/state/watcher"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker"

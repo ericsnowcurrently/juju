@@ -4,11 +4,11 @@
 package logger_test
 
 import (
+	"github.com/juju/api/params"
 	gc "launchpad.net/gocheck"
 
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	"github.com/juju/juju/state/apiserver/logger"
 	apiservertesting "github.com/juju/juju/state/apiserver/testing"

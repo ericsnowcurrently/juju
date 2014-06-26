@@ -4,8 +4,9 @@
 package deployer
 
 import (
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/agent"
-	"github.com/juju/juju/state/api/params"
 )
 
 type fakeAPI struct{}

@@ -15,11 +15,10 @@ import (
 	"strings"
 
 	"code.google.com/p/go.net/websocket"
+	"github.com/juju/api/params"
 	"github.com/juju/loggo"
 	"github.com/juju/utils/tailer"
 	"launchpad.net/tomb"
-
-	"github.com/juju/juju/state/api/params"
 )
 
 // debugLogHandler takes requests to watch the debug log.

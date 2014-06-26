@@ -7,13 +7,14 @@ import (
 	"io"
 	"os"
 
+	"github.com/juju/api"
+
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/storage"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 )
 
 // A EnvironProvider represents a computing and storage provider.

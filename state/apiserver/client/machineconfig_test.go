@@ -6,6 +6,7 @@ package client_test
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/environs"
@@ -13,7 +14,6 @@ import (
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/client"
 	coretools "github.com/juju/juju/tools"
 )

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/juju/api"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils/apt"
 	gc "launchpad.net/gocheck"
@@ -16,7 +17,6 @@ import (
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/upgrades"
 	"github.com/juju/juju/version"

@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/juju/api/machiner"
+	"github.com/juju/api/params"
+	"github.com/juju/api/watcher"
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state/api/machiner"
-	"github.com/juju/juju/state/api/params"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/worker"
 )
 

@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"path"
 
+	"github.com/juju/api/environment"
+	"github.com/juju/api/watcher"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
 	"github.com/juju/utils"
@@ -17,8 +19,6 @@ import (
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/provider"
-	"github.com/juju/juju/state/api/environment"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/worker"
 )
 

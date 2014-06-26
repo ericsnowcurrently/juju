@@ -6,6 +6,7 @@ package sshinit_test
 import (
 	"regexp"
 
+	"github.com/juju/api/params"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/cloudinit"
@@ -15,7 +16,6 @@ import (
 	envcloudinit "github.com/juju/juju/environs/cloudinit"
 	"github.com/juju/juju/environs/config"
 	envtools "github.com/juju/juju/environs/tools"
-	"github.com/juju/juju/state/api/params"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"

@@ -4,10 +4,10 @@
 package minunitsworker
 
 import (
+	"github.com/juju/api/watcher"
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/worker"
 )
 

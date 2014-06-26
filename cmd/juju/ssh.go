@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/juju/api"
 	"github.com/juju/cmd"
 	"github.com/juju/names"
 	"github.com/juju/utils"
@@ -18,7 +19,6 @@ import (
 	"github.com/juju/juju/cmd/envcmd"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/juju"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/utils/ssh"
 )
 

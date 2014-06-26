@@ -4,10 +4,10 @@
 package client
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 
 	"github.com/juju/juju/constraints"
-	"github.com/juju/juju/state/api/params"
 )
 
 // ServiceGet returns the configuration for a service.

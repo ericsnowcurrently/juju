@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/juju/api"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
@@ -21,7 +22,6 @@ import (
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/provider/dummy"
-	"github.com/juju/juju/state/api"
 	coretesting "github.com/juju/juju/testing"
 )
 

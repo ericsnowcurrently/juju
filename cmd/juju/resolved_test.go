@@ -4,13 +4,13 @@
 package main
 
 import (
+	"github.com/juju/api/params"
 	charmtesting "github.com/juju/charm/testing"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/cmd/envcmd"
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/testing"
 )
 

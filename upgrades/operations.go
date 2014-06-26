@@ -3,7 +3,9 @@
 
 package upgrades
 
-import "github.com/juju/juju/version"
+import (
+	"github.com/juju/juju/version"
+)
 
 // upgradeOperations returns an ordered slice of sets of operations needed
 // to upgrade Juju to particular version. The slice is ordered by target

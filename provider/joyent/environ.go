@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/juju/api"
+
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
@@ -15,7 +17,6 @@ import (
 	"github.com/juju/juju/environs/storage"
 	"github.com/juju/juju/provider/common"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 )
 
 // This file contains the core of the Joyent Environ implementation.

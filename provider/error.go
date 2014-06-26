@@ -3,7 +3,9 @@
 
 package provider
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	// ErrNotPrepared should be returned by providers when

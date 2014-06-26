@@ -8,9 +8,9 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/juju/api/params"
 	"launchpad.net/goyaml"
 
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/version"
 )
 

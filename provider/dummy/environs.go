@@ -33,6 +33,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/api"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
 	"github.com/juju/schema"
@@ -54,7 +55,6 @@ import (
 	"github.com/juju/juju/provider"
 	"github.com/juju/juju/provider/common"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/apiserver"
 	"github.com/juju/juju/testing"
 )

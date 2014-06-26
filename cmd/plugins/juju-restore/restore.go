@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"text/template"
 
+	"github.com/juju/api"
 	"github.com/juju/cmd"
 	"github.com/juju/loggo"
 	"github.com/juju/utils"
@@ -33,7 +34,6 @@ import (
 	"github.com/juju/juju/network"
 	_ "github.com/juju/juju/provider/all"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/utils/ssh"
 )
 

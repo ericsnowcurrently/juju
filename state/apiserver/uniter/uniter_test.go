@@ -6,6 +6,7 @@ package uniter_test
 import (
 	stdtesting "testing"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
@@ -15,7 +16,6 @@ import (
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	commontesting "github.com/juju/juju/state/apiserver/common/testing"
 	apiservertesting "github.com/juju/juju/state/apiserver/testing"

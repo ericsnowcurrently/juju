@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/juju/api"
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/juju/juju/cmd/envcmd"
 	"github.com/juju/juju/juju"
-	"github.com/juju/juju/state/api"
 )
 
 type DebugLogCommand struct {

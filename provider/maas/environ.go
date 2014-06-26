@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/api"
 	"github.com/juju/errors"
 	"github.com/juju/utils"
 	"github.com/juju/utils/set"
@@ -32,7 +33,6 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/provider/common"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/tools"
 )
 

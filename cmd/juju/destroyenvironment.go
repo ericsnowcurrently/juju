@@ -10,13 +10,13 @@ import (
 	"io"
 	"strings"
 
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	"launchpad.net/gnuflag"
 
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/configstore"
 	"github.com/juju/juju/juju"
-	"github.com/juju/juju/state/api/params"
 )
 
 var NoEnvironmentError = errors.New("no environment specified")

@@ -6,12 +6,11 @@ package state
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"labix.org/v2/mgo/txn"
-
-	"github.com/juju/juju/state/api/params"
 )
 
 // statusDoc represents a entity status in Mongodb.  The implicit

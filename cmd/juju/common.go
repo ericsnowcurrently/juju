@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/juju/api"
 	"github.com/juju/charm"
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
@@ -13,7 +14,6 @@ import (
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/configstore"
-	"github.com/juju/juju/state/api"
 )
 
 // destroyPreparedEnviron destroys the environment and logs an error if it fails.

@@ -10,11 +10,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/apiserver"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
+
+	"github.com/juju/juju/state"
+	"github.com/juju/juju/state/apiserver"
 )
 
 type backupSuite struct {

@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/utils"
@@ -23,8 +25,6 @@ import (
 	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/version"
 )
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/juju/api/params"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils/shell"
 	gc "launchpad.net/gocheck"
@@ -19,7 +20,6 @@ import (
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/client"
 	"github.com/juju/juju/version"
 )

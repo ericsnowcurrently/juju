@@ -4,8 +4,9 @@
 package common
 
 import (
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 )
 
 // DeadEnsurer implements a common EnsureDead method for use by

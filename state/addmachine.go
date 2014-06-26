@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"github.com/juju/names"
 	"labix.org/v2/mgo/bson"
@@ -16,7 +17,6 @@ import (
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/replicaset"
-	"github.com/juju/juju/state/api/params"
 	statetxn "github.com/juju/juju/state/txn"
 )
 

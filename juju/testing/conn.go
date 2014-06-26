@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/juju/api"
 	"github.com/juju/charm"
 	charmtesting "github.com/juju/charm/testing"
 	gitjujutesting "github.com/juju/testing"
@@ -26,7 +27,6 @@ import (
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/provider/dummy"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/testing"
 	"github.com/juju/juju/testing/factory"
 	"github.com/juju/juju/version"

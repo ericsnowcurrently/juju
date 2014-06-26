@@ -7,10 +7,10 @@ import (
 	stdtesting "testing"
 	"time"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm/hooks"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/state/api/params"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker/uniter/hook"
 	"github.com/juju/juju/worker/uniter/relation"

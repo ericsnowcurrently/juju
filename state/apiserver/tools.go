@@ -14,11 +14,12 @@ import (
 	"path"
 	"strings"
 
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/filestorage"
 	"github.com/juju/juju/environs/sync"
 	envtools "github.com/juju/juju/environs/tools"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"

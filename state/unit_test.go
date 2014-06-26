@@ -6,6 +6,7 @@ package state_test
 import (
 	"strconv"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/testing"
 	coretesting "github.com/juju/juju/testing"
 )

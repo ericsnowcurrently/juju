@@ -6,14 +6,14 @@ package logger_test
 import (
 	"time"
 
+	"github.com/juju/api"
+	apilogger "github.com/juju/api/logger"
 	"github.com/juju/loggo"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	apilogger "github.com/juju/juju/state/api/logger"
 	"github.com/juju/juju/worker"
 	"github.com/juju/juju/worker/logger"
 )

@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
+	apiuniter "github.com/juju/api/uniter"
 	"github.com/juju/charm"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
@@ -20,9 +23,6 @@ import (
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
-	apiuniter "github.com/juju/juju/state/api/uniter"
 	"github.com/juju/juju/worker/uniter"
 	"github.com/juju/juju/worker/uniter/jujuc"
 )

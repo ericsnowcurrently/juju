@@ -6,8 +6,9 @@ package apiserver
 import (
 	"reflect"
 
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 )
 

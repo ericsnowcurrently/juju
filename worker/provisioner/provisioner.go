@@ -6,6 +6,8 @@ package provisioner
 import (
 	"sync"
 
+	apiprovisioner "github.com/juju/api/provisioner"
+	apiwatcher "github.com/juju/api/watcher"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"launchpad.net/tomb"
@@ -14,8 +16,6 @@ import (
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/instance"
-	apiprovisioner "github.com/juju/juju/state/api/provisioner"
-	apiwatcher "github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/state/watcher"
 	"github.com/juju/juju/worker"
 )

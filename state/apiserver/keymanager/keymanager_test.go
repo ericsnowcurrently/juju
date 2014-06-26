@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/juju/api/params"
 	"github.com/juju/names"
 	gc "launchpad.net/gocheck"
 
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	"github.com/juju/juju/state/apiserver/keymanager"
 	keymanagertesting "github.com/juju/juju/state/apiserver/keymanager/testing"

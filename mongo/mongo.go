@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/juju/api/params"
 	"github.com/juju/loggo"
 	"github.com/juju/utils"
 	"github.com/juju/utils/apt"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/replicaset"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/upstart"
 	"github.com/juju/juju/version"
 )

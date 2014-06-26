@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/api/params"
+	"github.com/juju/api/uniter"
+	apiwatcher "github.com/juju/api/watcher"
 	corecharm "github.com/juju/charm"
 	"github.com/juju/charm/hooks"
 	"github.com/juju/cmd"
@@ -24,9 +27,6 @@ import (
 
 	"github.com/juju/juju/agent/tools"
 	"github.com/juju/juju/environs/config"
-	"github.com/juju/juju/state/api/params"
-	"github.com/juju/juju/state/api/uniter"
-	apiwatcher "github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/state/watcher"
 	"github.com/juju/juju/worker"
 	"github.com/juju/juju/worker/uniter/charm"

@@ -14,6 +14,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"github.com/juju/utils/proxy"
 	"github.com/juju/utils/shell"
@@ -40,8 +42,6 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/provider/common"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/upstart"
 	"github.com/juju/juju/version"
 	"github.com/juju/juju/worker/terminationworker"

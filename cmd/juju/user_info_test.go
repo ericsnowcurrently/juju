@@ -6,12 +6,12 @@ package main
 import (
 	"time"
 
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/cmd/envcmd"
 	jujutesting "github.com/juju/juju/juju/testing"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	"github.com/juju/juju/testing"
 )

@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/juju/api/params"
+	apiprovisioner "github.com/juju/api/provisioner"
+	"github.com/juju/api/watcher"
 	"github.com/juju/utils/fslock"
 
 	"github.com/juju/juju/agent"
@@ -16,9 +19,6 @@ import (
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
-	apiprovisioner "github.com/juju/juju/state/api/provisioner"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/worker"
 )
 

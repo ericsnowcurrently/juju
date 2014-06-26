@@ -6,11 +6,12 @@ package common
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
 	envtools "github.com/juju/juju/environs/tools"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	coretools "github.com/juju/juju/tools"
 	"github.com/juju/juju/version"
 )

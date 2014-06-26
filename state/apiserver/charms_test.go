@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	charmtesting "github.com/juju/charm/testing"
 	jc "github.com/juju/testing/checkers"
@@ -24,7 +25,6 @@ import (
 	"github.com/juju/juju/environs"
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/testing/factory"
 )
 

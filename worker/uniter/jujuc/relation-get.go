@@ -6,10 +6,9 @@ package jujuc
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	"launchpad.net/gnuflag"
-
-	"github.com/juju/juju/state/api/params"
 )
 
 // RelationGetCommand implements the relation-get command.

@@ -6,8 +6,9 @@ package common
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 )
 
 // Remover implements a common Remove method for use by various facades.

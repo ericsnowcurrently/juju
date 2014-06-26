@@ -4,11 +4,11 @@
 package logger
 
 import (
+	"github.com/juju/api/logger"
+	"github.com/juju/api/watcher"
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/agent"
-	"github.com/juju/juju/state/api/logger"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/worker"
 )
 

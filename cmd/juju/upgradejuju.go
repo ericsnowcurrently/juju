@@ -10,6 +10,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	"launchpad.net/gnuflag"
 
@@ -20,8 +22,6 @@ import (
 	"github.com/juju/juju/environs/sync"
 	envtools "github.com/juju/juju/environs/tools"
 	"github.com/juju/juju/juju"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	coretools "github.com/juju/juju/tools"
 	"github.com/juju/juju/version"
 )

@@ -4,10 +4,10 @@
 package common
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 )
 
 var logger = loggo.GetLogger("juju.state.apiserver.common")

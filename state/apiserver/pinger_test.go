@@ -6,6 +6,7 @@ package apiserver_test
 import (
 	"time"
 
+	"github.com/juju/api"
 	"github.com/juju/loggo"
 	gitjujutesting "github.com/juju/testing"
 	"github.com/juju/utils"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/rpc"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/apiserver"
 	coretesting "github.com/juju/juju/testing"
 )

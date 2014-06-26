@@ -4,6 +4,7 @@
 package upgrader_test
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"github.com/juju/names"
 	jc "github.com/juju/testing/checkers"
@@ -11,7 +12,6 @@ import (
 
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	apiservertesting "github.com/juju/juju/state/apiserver/testing"
 	"github.com/juju/juju/state/apiserver/upgrader"

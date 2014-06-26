@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/juju/api/upgrader"
 	"github.com/juju/loggo"
 	"github.com/juju/utils"
 	"launchpad.net/tomb"
 
 	"github.com/juju/juju/agent"
 	agenttools "github.com/juju/juju/agent/tools"
-	"github.com/juju/juju/state/api/upgrader"
 	"github.com/juju/juju/state/watcher"
 	coretools "github.com/juju/juju/tools"
 	"github.com/juju/juju/version"

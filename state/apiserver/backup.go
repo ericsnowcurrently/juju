@@ -11,8 +11,9 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/juju/api/params"
+
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/backup"
 )
 

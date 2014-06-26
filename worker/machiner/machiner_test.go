@@ -8,15 +8,15 @@ import (
 	stdtesting "testing"
 	"time"
 
+	"github.com/juju/api"
+	apimachiner "github.com/juju/api/machiner"
+	"github.com/juju/api/params"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	apimachiner "github.com/juju/juju/state/api/machiner"
-	"github.com/juju/juju/state/api/params"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker"
 	"github.com/juju/juju/worker/machiner"

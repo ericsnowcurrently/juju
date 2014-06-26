@@ -4,6 +4,9 @@
 package firewaller
 
 import (
+	apifirewaller "github.com/juju/api/firewaller"
+	"github.com/juju/api/params"
+	apiwatcher "github.com/juju/api/watcher"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
@@ -13,9 +16,6 @@ import (
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
-	apifirewaller "github.com/juju/juju/state/api/firewaller"
-	"github.com/juju/juju/state/api/params"
-	apiwatcher "github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/state/watcher"
 	"github.com/juju/juju/worker"
 )

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/juju/api"
+	apiuniter "github.com/juju/api/uniter"
 	"github.com/juju/charm/hooks"
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
@@ -18,8 +20,6 @@ import (
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	apiuniter "github.com/juju/juju/state/api/uniter"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker/uniter"
 	"github.com/juju/juju/worker/uniter/hook"

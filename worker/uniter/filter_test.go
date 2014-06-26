@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
+	apiuniter "github.com/juju/api/uniter"
 	"github.com/juju/charm"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
@@ -14,9 +17,6 @@ import (
 
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
-	apiuniter "github.com/juju/juju/state/api/uniter"
 	statetesting "github.com/juju/juju/state/testing"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker"

@@ -9,6 +9,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/juju/api"
+	"github.com/juju/api/environment"
 	"github.com/juju/names"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils/apt"
@@ -20,8 +22,6 @@ import (
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/provider"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/environment"
 	"github.com/juju/juju/testing"
 	"github.com/juju/juju/worker"
 	"github.com/juju/juju/worker/machineenvironmentworker"

@@ -4,10 +4,9 @@
 package state
 
 import (
+	"github.com/juju/api/params"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-
-	"github.com/juju/juju/state/api/params"
 )
 
 // Life represents the lifecycle state of the entities

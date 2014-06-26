@@ -4,6 +4,7 @@
 package main
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	"github.com/juju/names"
 	"launchpad.net/gnuflag"
@@ -11,7 +12,6 @@ import (
 	"github.com/juju/juju/cmd/envcmd"
 	"github.com/juju/juju/environs/configstore"
 	"github.com/juju/juju/juju"
-	"github.com/juju/juju/state/api/params"
 )
 
 const userInfoCommandDoc = `

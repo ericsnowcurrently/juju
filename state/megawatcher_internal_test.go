@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	"github.com/juju/names"
 	gitjujutesting "github.com/juju/testing"
@@ -19,7 +20,6 @@ import (
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/multiwatcher"
 	"github.com/juju/juju/state/watcher"
 	"github.com/juju/juju/testing"

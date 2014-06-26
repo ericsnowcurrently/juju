@@ -6,10 +6,10 @@
 package machine
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 )
 

@@ -6,14 +6,14 @@ package rsyslog_test
 import (
 	"encoding/pem"
 
+	"github.com/juju/api/params"
+	apirsyslog "github.com/juju/api/rsyslog"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
-	apirsyslog "github.com/juju/juju/state/api/rsyslog"
 	"github.com/juju/juju/state/apiserver/common"
 	commontesting "github.com/juju/juju/state/apiserver/common/testing"
 	"github.com/juju/juju/state/apiserver/rsyslog"

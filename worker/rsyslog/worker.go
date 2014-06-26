@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	apirsyslog "github.com/juju/api/rsyslog"
+	"github.com/juju/api/watcher"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
@@ -17,8 +19,6 @@ import (
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/cert"
-	apirsyslog "github.com/juju/juju/state/api/rsyslog"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/utils/syslog"
 	"github.com/juju/juju/worker"
 )

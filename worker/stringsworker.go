@@ -4,9 +4,9 @@
 package worker
 
 import (
+	apiWatcher "github.com/juju/api/watcher"
 	"launchpad.net/tomb"
 
-	apiWatcher "github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/state/watcher"
 )
 

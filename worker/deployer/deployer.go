@@ -6,15 +6,15 @@ package deployer
 import (
 	"fmt"
 
+	apideployer "github.com/juju/api/deployer"
+	"github.com/juju/api/params"
+	"github.com/juju/api/watcher"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
 	"github.com/juju/utils"
 	"github.com/juju/utils/set"
 
 	"github.com/juju/juju/agent"
-	apideployer "github.com/juju/juju/state/api/deployer"
-	"github.com/juju/juju/state/api/params"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/worker"
 )
 

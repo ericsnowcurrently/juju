@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/juju/api"
+	"github.com/juju/api/uniter"
 	corecharm "github.com/juju/charm"
 	charmtesting "github.com/juju/charm/testing"
 	gitjujutesting "github.com/juju/testing"
@@ -22,8 +24,6 @@ import (
 
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/uniter"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker/uniter/charm"
 )

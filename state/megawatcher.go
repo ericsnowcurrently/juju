@@ -8,10 +8,10 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"labix.org/v2/mgo"
 
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/multiwatcher"
 	"github.com/juju/juju/state/watcher"
 )

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/api"
 	jujuerrors "github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
@@ -37,7 +38,6 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/provider/common"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/tools"
 )
 

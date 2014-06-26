@@ -9,6 +9,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	"launchpad.net/gnuflag"
 	"launchpad.net/goyaml"
@@ -21,7 +22,6 @@ import (
 	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/worker/peergrouper"
 )
 

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/juju/api/charmrevisionupdater"
 	"github.com/juju/loggo"
 	"launchpad.net/tomb"
 
-	"github.com/juju/juju/state/api/charmrevisionupdater"
 	"github.com/juju/juju/worker"
 )
 

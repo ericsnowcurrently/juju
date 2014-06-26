@@ -8,9 +8,9 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/juju/api/params"
 	"launchpad.net/tomb"
 
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/watcher"
 )
 

@@ -14,6 +14,7 @@ import (
 	"strings"
 	stdtesting "testing"
 
+	"github.com/juju/api/params"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state/api/params"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/upstart"
 	"github.com/juju/juju/version"

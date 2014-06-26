@@ -6,6 +6,7 @@ package state
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"github.com/juju/utils"
 	"labix.org/v2/mgo"
@@ -16,7 +17,6 @@ import (
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/replicaset"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/presence"
 	statetxn "github.com/juju/juju/state/txn"
 	"github.com/juju/juju/state/watcher"

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -28,7 +29,6 @@ import (
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/mongo"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/multiwatcher"
 	"github.com/juju/juju/state/presence"
 	statetxn "github.com/juju/juju/state/txn"

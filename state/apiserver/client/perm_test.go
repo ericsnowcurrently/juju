@@ -6,13 +6,13 @@ package client_test
 import (
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/version"
 )
 

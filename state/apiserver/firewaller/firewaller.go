@@ -3,10 +3,10 @@
 package firewaller
 
 import (
+	"github.com/juju/api/params"
 	"github.com/juju/names"
 
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 )
 

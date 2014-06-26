@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/juju/api/params"
+	apirsyslog "github.com/juju/api/rsyslog"
 	"github.com/juju/cmd"
 	"github.com/juju/names"
 	gc "launchpad.net/gocheck"
@@ -16,8 +18,6 @@ import (
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
-	apirsyslog "github.com/juju/juju/state/api/rsyslog"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"

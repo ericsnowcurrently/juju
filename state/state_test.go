@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	charmtesting "github.com/juju/charm/testing"
 	"github.com/juju/errors"
@@ -29,7 +30,6 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/replicaset"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	statetesting "github.com/juju/juju/state/testing"
 	"github.com/juju/juju/state/txn"
 	"github.com/juju/juju/testing"

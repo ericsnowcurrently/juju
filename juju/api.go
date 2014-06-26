@@ -8,6 +8,9 @@ import (
 	"io"
 	"time"
 
+	"github.com/juju/api"
+	"github.com/juju/api/keymanager"
+	"github.com/juju/api/usermanager"
 	"github.com/juju/errors"
 	"github.com/juju/names"
 	"github.com/juju/utils/parallel"
@@ -16,9 +19,6 @@ import (
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/configstore"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/keymanager"
-	"github.com/juju/juju/state/api/usermanager"
 )
 
 // The following are variables so that they can be

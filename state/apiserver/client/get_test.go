@@ -6,11 +6,11 @@ package client_test
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/constraints"
-	"github.com/juju/juju/state/api/params"
 )
 
 type getSuite struct {

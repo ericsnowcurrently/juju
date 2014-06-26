@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -23,8 +25,6 @@ import (
 	"github.com/juju/juju/juju"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/common"
 	coretools "github.com/juju/juju/tools"
 	"github.com/juju/juju/version"

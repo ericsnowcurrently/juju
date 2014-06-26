@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/juju/api/params"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils/exec"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver/client"
 	"github.com/juju/juju/testing"
 	"github.com/juju/juju/utils/ssh"

@@ -6,6 +6,8 @@ package azure
 import (
 	"encoding/base64"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/names"
 	gc "launchpad.net/gocheck"
 
@@ -14,8 +16,6 @@ import (
 	"github.com/juju/juju/environs/cloudinit"
 	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/testing"
 	"github.com/juju/juju/tools"
 )

@@ -6,14 +6,14 @@ package authenticationworker
 import (
 	"strings"
 
+	"github.com/juju/api/keyupdater"
+	"github.com/juju/api/watcher"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/utils/set"
 	"launchpad.net/tomb"
 
 	"github.com/juju/juju/agent"
-	"github.com/juju/juju/state/api/keyupdater"
-	"github.com/juju/juju/state/api/watcher"
 	"github.com/juju/juju/utils/ssh"
 	"github.com/juju/juju/worker"
 )

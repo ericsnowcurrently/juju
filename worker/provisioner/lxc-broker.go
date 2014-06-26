@@ -6,6 +6,7 @@ package provisioner
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/agent"
@@ -14,7 +15,6 @@ import (
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/tools"
 )
 

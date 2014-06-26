@@ -11,10 +11,10 @@ import (
 	stdtesting "testing"
 	"time"
 
+	"github.com/juju/api/params"
 	"labix.org/v2/mgo"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/watcher"
 	"github.com/juju/juju/testing"
 )

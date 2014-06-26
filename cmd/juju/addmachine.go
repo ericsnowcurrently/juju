@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/juju/api/params"
 	"github.com/juju/cmd"
 	"github.com/juju/names"
 	"launchpad.net/gnuflag"
@@ -15,7 +16,6 @@ import (
 	"github.com/juju/juju/environs/manual"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju"
-	"github.com/juju/juju/state/api/params"
 )
 
 // sshHostPrefix is the prefix for a machine to be "manually provisioned".

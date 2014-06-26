@@ -10,6 +10,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/loggo"
 	"github.com/juju/utils"
 	"github.com/juju/utils/shell"
@@ -22,8 +24,6 @@ import (
 	"github.com/juju/juju/juju"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/tools"
 )
 

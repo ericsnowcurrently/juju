@@ -10,6 +10,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/juju/api"
+	"github.com/juju/api/params"
 	"github.com/juju/errors"
 	"github.com/juju/names"
 	"github.com/juju/utils"
@@ -24,8 +26,6 @@ import (
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api"
-	"github.com/juju/juju/state/api/params"
 	coretools "github.com/juju/juju/tools"
 	"github.com/juju/juju/upstart"
 	"github.com/juju/juju/version"

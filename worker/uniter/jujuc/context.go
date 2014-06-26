@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/juju/api/params"
 	"github.com/juju/charm"
-
-	"github.com/juju/juju/state/api/params"
 )
 
 // Context is the interface that all hook helper commands
