@@ -11,6 +11,7 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state/api/agent"
 	"github.com/juju/juju/state/api/charmrevisionupdater"
+	"github.com/juju/juju/state/api/client"
 	"github.com/juju/juju/state/api/deployer"
 	"github.com/juju/juju/state/api/environment"
 	"github.com/juju/juju/state/api/firewaller"
@@ -105,8 +106,8 @@ func addAddress(servers [][]network.HostPort, addr string) ([][]network.HostPort
 
 // Client returns an object that can be used
 // to access client-specific functionality.
-func (st *State) Client() *Client {
-	return &Client{st}
+func (st *State) Client() *client.Client {
+	return &client.Client{st}
 }
 
 // Machiner returns a version of the state that provides functionality

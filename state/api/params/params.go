@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
+	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/utils/ssh"
 	"github.com/juju/juju/version"
 )
@@ -63,7 +64,7 @@ func (result ErrorResults) OneError() error {
 
 // ErrorResult holds the error status of a single operation.
 type ErrorResult struct {
-	Error *Error
+	Error *api.Error
 }
 
 // StatusData contains additional information for a status.
@@ -139,7 +140,7 @@ type AddMachinesResults struct {
 // state.api.client.AddMachine call for a single machine.
 type AddMachinesResult struct {
 	Machine string
-	Error   *Error
+	Error   *api.Error
 }
 
 // DestroyMachines holds parameters for the DestroyMachines call.
@@ -693,7 +694,7 @@ type SetRsyslogCertParams struct {
 
 // RsyslogConfigResult holds the result of a GetRsyslogConfig call.
 type RsyslogConfigResult struct {
-	Error  *Error
+	Error  *api.Error
 	CACert string
 	// Port is only used by state servers as the port to listen on.
 	// Clients should use HostPorts for the rsyslog addresses to forward
@@ -710,7 +711,7 @@ type RsyslogConfigResults struct {
 // DistributionGroupResult contains the result of
 // the DistributionGroup provisioner API call.
 type DistributionGroupResult struct {
-	Error  *Error
+	Error  *api.Error
 	Result []instance.Id
 }
 
@@ -764,7 +765,7 @@ type StateServersSpecs struct {
 // an error.
 type StateServersChangeResult struct {
 	Result StateServersChanges
-	Error  *Error
+	Error  *api.Error
 }
 
 // StateServersChangeResults contains the results
@@ -794,8 +795,8 @@ type UserInfo struct {
 
 // UserInfoResult holds the result of a UserInfo call.
 type UserInfoResult struct {
-	Result *UserInfo `json:result,omitempty`
-	Error  *Error    `json:error,omitempty`
+	Result *UserInfo  `json:result,omitempty`
+	Error  *api.Error `json:error,omitempty`
 }
 
 type UserInfoResults struct {

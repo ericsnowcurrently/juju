@@ -21,6 +21,7 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/jsoncodec"
+	jc "github.com/juju/juju/state/api/client"
 	"github.com/juju/juju/state/api/params"
 )
 
@@ -281,7 +282,7 @@ func (s *State) Call(objType, id, request string, args, response interface{}) er
 		Id:     id,
 		Action: request,
 	}, args, response)
-	return params.ClientError(err)
+	return jc.ClientError(err)
 }
 
 func (s *State) Close() error {

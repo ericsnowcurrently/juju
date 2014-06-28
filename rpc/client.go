@@ -6,9 +6,18 @@ package rpc
 import (
 	"errors"
 	"strings"
+
+	"github.com/juju/juju/state/api"
 )
 
 var ErrShutdown = errors.New("connection is shut down")
+
+// RequestError represents an error returned from an RPC request.
+type RequestError api.Error
+
+func (e *RequestError) Error() string {
+	return "request error: " + e.(api.Error).Error()
+}
 
 // Call represents an active RPC.
 type Call struct {
@@ -17,24 +26,6 @@ type Call struct {
 	Response interface{}
 	Error    error
 	Done     chan *Call
-}
-
-// RequestError represents an error returned from an RPC request.
-type RequestError struct {
-	Message string
-	Code    string
-}
-
-func (e *RequestError) Error() string {
-	m := "request error: " + e.Message
-	if e.Code != "" {
-		m += " (" + e.Code + ")"
-	}
-	return m
-}
-
-func (e *RequestError) ErrorCode() string {
-	return e.Code
 }
 
 func (conn *Conn) send(call *Call) {
@@ -102,7 +93,7 @@ func (conn *Conn) handleResponse(hdr *Header) error {
 		err = conn.readBody(nil, false)
 	case hdr.Error != "":
 		// Report rpcreflect.NoSuchMethodError with CodeNotImplemented.
-		if strings.HasPrefix(hdr.Error, "no such request ") && hdr.ErrorCode == "" {
+		if strings.HasPrefix(hdr.Error, "no such request ") && hdr.ErrorCode == api.NoError {
 			hdr.ErrorCode = CodeNotImplemented
 		}
 		// We've got an error response. Give this to the request;

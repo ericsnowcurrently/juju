@@ -13,9 +13,10 @@ import (
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/rpc/rpcreflect"
+	"github.com/juju/juju/state/api"
 )
 
-const CodeNotImplemented = "not implemented"
+const CodeNotImplemented *api.ErrorCode = "not implemented"
 
 var logger = loggo.GetLogger("juju.rpc")
 
@@ -61,7 +62,7 @@ type Header struct {
 	Error string
 
 	// ErrorCode holds the code of the error, if any.
-	ErrorCode string
+	ErrorCode api.ErrorCode
 }
 
 // Request represents an RPC to be performed, absent its parameters.
@@ -337,13 +338,6 @@ func (conn *Conn) Close() error {
 	return conn.inputLoopError
 }
 
-// ErrorCoder represents an any error that has an associated
-// error code. An error code is a short string that represents the
-// kind of an error.
-type ErrorCoder interface {
-	ErrorCode() string
-}
-
 // MethodFinder represents a type that can be used to lookup a Method and place
 // calls on that method.
 type MethodFinder interface {
@@ -475,11 +469,7 @@ func (conn *Conn) writeErrorResponse(reqHdr *Header, err error, startTime time.T
 	hdr := &Header{
 		RequestId: reqHdr.RequestId,
 	}
-	if err, ok := err.(ErrorCoder); ok {
-		hdr.ErrorCode = err.ErrorCode()
-	} else {
-		hdr.ErrorCode = ""
-	}
+	hdr.ErrorCode = api.ErrCode(err)
 	hdr.Error = err.Error()
 	if conn.notifier != nil {
 		conn.notifier.ServerReply(reqHdr.Request, hdr, struct{}{}, time.Since(startTime))
@@ -559,8 +549,4 @@ type serverError RequestError
 
 func (e *serverError) Error() string {
 	return e.Message
-}
-
-func (e *serverError) ErrorCode() string {
-	return e.Code
 }

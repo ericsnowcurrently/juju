@@ -11,6 +11,7 @@ import (
 	"github.com/juju/juju/constraints"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
+	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"
 )
@@ -53,7 +54,7 @@ type CharmURLs struct {
 // StringsResult holds the result of an API call that returns a slice
 // of strings or an error.
 type StringsResult struct {
-	Error  *Error
+	Error  *api.Error
 	Result []string
 }
 
@@ -66,7 +67,7 @@ type PortsResults struct {
 // PortsResult holds the result of an API call that returns a slice
 // of network.Port or an error.
 type PortsResult struct {
-	Error *Error
+	Error *api.Error
 	Ports []network.Port
 }
 
@@ -78,7 +79,7 @@ type StringsResults struct {
 
 // StringResult holds a string or an error.
 type StringResult struct {
-	Error  *Error
+	Error  *api.Error
 	Result string
 }
 
@@ -91,7 +92,7 @@ type StringResults struct {
 // CharmArchiveURLResult holds a charm archive (bundle) URL, a
 // DisableSSLHostnameVerification flag or an error.
 type CharmArchiveURLResult struct {
-	Error                          *Error
+	Error                          *api.Error
 	Result                         string
 	DisableSSLHostnameVerification bool
 }
@@ -106,14 +107,14 @@ type CharmArchiveURLResults struct {
 // EnvironmentResult holds the result of an API call returning a name and UUID
 // for an environment.
 type EnvironmentResult struct {
-	Error *Error
+	Error *api.Error
 	Name  string
 	UUID  string
 }
 
 // ResolvedModeResult holds a resolved mode or an error.
 type ResolvedModeResult struct {
-	Error *Error
+	Error *api.Error
 	Mode  ResolvedMode
 }
 
@@ -126,7 +127,7 @@ type ResolvedModeResults struct {
 // StringBoolResult holds the result of an API call that returns a
 // string and a boolean.
 type StringBoolResult struct {
-	Error  *Error
+	Error  *api.Error
 	Result string
 	Ok     bool
 }
@@ -140,7 +141,7 @@ type StringBoolResults struct {
 // BoolResult holds the result of an API call that returns a
 // a boolean or an error.
 type BoolResult struct {
-	Error  *Error
+	Error  *api.Error
 	Result bool
 }
 
@@ -154,7 +155,7 @@ type RelationSettings map[string]string
 
 // RelationSettingsResult holds a relation settings map or an error.
 type RelationSettingsResult struct {
-	Error    *Error
+	Error    *api.Error
 	Settings RelationSettings
 }
 
@@ -170,7 +171,7 @@ type ConfigSettings map[string]interface{}
 
 // ConfigSettingsResult holds a configuration map or an error.
 type ConfigSettingsResult struct {
-	Error    *Error
+	Error    *api.Error
 	Settings ConfigSettings
 }
 
@@ -234,7 +235,7 @@ type RelationUnitsSettings struct {
 // RelationResult returns information about a single relation,
 // or an error.
 type RelationResult struct {
-	Error    *Error
+	Error    *api.Error
 	Life     Life
 	Id       int
 	Key      string
@@ -282,7 +283,7 @@ type BytesResult struct {
 // indicating why it is not available.
 type LifeResult struct {
 	Life  Life
-	Error *Error
+	Error *api.Error
 }
 
 // LifeResults holds the life or error status of multiple entities.
@@ -367,7 +368,7 @@ type InstancesInfo struct {
 
 // RequestedNetworkResult holds requested networks or an error.
 type RequestedNetworkResult struct {
-	Error    *Error
+	Error    *api.Error
 	Networks []string
 }
 
@@ -378,7 +379,7 @@ type RequestedNetworksResults struct {
 
 // MachineNetworkInfoResult holds network info for a single machine.
 type MachineNetworkInfoResult struct {
-	Error *Error
+	Error *api.Error
 	Info  []network.Info
 }
 
@@ -403,7 +404,7 @@ type SetStatus struct {
 // StatusResult holds an entity status, extra information, or an
 // error.
 type StatusResult struct {
-	Error  *Error
+	Error  *api.Error
 	Id     string
 	Life   Life
 	Status Status
@@ -429,7 +430,7 @@ type SetMachinesAddresses struct {
 
 // ConstraintsResult holds machine constraints or an error.
 type ConstraintsResult struct {
-	Error       *Error
+	Error       *api.Error
 	Constraints constraints.Value
 }
 
@@ -450,14 +451,14 @@ type AgentGetEntitiesResult struct {
 	Life          Life
 	Jobs          []MachineJob
 	ContainerType instance.ContainerType
-	Error         *Error
+	Error         *api.Error
 }
 
 // VersionResult holds the version and possibly error for a given
 // DesiredVersion() API call.
 type VersionResult struct {
 	Version *version.Number
-	Error   *Error
+	Error   *api.Error
 }
 
 // VersionResults is a list of versions for the requested entities.
@@ -470,7 +471,11 @@ type VersionResults struct {
 type ToolsResult struct {
 	Tools                          *tools.Tools
 	DisableSSLHostnameVerification bool
-	Error                          *Error
+	Error                          *api.Error
+}
+
+func (tr *ToolsResult) ResultError() *api.Error {
+	return tr.Error
 }
 
 // ToolsResults is a list of tools for various requested agents.
@@ -489,7 +494,7 @@ type FindToolsParams struct {
 // FindToolsResults holds a list of tools from FindTools and any error.
 type FindToolsResults struct {
 	List  tools.List
-	Error *Error
+	Error *api.Error
 }
 
 // Version holds a specific binary version.
@@ -514,7 +519,7 @@ type EntitiesVersion struct {
 // NotifyWatchResult holds a NotifyWatcher id and an error (if any).
 type NotifyWatchResult struct {
 	NotifyWatcherId string
-	Error           *Error
+	Error           *api.Error
 }
 
 // NotifyWatchResults holds the results for any API call which ends up
@@ -528,7 +533,7 @@ type NotifyWatchResults struct {
 type StringsWatchResult struct {
 	StringsWatcherId string
 	Changes          []string
-	Error            *Error
+	Error            *api.Error
 }
 
 // StringsWatchResults holds the results for any API call which ends up
@@ -563,7 +568,7 @@ type RelationUnitsChange struct {
 type RelationUnitsWatchResult struct {
 	RelationUnitsWatcherId string
 	Changes                RelationUnitsChange
-	Error                  *Error
+	Error                  *api.Error
 }
 
 // RelationUnitsWatchResults holds the results for any API call which ends up
@@ -577,6 +582,10 @@ type CharmsResponse struct {
 	Error    string   `json:",omitempty"`
 	CharmURL string   `json:",omitempty"`
 	Files    []string `json:",omitempty"`
+}
+
+func (cr *CharmsResponse) ResultError() *api.Error {
+	return &api.Error{Message: cr.Error}
 }
 
 // BackupResponse is the server (error only) response to backup requests
@@ -626,7 +635,7 @@ type ProvisioningInfo struct {
 
 // ProvisioningInfoResult holds machine provisioning info or an error.
 type ProvisioningInfoResult struct {
-	Error  *Error
+	Error  *api.Error
 	Result *ProvisioningInfo
 }
 

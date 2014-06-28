@@ -74,7 +74,7 @@ var (
 	ErrTryAgain       = stderrors.New("try again")
 )
 
-var singletonErrorCodes = map[error]string{
+var singletonErrorCodes = map[error]*api.ErrorCode{
 	state.ErrCannotEnterScopeYet: params.CodeCannotEnterScopeYet,
 	state.ErrCannotEnterScope:    params.CodeCannotEnterScope,
 	state.ErrUnitHasSubordinates: params.CodeUnitHasSubordinates,
@@ -88,7 +88,7 @@ var singletonErrorCodes = map[error]string{
 	ErrTryAgain:                  params.CodeTryAgain,
 }
 
-func singletonCode(err error) (string, bool) {
+func singletonCode(err error) (*api.ErrorCode, bool) {
 	// All error types may not be hashable; deal with
 	// that by catching the panic if we try to look up
 	// a non-hashable type.
