@@ -69,21 +69,21 @@ type inMsg struct {
 	Request   string
 	Params    json.RawMessage
 	Error     string
-	ErrorCode string
+	ErrorCode rpc.ErrorCode
 	Response  json.RawMessage
 }
 
 // outMsg holds an outgoing message.
 type outMsg struct {
 	RequestId uint64
-	Type      string      `json:",omitempty"`
-	Version   int         `json:",omitempty"`
-	Id        string      `json:",omitempty"`
-	Request   string      `json:",omitempty"`
-	Params    interface{} `json:",omitempty"`
-	Error     string      `json:",omitempty"`
-	ErrorCode string      `json:",omitempty"`
-	Response  interface{} `json:",omitempty"`
+	Type      string        `json:",omitempty"`
+	Version   int           `json:",omitempty"`
+	Id        string        `json:",omitempty"`
+	Request   string        `json:",omitempty"`
+	Params    interface{}   `json:",omitempty"`
+	Error     string        `json:",omitempty"`
+	ErrorCode rpc.ErrorCode `json:",omitempty"`
+	Response  interface{}   `json:",omitempty"`
 }
 
 func (c *Codec) Close() error {

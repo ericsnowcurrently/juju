@@ -15,9 +15,17 @@ import (
 	"github.com/juju/juju/rpc/rpcreflect"
 )
 
-const CodeNotImplemented = "not implemented"
-
 var logger = loggo.GetLogger("juju.rpc")
+
+type serverError Error
+
+func (e *serverError) Error() string {
+	return e.Message
+}
+
+func (e *serverError) ErrorCode() ErrorCode {
+	return e.Code
+}
 
 // A Codec implements reading and writing of messages in an RPC
 // session.  The RPC code calls WriteMessage to write a message to the
@@ -61,7 +69,7 @@ type Header struct {
 	Error string
 
 	// ErrorCode holds the code of the error, if any.
-	ErrorCode string
+	ErrorCode ErrorCode
 }
 
 // Request represents an RPC to be performed, absent its parameters.
@@ -337,13 +345,6 @@ func (conn *Conn) Close() error {
 	return conn.inputLoopError
 }
 
-// ErrorCoder represents an any error that has an associated
-// error code. An error code is a short string that represents the
-// kind of an error.
-type ErrorCoder interface {
-	ErrorCode() string
-}
-
 // MethodFinder represents a type that can be used to lookup a Method and place
 // calls on that method.
 type MethodFinder interface {
@@ -553,14 +554,4 @@ func (conn *Conn) runRequest(req boundRequest, arg reflect.Value, startTime time
 	if err != nil {
 		logger.Errorf("error writing response: %v", err)
 	}
-}
-
-type serverError RequestError
-
-func (e *serverError) Error() string {
-	return e.Message
-}
-
-func (e *serverError) ErrorCode() string {
-	return e.Code
 }

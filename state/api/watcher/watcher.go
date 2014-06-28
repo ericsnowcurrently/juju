@@ -9,6 +9,7 @@ import (
 	"github.com/juju/loggo"
 	"launchpad.net/tomb"
 
+	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/api/base"
 	"github.com/juju/juju/state/api/params"
 )
@@ -78,7 +79,7 @@ func (w *commonWatcher) commonLoop() {
 			result := w.newResult()
 			err := w.call("Next", &result)
 			if err != nil {
-				if params.IsCodeStopped(err) || params.IsCodeNotFound(err) {
+				if api.IsCodeStopped(err) || api.IsCodeNotFound(err) {
 					if w.tomb.Err() != tomb.ErrStillAlive {
 						// The watcher has been stopped at the client end, so we're
 						// expecting one of the above two kinds of error.
