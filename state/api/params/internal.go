@@ -591,7 +591,6 @@ type RelationUnitsWatchResults struct {
 
 // CharmsResponse is the server response to charm upload or GET requests.
 type CharmsResponse struct {
-	Error    string   `json:",omitempty"`
 	CharmURL string   `json:",omitempty"`
 	Files    []string `json:",omitempty"`
 }

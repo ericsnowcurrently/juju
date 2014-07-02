@@ -627,6 +627,8 @@ func (c *Client) AddLocalCharm(curl *charm.URL, ch charm.Charm) (*charm.URL, err
 		return nil, fmt.Errorf("unknown charm type %T", ch)
 	}
 
+	//    c.sendRawRequest(...)
+
 	// Prepare the upload request.
 	url := fmt.Sprintf("%s/charms?series=%s", c.st.serverRoot, curl.Series)
 	req, err := http.NewRequest("POST", url, archive)

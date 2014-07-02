@@ -27,77 +27,53 @@ import (
 
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/state/api/params"
+	"github.com/juju/juju/state/apiserver/rawrpc"
 )
 
 // charmsHandler handles charm upload through HTTPS in the API server.
 type charmsHandler struct {
-	httpHandler
+	rawRPCHandler
 	dataDir string
+}
+
+func (h *charmsHandler) handlePost(w http.ResponseWriter, r *http.Request) bool {
+	// Add a local charm to the store provider.
+	// Requires a "series" query specifying the series to use for the charm.
+	charmURL, err := h.processPost(r)
+	if err != nil {
+		rawrpc.SendBadRequestString(w, err.Error())
+		return
+	}
+	rawrpc.SendJSON(w, &params.CharmsResponse{CharmURL: charmURL.String()})
+}
+
+func (h *charmsHandler) handleGet(w http.ResponseWriter, r *http.Request) bool {
+	// Retrieve or list charm files.
+	// Requires "url" (charm URL) and an optional "file" (the path to the
+	// charm file) to be included in the query.
+	if charmArchivePath, filePath, err := h.processGet(r); err != nil {
+		// An error occurred retrieving the charm bundle.
+		rawrpc.SendBadRequestString(w, err.Error())
+	} else if filePath == "" {
+		// The client requested the list of charm files.
+		sendBundleContent(w, r, charmArchivePath, h.manifestSender)
+	} else {
+		// The client requested a specific file.
+		sendBundleContent(w, r, charmArchivePath, h.fileSender(filePath))
+	}
 }
 
 // bundleContentSenderFunc functions are responsible for sending a
 // response related to a charm bundle.
 type bundleContentSenderFunc func(w http.ResponseWriter, r *http.Request, bundle *charm.Bundle)
 
-func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := h.authenticate(r); err != nil {
-		h.authError(w, h)
-		return
-	}
-	if err := h.validateEnvironUUID(r); err != nil {
-		h.sendError(w, http.StatusNotFound, err.Error())
-		return
-	}
-
-	switch r.Method {
-	case "POST":
-		// Add a local charm to the store provider.
-		// Requires a "series" query specifying the series to use for the charm.
-		charmURL, err := h.processPost(r)
-		if err != nil {
-			h.sendError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.sendJSON(w, http.StatusOK, &params.CharmsResponse{CharmURL: charmURL.String()})
-	case "GET":
-		// Retrieve or list charm files.
-		// Requires "url" (charm URL) and an optional "file" (the path to the
-		// charm file) to be included in the query.
-		if charmArchivePath, filePath, err := h.processGet(r); err != nil {
-			// An error occurred retrieving the charm bundle.
-			h.sendError(w, http.StatusBadRequest, err.Error())
-		} else if filePath == "" {
-			// The client requested the list of charm files.
-			sendBundleContent(w, r, charmArchivePath, h.manifestSender)
-		} else {
-			// The client requested a specific file.
-			sendBundleContent(w, r, charmArchivePath, h.fileSender(filePath))
-		}
-	default:
-		h.sendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
-	}
-}
-
-// sendJSON sends a JSON-encoded response to the client.
-func (h *charmsHandler) sendJSON(w http.ResponseWriter, statusCode int, response *params.CharmsResponse) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	body, err := json.Marshal(response)
-	if err != nil {
-		return err
-	}
-	w.Write(body)
-	return nil
-}
-
 // sendBundleContent uses the given bundleContentSenderFunc to send a response
 // related to the charm archive located in the given archivePath.
 func sendBundleContent(w http.ResponseWriter, r *http.Request, archivePath string, sender bundleContentSenderFunc) {
 	bundle, err := charm.ReadBundle(archivePath)
 	if err != nil {
-		http.Error(
-			w, fmt.Sprintf("unable to read archive in %q: %v", archivePath, err),
-			http.StatusInternalServerError)
+		msg := fmt.Sprintf("unable to read archive in %q: %v", archivePath, err)
+		rawrpc.SendErrorString(w, msg)
 		return
 	}
 	// The bundleContentSenderFunc will set up and send an appropriate response.
@@ -109,12 +85,11 @@ func sendBundleContent(w http.ResponseWriter, r *http.Request, archivePath strin
 func (h *charmsHandler) manifestSender(w http.ResponseWriter, r *http.Request, bundle *charm.Bundle) {
 	manifest, err := bundle.Manifest()
 	if err != nil {
-		http.Error(
-			w, fmt.Sprintf("unable to read archive in %q: %v", bundle.Path, err),
-			http.StatusInternalServerError)
+		msg := fmt.Sprintf("unable to read archive in %q: %v", archivePath, err)
+		rawrpc.SendErrorString(w, msg)
 		return
 	}
-	h.sendJSON(w, http.StatusOK, &params.CharmsResponse{Files: manifest.SortedValues()})
+	rawrpc.SendJSON(w, &params.CharmsResponse{Files: manifest.SortedValues()})
 }
 
 // fileSender returns a bundleContentSenderFunc which is responsible for sending
@@ -122,6 +97,9 @@ func (h *charmsHandler) manifestSender(w http.ResponseWriter, r *http.Request, b
 // not identify a file or a symlink, a 403 forbidden error is returned.
 func (h *charmsHandler) fileSender(filePath string) bundleContentSenderFunc {
 	return func(w http.ResponseWriter, r *http.Request, bundle *charm.Bundle) {
+		// XXX How to leverage rawrpc.SendFile()?
+		rawrpc.SendFile(w, bundle.Path, "")
+
 		// TODO(fwereade) 2014-01-27 bug #1285685
 		// This doesn't handle symlinks helpfully, and should be talking in
 		// terms of bundles rather than zip readers; but this demands thought
@@ -165,11 +143,6 @@ func (h *charmsHandler) fileSender(filePath string) bundleContentSenderFunc {
 	}
 }
 
-// sendError sends a JSON-encoded error response.
-func (h *charmsHandler) sendError(w http.ResponseWriter, statusCode int, message string) error {
-	return h.sendJSON(w, statusCode, &params.CharmsResponse{Error: message})
-}
-
 // processPost handles a charm upload POST request after authentication.
 func (h *charmsHandler) processPost(r *http.Request) (*charm.URL, error) {
 	query := r.URL.Query()
@@ -177,25 +150,17 @@ func (h *charmsHandler) processPost(r *http.Request) (*charm.URL, error) {
 	if series == "" {
 		return nil, fmt.Errorf("expected series=URL argument")
 	}
-	// Make sure the content type is zip.
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/zip" {
-		return nil, fmt.Errorf("expected Content-Type: application/zip, got: %v", contentType)
-	}
-	tempFile, err := ioutil.TempFile("", "charm")
+	// Store the uploaded file locally.
+	filename, err := rawrpc.ExtractFile(r, "", "application/zip")
 	if err != nil {
-		return nil, fmt.Errorf("cannot create temp file: %v", err)
+		return "", nil
 	}
-	defer tempFile.Close()
-	defer os.Remove(tempFile.Name())
-	if _, err := io.Copy(tempFile, r.Body); err != nil {
-		return nil, fmt.Errorf("error processing file upload: %v", err)
-	}
-	err = h.processUploadedArchive(tempFile.Name())
+	// Process the tempfile.
+	err = h.processUploadedArchive(filename)
 	if err != nil {
 		return nil, err
 	}
-	archive, err := charm.ReadBundle(tempFile.Name())
+	archive, err := charm.ReadBundle(filename)
 	if err != nil {
 		return nil, fmt.Errorf("invalid charm archive: %v", err)
 	}

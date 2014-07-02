@@ -1,0 +1,122 @@
+// Copyright 2014 Canonical Ltd.
+// Licensed under the AGPLv3, see LICENCE file for details.
+
+package rawrpc
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"os"
+
+	"github.com/juju/juju/state"
+	"github.com/juju/juju/state/api/params"
+)
+
+type RawRPCHandler struct{}
+
+func (h *RawRPCHandler) sendJSON(w http.ResponseWriter, statusCode int, result interface{}, force bool) error {
+    // Serialize the result.
+    body, err := json.Marshal(result)
+    if force && err != nil {
+        return err
+    }
+    // Send the response.
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(statusCode)
+    w.Write(body)
+    return nil
+}
+
+func (h *RawRPCHandler) SendResult(w http.ResponseWriter, statusCode int, result interface{}) error {
+    force := false
+    return h.sendJSON(w, statusCode, result, force)
+}
+
+func (h *RawRPCHandler) sendError(w http.ResponseWriter, statusCode int, err *params.Error) {
+    force := true
+    h.sendJSON(w, statusCode, err, force)
+}
+
+func (h *RawRPCHandler) SendFailure(w http.ResponseWriter, err *params.Error) error {
+    h.sendJSON
+	w.WriteHeader(http.StatusInternalServerError)
+    apiError := params.Error{
+        Message: message,
+        Code: code,
+    }
+}
+
+// SendError sends a JSON-encoded error response.
+func (h *RawRPCHandler) SendError(w http.ResponseWriter, message string, code string) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+    apiError := params.Error{
+        Message: message,
+        Code: code,
+    }
+    // We ignore any errors, which are pretty unlikely, since we'll
+    // still be sending the ISE.
+	body, _ := json.Marshal(&apiError)
+	w.Write(body)
+	return nil
+}
+
+func (h *RestfulRPCHandler) SendFile(w http.ResponseWriter, statusCode int, data io.Reader) error {
+}
+
+//---------------------------
+// Restful handlers
+
+type GetHandler interface {
+    HandleGet() *params.Error
+}
+
+
+
+// rawRPCHandler handles raw RPC requests
+type rawRPCHandler struct {
+	httpHandler
+}
+
+func (h *rawRPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := h.authenticate(r); err != nil {
+		h.authError(w, h)
+		return
+	}
+
+	switch r.Method {
+	case "POST":
+		file, sha, err := h.doBackup()
+		if err != nil {
+			h.sendAPIError(w, err.Error(), "")
+			return
+		}
+
+        h.
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Digest", fmt.Sprintf("SHA=%s", sha))
+
+		w.WriteHeader(http.StatusOK)
+		io.Copy(w, file)
+	default:
+		h.sendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
+	}
+}
+
+// sendAPIError sends a JSON-encoded error response.
+func (h *rawRPCHandler) sendAPIError(w http.ResponseWriter, message string, code string) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+    apiError := params.Error{
+        Message: message,
+        Code: code,
+    }
+    // We ignore any errors, which are pretty unlikely, since we'll
+    // still be sending the ISE.
+	body, _ := json.Marshal(&apiError)
+	w.Write(body)
+	return nil
+}
