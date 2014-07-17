@@ -1,6 +1,8 @@
 // Copyright 2012, 2013 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
+// This code *could* be moved over to juju/util.
+
 package testing
 
 import (

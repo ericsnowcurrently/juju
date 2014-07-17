@@ -18,7 +18,6 @@ import (
 
 	"code.google.com/p/go.net/websocket"
 	jc "github.com/juju/testing/checkers"
-	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/state/api/params"
@@ -200,7 +199,7 @@ func (s *debugLogSuite) openWebsocket(c *gc.C, values url.Values) *bufio.Reader 
 func (s *debugLogSuite) openWebsocketCustomPath(c *gc.C, path string) *bufio.Reader {
 	server := s.logURL(c, "wss", nil)
 	server.Path = path
-	header := utils.BasicAuthHeader(s.userTag, s.password)
+	header := s.AuthHeader()
 	conn, err := s.dialWebsocketFromURL(c, server.String(), header)
 	c.Assert(err, gc.IsNil)
 	s.AddCleanup(func(_ *gc.C) { conn.Close() })
@@ -247,7 +246,7 @@ func (s *debugLogSuite) dialWebsocketFromURL(c *gc.C, server string, header http
 }
 
 func (s *debugLogSuite) dialWebsocket(c *gc.C, queryParams url.Values) (*websocket.Conn, error) {
-	header := utils.BasicAuthHeader(s.userTag, s.password)
+	header := s.AuthHeader()
 	return s.dialWebsocketInternal(c, queryParams, header)
 }
 

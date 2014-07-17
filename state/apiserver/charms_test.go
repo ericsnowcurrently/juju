@@ -32,9 +32,9 @@ var _ = gc.Suite(&charmsSuite{})
 
 func (s *charmsSuite) SetUpSuite(c *gc.C) {
 	s.authHttpSuite.SetUpSuite(c)
-	s.archiveContentType = "application/zip"
-	s.apiBinding = "charms"
-	s.httpClient = utils.GetNonValidatingHTTPClient()
+	s.Mimetype = "application/zip"
+	s.APIBinding = "charms"
+	s.HTTPClient = utils.GetNonValidatingHTTPClient()
 }
 
 func (s *charmsSuite) TestCharmsServedSecurely(c *gc.C) {

@@ -17,6 +17,7 @@ import (
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/rpc"
+	"github.com/juju/juju/rpc/errors"
 	"github.com/juju/juju/rpc/jsoncodec"
 	"github.com/juju/juju/rpc/rpcreflect"
 	"github.com/juju/juju/testing"
@@ -769,7 +770,7 @@ func (*rpcSuite) TestErrorCode(c *gc.C) {
 	defer closeClient(c, client, srvDone)
 	err := client.Call(rpc.Request{"ErrorMethods", 0, "", "Call"}, nil, nil)
 	c.Assert(err, gc.ErrorMatches, `request error: message \(code\)`)
-	c.Assert(err.(rpc.ErrorCoder).ErrorCode(), gc.Equals, "code")
+	c.Assert(err.(errors.ErrorCoder).ErrorCode(), gc.Equals, "code")
 }
 
 func (*rpcSuite) TestTransformErrors(c *gc.C) {

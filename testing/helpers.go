@@ -5,18 +5,12 @@ package testing
 
 import (
 	"bytes"
+	"io"
+	"io/ioutil"
 )
 
-// CloseableBuffer is a closeable wrapper around a bytes.Buffer,
-// allowing a buffer to be used as an io.ReadCloser.
-type CloseableBuffer struct {
-	*bytes.Buffer
-}
-
-func NewCloseableBufferString(data string) *CloseableBuffer {
-	return &CloseableBuffer{bytes.NewBufferString(data)}
-}
-
-func (f *CloseableBuffer) Close() error {
-	return nil
+// NewCloseableBufferStrung returns a closeable wrapper around a
+// bytes.Buffer, allowing the buffer to be used as an io.ReadCloser.
+func NewCloseableBufferString(data string) io.ReadCloser {
+	return ioutil.NopCloser(bytes.NewBufferString(data))
 }

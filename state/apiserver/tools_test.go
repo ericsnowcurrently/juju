@@ -30,9 +30,9 @@ var _ = gc.Suite(&toolsSuite{})
 
 func (s *toolsSuite) SetUpSuite(c *gc.C) {
 	s.authHttpSuite.SetUpSuite(c)
-	s.archiveContentType = "application/x-tar-gz"
-	s.apiBinding = "tools"
-	s.httpClient = utils.GetNonValidatingHTTPClient()
+	s.Mimetype = "application/x-tar-gz"
+	s.APIBinding = "tools"
+	s.HTTPClient = utils.GetNonValidatingHTTPClient()
 }
 
 func (s *toolsSuite) TestToolsUploadedSecurely(c *gc.C) {

@@ -4,11 +4,31 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
+	"net/url"
 
-	"github.com/juju/juju/state/api/httpreq"
+	"github.com/juju/juju/rpc/simple"
 )
+
+func (c *Client) rawHTTPClient() simple.HTTPDoer {
+	return c.st.SecureHTTPClient("anything")
+}
+
+func (c *Client) newAPIRequest(binding *simple.APIBinding) (*simple.APIRequest, error) {
+	URL, err := url.Parse(c.st.serverRoot)
+	if err != nil {
+		return nil, err
+	}
+	envinfo, err := c.EnvironmentInfo()
+	if err != nil {
+		return nil, err
+	}
+	req := simple.NewAPIRequest(URL.Host, binding, envinfo.UUID)
+
+	req.SetAuth(c.st.tag, c.st.password)
+
+	return req, nil
+}
 
 /*
 TODO(ericsnow) 2014-07-01 bug #1336542
@@ -17,35 +37,11 @@ be updated to use this method (and this should be adapted to
 accommodate them.  That will include adding parameters for "args" and
 "payload".
 */
-func (c *Client) getHTTPRequest(httpMethod string, method string) (*http.Request, error) {
-	envinfo, err := c.EnvironmentInfo()
+func (c *Client) sendHTTPRequest(binding *simple.APIBinding) (*http.Response, error) {
+	req, err := c.newAPIRequest(binding)
 	if err != nil {
 		return nil, err
 	}
-	url := fmt.Sprintf("%s/environment/%s/%s", c.st.serverRoot, envinfo.UUID, method)
-	//	url := fmt.Sprintf("%s/%s", c.st.serverRoot, method)
-
-	req, err := http.NewRequest(httpMethod, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("could not create HTTP request: %v", err)
-	}
-
-	req.SetBasicAuth(c.st.tag, c.st.password)
-
-	return req, nil
-}
-
-func (c *Client) getRawHTTPClient() httpreq.HTTPDoer {
-	return c.st.SecureHTTPClient("anything")
-}
-
-func (c *Client) sendHTTPRequest(httpMethod string, method string) (*http.Response, error) {
-	req, err := c.getHTTPRequest(httpMethod, method)
-	if err != nil {
-		return nil, err
-	}
-
-	// Send the request.
-	httpclient := c.getRawHTTPClient()
-	return httpreq.Do(httpclient, req)
+	client := c.rawHTTPClient()
+	return req.Send(client)
 }

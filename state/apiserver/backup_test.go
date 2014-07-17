@@ -9,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/juju/juju/rpc/errors"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/apiserver"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
@@ -24,36 +24,21 @@ var _ = gc.Suite(&backupSuite{})
 
 func (s *backupSuite) SetUpSuite(c *gc.C) {
 	s.authHttpSuite.SetUpSuite(c)
-	s.archiveContentType = "application/x-tar-gz"
-	s.apiBinding = "backup"
-	s.httpMethod = "POST"
-}
-
-func (s *backupSuite) sendValidRequest(c *gc.C) *http.Response {
-	url, err := s.URL("")
-	c.Assert(err, gc.IsNil)
-	resp, err := s.sendURL(url)
-	c.Assert(err, gc.IsNil)
-	return resp
-}
-
-func (s *backupSuite) backupURL(c *gc.C) string {
-	URL, err := s.URL("")
-	c.Assert(err, gc.IsNil)
-	return URL.String()
+	s.APIBinding = "backup"
+	s.HTTPMethod = "POST"
+	s.Mimetype = "application/x-tar-gz"
 }
 
 func (s *backupSuite) TestBackupHTTPHandling(c *gc.C) {
-	var result params.Error
-	s.checkServedSecurely(c)
-	s.checkHTTPMethodInvalid(c, "GET", &result)
-	s.checkHTTPMethodInvalid(c, "PUT", &result)
+	var result errors.APIError
+	s.CheckServedSecurely(c)
+	s.CheckHTTPMethodInvalid(c, "GET", &result)
+	s.CheckHTTPMethodInvalid(c, "PUT", &result)
 
-	s.checkRequiresAuth(c, &result)
-	s.checkRequiresUser(c, &result)
+	s.CheckRequiresAuth(c, &result)
+	s.CheckRequiresUser(c, &result)
 
-	query := ""
-	s.checkLegacyPathUnavailable(c, query)
+	s.CheckLegacyPathUnavailable(c)
 }
 
 func (s *backupSuite) TestBackupCalledAndFileServed(c *gc.C) {
@@ -81,12 +66,12 @@ func (s *backupSuite) TestBackupCalledAndFileServed(c *gc.C) {
 		return backupFilePath, "some-sha", nil
 	}
 	s.PatchValue(&apiserver.Backup, testBackup)
-	s.PatchValue(&apiserver.GetMongoConnectionInfo, testGetMongoConnectionInfo)
+	s.PatchValue(apiserver.GetMongoConnInfo, testGetMongoConnectionInfo)
 
-	resp := s.sendValidRequest(c)
+	resp := s.SendValid(c)
 
 	// Check the response.
-	s.checkFileResponse(c, resp, "foobarbam", "application/octet-stream")
+	s.CheckFileResponse(c, resp, "foobarbam", "application/octet-stream")
 	c.Check(resp.Header.Get("Digest"), gc.Equals, "SHA=some-sha")
 
 	// Check the passed values.
@@ -106,15 +91,13 @@ func (s *backupSuite) TestBackupErrorWhenBackupFails(c *gc.C) {
 	}
 	s.PatchValue(&apiserver.Backup, testBackup)
 
-	resp := s.sendValidRequest(c)
-
-	// Check the response.
-	var result params.Error
-	s.checkErrorResponse(c, resp, http.StatusInternalServerError, "backup failed: something bad", &result)
+	resp, err := s.Send(c)
+	s.CheckStatusCode(c, resp, http.StatusInternalServerError)
+	c.Check(err, gc.ErrorMatches, "backup failed: something bad")
 
 	// Check the passed values.
 	c.Assert(data.tempDir, gc.NotNil)
-	_, err := os.Stat(data.tempDir)
+	_, err = os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 }
 
@@ -127,14 +110,34 @@ func (s *backupSuite) TestBackupErrorWhenBackupFileDoesNotExist(c *gc.C) {
 	}
 	s.PatchValue(&apiserver.Backup, testBackup)
 
-	resp := s.sendValidRequest(c)
-
-	// Check the response.
-	var result params.Error
-	s.checkErrorResponse(c, resp, http.StatusInternalServerError, "backup failed: missing backup file", &result)
+	resp, err := s.Send(c)
+	s.CheckStatusCode(c, resp, http.StatusInternalServerError)
+	c.Check(err, gc.ErrorMatches, `backup failed \(invalid backup file\), could not open file: .*`)
 
 	// Check the passed values.
 	c.Assert(data.tempDir, gc.NotNil)
-	_, err := os.Stat(data.tempDir)
+	_, err = os.Stat(data.tempDir)
+	c.Check(err, jc.Satisfies, os.IsNotExist)
+}
+
+func (s *backupSuite) TestBackupErrorWhenBackupFileEmpty(c *gc.C) {
+	var data struct{ tempDir string }
+	testBackup := func(password string, username string, tempDir string, address string) (string, string, error) {
+		data.tempDir = tempDir
+		backupFilePath := filepath.Join(tempDir, "testBackupFile")
+		file, err := os.Create(backupFilePath)
+		c.Assert(err, gc.IsNil)
+		file.Close()
+		return backupFilePath, "some-sha", nil
+	}
+	s.PatchValue(&apiserver.Backup, testBackup)
+
+	resp, err := s.Send(c)
+	s.CheckStatusCode(c, resp, http.StatusInternalServerError)
+	c.Check(err, gc.ErrorMatches, `backup failed \(invalid backup file\), file is empty`)
+
+	// Check the passed values.
+	c.Assert(data.tempDir, gc.NotNil)
+	_, err = os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 }

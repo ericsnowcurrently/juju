@@ -12,10 +12,12 @@ import (
 
 	"github.com/juju/loggo"
 
+	"github.com/juju/juju/rpc/errors"
+	"github.com/juju/juju/rpc/errors/errorcodes"
 	"github.com/juju/juju/rpc/rpcreflect"
 )
 
-const CodeNotImplemented = "not implemented"
+const CodeNotImplemented = errorcodes.NotImplemented
 
 var logger = loggo.GetLogger("juju.rpc")
 
@@ -337,13 +339,6 @@ func (conn *Conn) Close() error {
 	return conn.inputLoopError
 }
 
-// ErrorCoder represents an any error that has an associated
-// error code. An error code is a short string that represents the
-// kind of an error.
-type ErrorCoder interface {
-	ErrorCode() string
-}
-
 // MethodFinder represents a type that can be used to lookup a Method and place
 // calls on that method.
 type MethodFinder interface {
@@ -475,7 +470,7 @@ func (conn *Conn) writeErrorResponse(reqHdr *Header, err error, startTime time.T
 	hdr := &Header{
 		RequestId: reqHdr.RequestId,
 	}
-	if err, ok := err.(ErrorCoder); ok {
+	if err, ok := err.(errors.ErrorCoder); ok {
 		hdr.ErrorCode = err.ErrorCode()
 	} else {
 		hdr.ErrorCode = ""

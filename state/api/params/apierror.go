@@ -7,13 +7,18 @@ import (
 	"fmt"
 
 	"github.com/juju/juju/rpc"
+	"github.com/juju/juju/rpc/errors"
+	"github.com/juju/juju/rpc/errors/errorcodes"
 )
 
-type FailableResult interface {
-	Err() error
-}
+//---------------------------
+// errors
 
-// Error is the type of error returned by any call to the state API
+// Error is the type of error returned by any call to the state API.
+//
+// We use a distinct error type to ensure that the error string remains
+// minimal.  Also, it's best not to make clients know that we're using
+// the rpc package.
 type Error struct {
 	Message string
 	Code    string
@@ -27,44 +32,10 @@ func (e *Error) ErrorCode() string {
 	return e.Code
 }
 
-func (e *Error) Err() error {
-	return e
-}
-
-var _ rpc.ErrorCoder = (*Error)(nil)
-
 // GoString implements fmt.GoStringer.  It means that a *Error shows its
 // contents correctly when printed with %#v.
 func (e Error) GoString() string {
 	return fmt.Sprintf("&params.Error{%q, %q}", e.Code, e.Message)
-}
-
-// The Code constants hold error codes for some kinds of error.
-const (
-	CodeNotFound            = "not found"
-	CodeUnauthorized        = "unauthorized access"
-	CodeCannotEnterScope    = "cannot enter scope"
-	CodeCannotEnterScopeYet = "cannot enter scope yet"
-	CodeExcessiveContention = "excessive contention"
-	CodeUnitHasSubordinates = "unit has subordinates"
-	CodeNotAssigned         = "not assigned"
-	CodeStopped             = "stopped"
-	CodeHasAssignedUnits    = "machine has assigned units"
-	CodeNotProvisioned      = "not provisioned"
-	CodeNoAddressSet        = "no address set"
-	CodeTryAgain            = "try again"
-	CodeNotImplemented      = rpc.CodeNotImplemented
-	CodeAlreadyExists       = "already exists"
-)
-
-// ErrCode returns the error code associated with
-// the given error, or the empty string if there
-// is none.
-func ErrCode(err error) string {
-	if err, _ := err.(rpc.ErrorCoder); err != nil {
-		return err.ErrorCode()
-	}
-	return ""
 }
 
 // ClientError maps errors returned from an RPC call into local errors with
@@ -84,13 +55,45 @@ func ClientError(err error) error {
 	}
 }
 
-func IsCodeNotFound(err error) bool {
-	return ErrCode(err) == CodeNotFound
-}
+//---------------------------
+// error codes
 
-func IsCodeUnauthorized(err error) bool {
-	return ErrCode(err) == CodeUnauthorized
-}
+// The Code constants hold error codes for some kinds of error.
+const (
+	CodeNotFound            = errorcodes.NotFound
+	CodeUnauthorized        = errorcodes.Unauthorized
+	CodeCannotEnterScope    = "cannot enter scope"
+	CodeCannotEnterScopeYet = "cannot enter scope yet"
+	CodeExcessiveContention = "excessive contention"
+	CodeUnitHasSubordinates = "unit has subordinates"
+	CodeNotAssigned         = "not assigned"
+	CodeStopped             = "stopped"
+	CodeHasAssignedUnits    = "machine has assigned units"
+	CodeNotProvisioned      = "not provisioned"
+	CodeNoAddressSet        = "no address set"
+	CodeTryAgain            = errorcodes.TryAgain
+	CodeNotImplemented      = errorcodes.NotImplemented
+	CodeAlreadyExists       = "already exists"
+)
+
+var ErrCode = errors.ErrCode
+
+var (
+	IsCodeNotFound            = errors.ErrorCodeChecker(CodeNotFound)
+	IsCodeUnauthorized        = errors.ErrorCodeChecker(CodeUnauthorized)
+	IsCodeCannotEnterScope    = errors.ErrorCodeChecker(CodeCannotEnterScope)
+	IsCodeCannotEnterScopeYet = errors.ErrorCodeChecker(CodeCannotEnterScopeYet)
+	IsCodeExcessiveContention = errors.ErrorCodeChecker(CodeExcessiveContention)
+	IsCodeUnitHasSubordinates = errors.ErrorCodeChecker(CodeUnitHasSubordinates)
+	IsCodeNotAssigned         = errors.ErrorCodeChecker(CodeNotAssigned)
+	IsCodeStopped             = errors.ErrorCodeChecker(CodeStopped)
+	IsCodeHasAssignedUnits    = errors.ErrorCodeChecker(CodeHasAssignedUnits)
+	IsCodeNotProvisioned      = errors.ErrorCodeChecker(CodeNotProvisioned)
+	IsCodeNoAddressSet        = errors.ErrorCodeChecker(CodeNoAddressSet)
+	IsCodeTryAgain            = errors.ErrorCodeChecker(CodeTryAgain)
+	IsCodeNotImplemented      = errors.ErrorCodeChecker(CodeNotImplemented)
+	IsCodeAlreadyExists       = errors.ErrorCodeChecker(CodeAlreadyExists)
+)
 
 // IsCodeNotFoundOrCodeUnauthorized is used in API clients which,
 // pre-API, used errors.IsNotFound; this is because an API client is
@@ -99,52 +102,4 @@ func IsCodeUnauthorized(err error) bool {
 // to Unauthorized at its discretion.
 func IsCodeNotFoundOrCodeUnauthorized(err error) bool {
 	return IsCodeNotFound(err) || IsCodeUnauthorized(err)
-}
-
-func IsCodeCannotEnterScope(err error) bool {
-	return ErrCode(err) == CodeCannotEnterScope
-}
-
-func IsCodeCannotEnterScopeYet(err error) bool {
-	return ErrCode(err) == CodeCannotEnterScopeYet
-}
-
-func IsCodeExcessiveContention(err error) bool {
-	return ErrCode(err) == CodeExcessiveContention
-}
-
-func IsCodeUnitHasSubordinates(err error) bool {
-	return ErrCode(err) == CodeUnitHasSubordinates
-}
-
-func IsCodeNotAssigned(err error) bool {
-	return ErrCode(err) == CodeNotAssigned
-}
-
-func IsCodeStopped(err error) bool {
-	return ErrCode(err) == CodeStopped
-}
-
-func IsCodeHasAssignedUnits(err error) bool {
-	return ErrCode(err) == CodeHasAssignedUnits
-}
-
-func IsCodeNotProvisioned(err error) bool {
-	return ErrCode(err) == CodeNotProvisioned
-}
-
-func IsCodeNoAddressSet(err error) bool {
-	return ErrCode(err) == CodeNoAddressSet
-}
-
-func IsCodeTryAgain(err error) bool {
-	return ErrCode(err) == CodeTryAgain
-}
-
-func IsCodeNotImplemented(err error) bool {
-	return ErrCode(err) == CodeNotImplemented
-}
-
-func IsCodeAlreadyExists(err error) bool {
-	return ErrCode(err) == CodeAlreadyExists
 }

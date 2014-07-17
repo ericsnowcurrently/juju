@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package httpreq_test
+package simple_test
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/state/api/httpreq"
+	"github.com/juju/juju/rpc/simple"
 	coretesting "github.com/juju/juju/testing"
 )
 
@@ -92,76 +92,77 @@ func (c FakeHTTPClient) Do(req *http.Request) (*http.Response, error) {
 //---------------------------
 // Do() tests
 
-func (s *httpreqSuite) TestDoValidNoData(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestValidNoData(c *gc.C) {
 	client := FakeHTTPClient{}
-	resp, err := httpreq.Do(&client, nil)
+	resp, err := simple.SendRequest(&client, nil)
 	data, _ := ioutil.ReadAll(resp.Body)
 
 	c.Assert(err, gc.IsNil)
 	c.Assert(string(data), gc.Equals, "")
 }
 
-func (s *httpreqSuite) TestDoValidData(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestValidData(c *gc.C) {
 	client := FakeHTTPClient{Data: bytes.NewBufferString("raw data")}
-	resp, err := httpreq.Do(&client, nil)
+	resp, err := simple.SendRequest(&client, nil)
 	data, _ := ioutil.ReadAll(resp.Body)
 
 	c.Assert(err, gc.IsNil)
 	c.Assert(string(data), gc.Equals, "raw data")
 }
 
-func (s *httpreqSuite) TestDoRequestSendFailed(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestRequestSendFailed(c *gc.C) {
 	client := FakeHTTPClient{Err: fmt.Errorf("failed!")}
-	_, err := httpreq.Do(&client, nil)
+	_, err := simple.SendRequest(&client, nil)
 
 	c.Assert(err, gc.ErrorMatches, "could not send API request: .*")
 }
 
-func (s *httpreqSuite) TestDoMethodNotSupported(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestMethodNotSupported(c *gc.C) {
 	client := FakeHTTPClient{Code: http.StatusMethodNotAllowed}
-	_, err := httpreq.Do(&client, nil)
+	_, err := simple.SendRequest(&client, nil)
 
 	c.Assert(err, gc.ErrorMatches, "API method not supported by server")
 }
 
 // tests for method failures returned by the API server
 
-func (s *httpreqSuite) TestDoUnreadableErrorData(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestUnreadableErrorData(c *gc.C) {
 	client := FakeHTTPClient{
 		Data: InvalidData("invalid!"),
 		Code: http.StatusInternalServerError,
 	}
-	_, err := httpreq.Do(&client, nil)
+	_, err := simple.SendRequest(&client, nil)
 
-	c.Assert(err, gc.ErrorMatches, "could not unpack error response: .*")
+	c.Assert(err, gc.ErrorMatches, "could not unpack result: .*")
 }
 
-func (s *httpreqSuite) TestDoBadErrorData(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestBadErrorData(c *gc.C) {
 	client := FakeHTTPClient{
 		Data: bytes.NewBufferString("not valid JSON"),
 		Code: http.StatusInternalServerError,
 	}
-	_, err := httpreq.Do(&client, nil)
+	_, err := simple.SendRequest(&client, nil)
 
-	c.Assert(err, gc.ErrorMatches, "could not unpack error response: .*")
+	c.Assert(err, gc.ErrorMatches, "could not unpack result: .*")
 }
 
-func (s *httpreqSuite) TestDoFailedRemotely(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestFailedRemotely(c *gc.C) {
 	client := FakeHTTPClient{
 		Data: bytes.NewBufferString(`{"Message": "failed!"}`),
 		Code: http.StatusInternalServerError,
 	}
-	_, err := httpreq.Do(&client, nil)
+	_, err := simple.SendRequest(&client, nil)
 
 	c.Assert(err, gc.ErrorMatches, "failed!")
 }
 
-func (s *httpreqSuite) TestDoBadStatusCode(c *gc.C) {
+func (s *httpreqSuite) TestSendRequestBadStatusCode(c *gc.C) {
 	client := FakeHTTPClient{
 		Data: bytes.NewBufferString(`{}`),
 		Code: http.StatusInternalServerError,
 	}
-	_, err := httpreq.Do(&client, nil)
+	_, err := simple.SendRequest(&client, nil)
+	c.Assert(err, gc.NotNil)
 
 	c.Assert(err.Error(), gc.Equals, "")
 }

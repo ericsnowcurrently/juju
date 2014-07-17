@@ -13,29 +13,23 @@ import (
 	"os"
 	"path"
 	"strings"
-	stdtesting "testing"
-	"time"
 
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/testing"
 )
 
-func Test(t *stdtesting.T) {
-	testing.MgoTestPackage(t)
-}
-
 var _ = gc.Suite(&BackupSuite{})
 
 type BackupSuite struct {
-	testing.BaseSuite
+	testing.FilesSuite
 	cwd       string
 	testFiles []string
 }
 
 func (b *BackupSuite) SetUpTest(c *gc.C) {
 	b.cwd = c.MkDir()
-	b.BaseSuite.SetUpTest(c)
+	b.FilesSuite.SetUpTest(c)
 }
 
 func (b *BackupSuite) createTestFiles(c *gc.C) {
@@ -138,66 +132,6 @@ func (b *BackupSuite) assertTarContents(c *gc.C, expectedContents []expectedTarC
 		}
 	}
 
-}
-
-func (b *BackupSuite) TestDefaultFilename(c *gc.C) {
-	filename := DefaultFilename()
-
-	// This is a sanity check that no one accidentally
-	// (or accidentally maliciously) broken the default filename format.
-	c.Check(filename, gc.Matches, `jujubackup-\d{8}-\d{6}\..*`)
-	// The most crucial part is that the suffix is .tar.gz.
-	c.Assert(filename, gc.Matches, `.*\.tar\.gz$`)
-}
-
-func (b *BackupSuite) TestDefaultFilenameDateFormat(c *gc.C) {
-	filename := DefaultFilename()
-	_, err := TimestampFromDefaultFilename(filename)
-
-	c.Check(err, gc.IsNil)
-}
-
-func (b *BackupSuite) TestDefaultFilenameUnique(c *gc.C) {
-	filename1 := DefaultFilename()
-	time.Sleep(1 * time.Second)
-	filename2 := DefaultFilename()
-
-	c.Check(filename1, gc.Not(gc.Equals), filename2)
-}
-
-func (b *BackupSuite) TestGetHash(c *gc.C) {
-	archive := testing.NewCloseableBufferString("bam")
-	hash, err := GetHash(archive)
-
-	c.Assert(err, gc.IsNil)
-	c.Check(hash, gc.Equals, "evJYWUtQ/4dKBHtUqSRC6B9FjPs=")
-}
-
-func (b *BackupSuite) TestCreateArchiveUncompressed(c *gc.C) {
-	b.createTestFiles(c)
-	outputTar := path.Join(b.cwd, "output_tar_file.tar")
-	trimPath := fmt.Sprintf("%s/", b.cwd)
-	shaSum, err := CreateArchive(b.testFiles, outputTar, trimPath, false)
-	c.Check(err, gc.IsNil)
-	fileShaSum, err := GetHashByFilename(outputTar)
-	c.Assert(err, gc.IsNil)
-	c.Assert(shaSum, gc.Equals, fileShaSum)
-	b.removeTestFiles(c)
-	b.assertTarContents(c, testExpectedTarContents, outputTar, false)
-}
-
-func (b *BackupSuite) TestCreateArchiveCompressed(c *gc.C) {
-	b.createTestFiles(c)
-	outputTarGz := path.Join(b.cwd, "output_tar_file.tgz")
-	trimPath := fmt.Sprintf("%s/", b.cwd)
-	shaSum, err := CreateArchive(b.testFiles, outputTarGz, trimPath, true)
-	c.Check(err, gc.IsNil)
-
-	fileShaSum, err := GetHashByFilename(outputTarGz)
-	c.Assert(err, gc.IsNil)
-	c.Assert(shaSum, gc.Equals, fileShaSum)
-
-	b.assertTarContents(c, testExpectedTarContents, outputTarGz, true)
 }
 
 func (b *BackupSuite) TestBackUp(c *gc.C) {
