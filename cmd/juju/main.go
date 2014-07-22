@@ -138,6 +138,9 @@ func registerCommands(r commandRegistry, ctx *cmd.Context) {
 	// Charm tool commands.
 	r.Register(&HelpToolCommand{})
 
+	// Manage backups.
+	r.Register(wrapEnvCommand(&BackupCommand{}))
+
 	// Manage authorized ssh keys.
 	r.Register(NewAuthorizedKeysCommand())
 
