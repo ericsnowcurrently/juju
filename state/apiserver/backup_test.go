@@ -26,7 +26,7 @@ import (
 var uploadBackupToStorage = *apiserver.UploadBackupToStorage
 
 type backupSuite struct {
-	authHttpSuite
+	httpHandlerSuite
 }
 
 var _ = gc.Suite(&backupSuite{})
@@ -42,17 +42,17 @@ func (s *backupSuite) backupURL(c *gc.C) string {
 func (s *backupSuite) TestBackupRequiresAuth(c *gc.C) {
 	resp, err := s.sendRequest(c, "", "", "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
-	s.assertErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
+	s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 }
 
 func (s *backupSuite) TestBackupRequiresPOST(c *gc.C) {
 	resp, err := s.authRequest(c, "PUT", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
-	s.assertErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "PUT"`)
+	s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "PUT"`)
 
 	resp, err = s.authRequest(c, "GET", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
-	s.assertErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
+	s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
 }
 
 func (s *backupSuite) TestBackupAuthRequiresClientNotMachine(c *gc.C) {
@@ -68,13 +68,13 @@ func (s *backupSuite) TestBackupAuthRequiresClientNotMachine(c *gc.C) {
 
 	resp, err := s.sendRequest(c, machine.Tag().String(), password, "POST", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
-	s.assertErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
+	s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 
 	// Now try a user login.
 	// (Still with an invalid method so we don't actually attempt backup.)
 	resp, err = s.authRequest(c, "GET", s.backupURL(c), "", nil)
 	c.Assert(err, gc.IsNil)
-	s.assertErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
+	s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
 }
 
 type happyBackup struct {
@@ -153,7 +153,7 @@ func (s *backupSuite) TestBackupErrorWhenBackupFails(c *gc.C) {
 	_, err = os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 
-	s.assertErrorResponse(c, resp, 500, "backup failed: something bad")
+	s.checkErrorResponse(c, resp, 500, "backup failed: something bad")
 }
 
 func (s *backupSuite) TestBackupErrorWhenBackupFileDoesNotExist(c *gc.C) {
@@ -173,7 +173,7 @@ func (s *backupSuite) TestBackupErrorWhenBackupFileDoesNotExist(c *gc.C) {
 	_, err = os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 
-	s.assertErrorResponse(c, resp, 500, `backup failed: .+`)
+	s.checkErrorResponse(c, resp, 500, `backup failed: .+`)
 }
 
 func (s *backupSuite) TestBackupErrorWhenBackupStorageFails(c *gc.C) {
@@ -189,7 +189,7 @@ func (s *backupSuite) TestBackupErrorWhenBackupStorageFails(c *gc.C) {
 
 	c.Assert(err, gc.IsNil)
 	defer resp.Body.Close()
-	s.assertErrorResponse(c, resp, 500, "backup storage failed: blam")
+	s.checkErrorResponse(c, resp, 500, "backup storage failed: blam")
 }
 
 func (s *backupSuite) TestBackupErrorWhenBackupFileStatFails(c *gc.C) {
