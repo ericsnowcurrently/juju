@@ -34,6 +34,6 @@ func (b *BackupSuite) newJSONResponse(c *gc.C, statusCode int, result interface{
 }
 
 func (b *BackupSuite) newHTTPFailure(c *gc.C, msg, code string) *http.Response {
-	failure := params.BackupResponse{Error: msg}
+	failure := params.Error{Message: msg}
 	return b.newJSONResponse(c, http.StatusInternalServerError, &failure)
 }

@@ -20,12 +20,11 @@ func parseJSONError(resp *http.Response) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not read HTTP response: %v", err)
 	}
-	// TODO (ericsnow) Change this to params.Error.
-	var jsonResponse params.BackupResponse
+	var jsonResponse params.Error
 	if err := json.Unmarshal(body, &jsonResponse); err != nil {
 		return "", fmt.Errorf("could not extract error from HTTP response: %v", err)
 	}
-	return jsonResponse.Error, nil
+	return jsonResponse.Error(), nil
 }
 
 // CheckAPIResponse checks the HTTP response for an API failure.  This

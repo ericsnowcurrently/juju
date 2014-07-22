@@ -67,7 +67,7 @@ func (s *backupSuite) SetUpTest(c *gc.C) {
 }
 
 func (s *backupSuite) setFailure(c *gc.C, msg string) {
-	result := params.BackupResponse{Error: msg}
+	result := params.Error{Message: msg}
 	var err error
 	s.data, err = json.Marshal(result)
 	c.Assert(err, gc.IsNil)
