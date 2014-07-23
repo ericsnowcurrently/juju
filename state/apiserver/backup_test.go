@@ -6,6 +6,7 @@ package apiserver_test
 import (
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -35,9 +36,11 @@ func (s *backupSuite) SetUpTest(c *gc.C) {
 	s.httpMethod = "POST"
 }
 
-func (s *backupSuite) TestBackupAPIBinding(c *gc.C) {
-	s.checkAPIBinding(c, "PUT", "GET")
-	s.checkLegacyPathDisallowed(c)
+func (s *backupSuite) makeTempFile(c *gc.C) *os.File {
+	tempDir := c.MkDir()
+	f, err := os.Create(filepath.Join(tempDir, "foo"))
+	c.Assert(err, gc.IsNil)
+	return f
 }
 
 type happyBackup struct {
@@ -58,6 +61,14 @@ func (b *happyBackup) Backup(info *backup.DBConnInfo, tempDir string) (
 	return backupFilePath, "some-sha", nil
 }
 
+//---------------------------
+// tests
+
+func (s *backupSuite) TestBackupAPIBinding(c *gc.C) {
+	s.checkAPIBinding(c, "PUT", "GET")
+	s.checkLegacyPathDisallowed(c)
+}
+
 func (s *backupSuite) TestBackupCalledAndFileServedAndStored(c *gc.C) {
 	testGetDBConnInfo := func(thisState *state.State) *backup.DBConnInfo {
 		info := backup.DBConnInfo{
@@ -73,6 +84,7 @@ func (s *backupSuite) TestBackupCalledAndFileServedAndStored(c *gc.C) {
 	s.PatchValue(apiserver.GetDBConnInfo, testGetDBConnInfo)
 	resp := s.validRequest(c)
 
+	// Check the result.
 	c.Check(b.tempDir, gc.NotNil)
 	_, err := os.Stat(b.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
@@ -80,15 +92,17 @@ func (s *backupSuite) TestBackupCalledAndFileServedAndStored(c *gc.C) {
 	c.Check(b.username, gc.Equals, "machine-0")
 	c.Check(b.address, gc.Equals, "localhost:80")
 
-	c.Check(resp.StatusCode, gc.Equals, 200)
+	// Check the response headers.
+	s.checkResponse(c, resp, http.StatusOK, "application/octet-stream")
 	c.Check(resp.Header.Get("Digest"), gc.Equals, "SHA=some-sha")
 	c.Check(resp.Header.Get("Content-Disposition"), gc.Equals,
 		"attachment; filename=\"testBackupFile\"")
-	c.Check(resp.Header.Get("Content-Type"), gc.Equals, "application/octet-stream")
 
+	// Check the response body.
 	body, _ := ioutil.ReadAll(resp.Body)
 	c.Check(body, jc.DeepEquals, []byte("foobarbam"))
 
+	// Check the environment storage.
 	stor, err := environs.GetStorage(s.State)
 	c.Assert(err, gc.IsNil)
 	storReader, err := stor.Get("/backups/testBackupFile")
@@ -106,10 +120,12 @@ func (s *backupSuite) TestBackupErrorWhenBackupFails(c *gc.C) {
 	s.PatchValue(apiserver.Backup, testBackup)
 	resp := s.validRequest(c)
 
+	// Check the result.
 	c.Assert(data.tempDir, gc.NotNil)
 	_, err := os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 
+	// Check the response.
 	s.checkErrorResponse(c, resp, 500, "backup failed: something bad")
 }
 
@@ -123,10 +139,12 @@ func (s *backupSuite) TestBackupErrorWhenBackupFileDoesNotExist(c *gc.C) {
 	s.PatchValue(apiserver.Backup, testBackup)
 	resp := s.validRequest(c)
 
+	// Check the result.
 	c.Assert(data.tempDir, gc.NotNil)
 	_, err := os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 
+	// Check the response.
 	s.checkErrorResponse(c, resp, 500, `backup failed: .+`)
 }
 
@@ -140,6 +158,7 @@ func (s *backupSuite) TestBackupErrorWhenBackupStorageFails(c *gc.C) {
 	)
 	resp := s.validRequest(c)
 
+	// Check the response.
 	s.checkErrorResponse(c, resp, 500, "backup storage failed: blam")
 }
 
@@ -174,11 +193,4 @@ func (s *backupSuite) TestBackupErrorWhenStoragePutFails(c *gc.C) {
 
 	err = uploadBackupToStorage(s.State, f)
 	c.Assert(err, gc.ErrorMatches, "blam")
-}
-
-func (s *backupSuite) makeTempFile(c *gc.C) *os.File {
-	tempDir := c.MkDir()
-	f, err := os.Create(filepath.Join(tempDir, "foo"))
-	c.Assert(err, gc.IsNil)
-	return f
 }
