@@ -7,7 +7,7 @@ import (
 	"archive/zip"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	//	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -51,6 +51,9 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "POST":
+		if h.handleNoop(w, r) {
+			return
+		}
 		// Add a local charm to the store provider.
 		// Requires a "series" query specifying the series to use for the charm.
 		charmURL, err := h.processPost(r)
@@ -60,6 +63,9 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		h.sendJSON(w, http.StatusOK, &params.CharmsResponse{CharmURL: charmURL.String()})
 	case "GET":
+		if h.handleNoop(w, r) {
+			return
+		}
 		// Retrieve or list charm files.
 		// Requires "url" (charm URL) and an optional "file" (the path to the
 		// charm file) to be included in the query.
@@ -78,6 +84,7 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 // sendJSON sends a JSON-encoded response to the client.
 func (h *charmsHandler) sendJSON(w http.ResponseWriter, statusCode int, response *params.CharmsResponse) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -89,6 +96,7 @@ func (h *charmsHandler) sendJSON(w http.ResponseWriter, statusCode int, response
 	w.Write(body)
 	return nil
 }
+*/
 
 // sendBundleContent uses the given bundleContentSenderFunc to send a response
 // related to the charm archive located in the given archivePath.
@@ -165,10 +173,12 @@ func (h *charmsHandler) fileSender(filePath string) bundleContentSenderFunc {
 	}
 }
 
+/*
 // sendError sends a JSON-encoded error response.
 func (h *charmsHandler) sendError(w http.ResponseWriter, statusCode int, message string) error {
 	return h.sendJSON(w, statusCode, &params.CharmsResponse{Error: message})
 }
+*/
 
 // processPost handles a charm upload POST request after authentication.
 func (h *charmsHandler) processPost(r *http.Request) (*charm.URL, error) {

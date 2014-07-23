@@ -5,7 +5,7 @@ package apiserver
 
 import (
 	"crypto/sha256"
-	"encoding/json"
+	//	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,7 +19,7 @@ import (
 	"github.com/juju/juju/environs/sync"
 	envtools "github.com/juju/juju/environs/tools"
 	"github.com/juju/juju/state/api/params"
-	"github.com/juju/juju/state/apiserver/common"
+	//	"github.com/juju/juju/state/apiserver/common"
 	"github.com/juju/juju/tools"
 	"github.com/juju/juju/version"
 )
@@ -41,6 +41,9 @@ func (h *toolsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "POST":
+		if h.handleNoop(w, r) {
+			return
+		}
 		// Add a local charm to the store provider.
 		// Requires a "series" query specifying the series to use for the charm.
 		agentTools, disableSSLHostnameVerification, err := h.processPost(r)
@@ -57,6 +60,7 @@ func (h *toolsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 // sendJSON sends a JSON-encoded response to the client.
 func (h *toolsHandler) sendJSON(w http.ResponseWriter, statusCode int, response *params.ToolsResult) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -74,6 +78,7 @@ func (h *toolsHandler) sendError(w http.ResponseWriter, statusCode int, message 
 	err := common.ServerError(fmt.Errorf(message))
 	return h.sendJSON(w, statusCode, &params.ToolsResult{Error: err})
 }
+*/
 
 // processPost handles a charm upload POST request after authentication.
 func (h *toolsHandler) processPost(r *http.Request) (*tools.Tools, bool, error) {

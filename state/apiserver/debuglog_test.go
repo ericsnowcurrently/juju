@@ -26,12 +26,18 @@ import (
 )
 
 type debugLogSuite struct {
-	authHttpSuite
+	httpHandlerSuite
 	logFile *os.File
 	last    int
 }
 
 var _ = gc.Suite(&debugLogSuite{})
+
+func (s *debugLogSuite) SetUpTest(c *gc.C) {
+	s.httpHandlerSuite.SetUpTest(c)
+	s.apiBinding = "log"
+	s.httpMethod = "GET"
+}
 
 func (s *debugLogSuite) TestDebugLogWithHTTP(c *gc.C) {
 	uri := s.logURL(c, "http", nil).String()
@@ -252,13 +258,13 @@ func (s *debugLogSuite) dialWebsocket(c *gc.C, queryParams url.Values) (*websock
 }
 
 func (s *debugLogSuite) logURL(c *gc.C, scheme string, queryParams url.Values) *url.URL {
-	logURL := s.baseURL(c)
+	logURL := s.URL(c, "")
 	query := ""
 	if queryParams != nil {
 		query = queryParams.Encode()
 	}
 	logURL.Scheme = scheme
-	logURL.Path += "/log"
+	logURL.Path = "/log"
 	logURL.RawQuery = query
 	return logURL
 }

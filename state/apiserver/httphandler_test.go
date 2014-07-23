@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/juju/utils"
@@ -25,13 +26,14 @@ import (
 
 type httpHandlerSuite struct {
 	jujutesting.JujuConnSuite
-	userTag    string
-	password   string
-	apiBinding string
-	httpMethod string
-	apiClient  *api.Client
-	httpClient *http.Client
-	noop       bool
+	userTag      string
+	password     string
+	apiBinding   string
+	httpMethod   string
+	dataMimetype string
+	apiClient    *api.Client
+	httpClient   *http.Client
+	noop         bool
 }
 
 func (s *httpHandlerSuite) SetUpTest(c *gc.C) {
@@ -134,6 +136,22 @@ func (s *httpHandlerSuite) validRequest(c *gc.C) *http.Response {
 	return s.authRequest(c, "", "", "", nil)
 }
 
+func (s *httpHandlerSuite) uploadRequest(c *gc.C, uri string, asZip bool, path string) *http.Response {
+	contentType := "application/octet-stream"
+	if asZip {
+		contentType = s.dataMimetype
+	}
+
+	if path == "" {
+		return s.authRequest(c, "", uri, contentType, nil)
+	}
+
+	file, err := os.Open(path)
+	c.Assert(err, gc.IsNil)
+	defer file.Close()
+	return s.authRequest(c, "", uri, contentType, file)
+}
+
 //---------------------------
 // response checks
 
@@ -146,18 +164,24 @@ func (s *httpHandlerSuite) checkResponse(
 	return res
 }
 
+func (s *httpHandlerSuite) jsonResponse(
+	c *gc.C, resp *http.Response, result interface{},
+) {
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, gc.IsNil)
+
+	err = json.Unmarshal(body, &result)
+	c.Assert(err, gc.IsNil)
+}
+
 func (s *httpHandlerSuite) checkErrorResponse(
 	c *gc.C, resp *http.Response, statusCode int, msg string,
 ) bool {
 	res := s.checkResponse(c, resp, statusCode, "application/json")
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, gc.IsNil)
-
 	var result params.Error
-	err = json.Unmarshal(body, &result)
-	c.Assert(err, gc.IsNil)
+	s.jsonResponse(c, resp, &result)
 	res = res && c.Check(&result, gc.ErrorMatches, msg)
 	return res
 }
