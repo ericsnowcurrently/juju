@@ -173,28 +173,33 @@ func (s *httpHandlerSuite) sendRequest(
 		payload.SetOnRequest(req)
 	}
 
-	logger.Debugf("sending request: %s", uri)
+	logger.Debugf("sending %s request: %s", method, uri)
 	return s.httpClient.Do(req)
 }
 
 func (s *httpHandlerSuite) urlRequest(c *gc.C, URL *url.URL) *http.Response {
+	if URL == nil {
+		URL = s.URL(c, "")
+	}
 	resp, err := s.sendRequest(c, URL.String(), "", nil, nil)
 	c.Assert(err, gc.IsNil)
 	return resp
 }
 
 func (s *httpHandlerSuite) queryRequest(c *gc.C, query string) *http.Response {
+	if strings.HasPrefix(query, "?") {
+		query = query[1:]
+	}
 	URL := s.URL(c, "")
 	URL.RawQuery = query
 	return s.urlRequest(c, URL)
 }
 
 func (s *httpHandlerSuite) validRequest(c *gc.C) *http.Response {
-	resp, err := s.sendRequest(c, "", "", nil, nil)
-	c.Assert(err, gc.IsNil)
-	return resp
+	return s.urlRequest(c, nil)
 }
 
+// XXX Change uri to *url.URL.
 func (s *httpHandlerSuite) uploadRequest(
 	c *gc.C, uri string, asZip bool, path string,
 ) *http.Response {
