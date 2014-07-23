@@ -40,19 +40,19 @@ func (s *toolsSuite) TestToolsUploadedSecurely(c *gc.C) {
 	c.Assert(err, gc.ErrorMatches, `.*malformed HTTP response.*`)
 }
 
-func (s *toolsSuite) TestRequiresAuth(c *gc.C) {
+func (s *toolsSuite) TestToolsRequiresAuth(c *gc.C) {
 	resp, err := s.sendRequest(c, "", "", "GET", s.toolsURI(c, ""), "", nil)
 	c.Assert(err, gc.IsNil)
 	s.assertErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 }
 
-func (s *toolsSuite) TestRequiresPOST(c *gc.C) {
+func (s *toolsSuite) TestToolsRequiresPOST(c *gc.C) {
 	resp, err := s.authRequest(c, "PUT", s.toolsURI(c, ""), "", nil)
 	c.Assert(err, gc.IsNil)
 	s.assertErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "PUT"`)
 }
 
-func (s *toolsSuite) TestAuthRequiresUser(c *gc.C) {
+func (s *toolsSuite) TestToolsAuthRequiresUser(c *gc.C) {
 	// Add a machine and try to login.
 	machine, err := s.State.AddMachine("quantal", state.JobHostUnits)
 	c.Assert(err, gc.IsNil)
@@ -73,13 +73,13 @@ func (s *toolsSuite) TestAuthRequiresUser(c *gc.C) {
 	s.assertErrorResponse(c, resp, http.StatusBadRequest, "expected binaryVersion argument")
 }
 
-func (s *toolsSuite) TestUploadRequiresVersion(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadRequiresVersion(c *gc.C) {
 	resp, err := s.authRequest(c, "POST", s.toolsURI(c, ""), "", nil)
 	c.Assert(err, gc.IsNil)
 	s.assertErrorResponse(c, resp, http.StatusBadRequest, "expected binaryVersion argument")
 }
 
-func (s *toolsSuite) TestUploadFailsWithNoTools(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadFailsWithNoTools(c *gc.C) {
 	// Create an empty file.
 	tempFile, err := ioutil.TempFile(c.MkDir(), "tools")
 	c.Assert(err, gc.IsNil)
@@ -89,7 +89,7 @@ func (s *toolsSuite) TestUploadFailsWithNoTools(c *gc.C) {
 	s.assertErrorResponse(c, resp, http.StatusBadRequest, "no tools uploaded")
 }
 
-func (s *toolsSuite) TestUploadFailsWithInvalidContentType(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadFailsWithInvalidContentType(c *gc.C) {
 	// Create an empty file.
 	tempFile, err := ioutil.TempFile(c.MkDir(), "tools")
 	c.Assert(err, gc.IsNil)
@@ -110,7 +110,7 @@ func (s *toolsSuite) setupToolsForUpload(c *gc.C) (coretools.List, version.Binar
 	return expectedTools, vers, path.Join(localStorage, toolsFile)
 }
 
-func (s *toolsSuite) TestUpload(c *gc.C) {
+func (s *toolsSuite) TestToolsUpload(c *gc.C) {
 	// Make some fake tools.
 	expectedTools, vers, toolPath := s.setupToolsForUpload(c)
 	// Now try uploading them.
@@ -135,7 +135,7 @@ func (s *toolsSuite) TestUpload(c *gc.C) {
 	c.Assert(uploadedData, gc.DeepEquals, expectedData)
 }
 
-func (s *toolsSuite) TestUploadAllowsTopLevelPath(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadAllowsTopLevelPath(c *gc.C) {
 	// Backwards compatibility check, that we can upload tools to
 	// https://host:port/tools
 	expectedTools, vers, toolPath := s.setupToolsForUpload(c)
@@ -151,7 +151,7 @@ func (s *toolsSuite) TestUploadAllowsTopLevelPath(c *gc.C) {
 	s.assertUploadResponse(c, resp, expectedTools[0])
 }
 
-func (s *toolsSuite) TestUploadAllowsEnvUUIDPath(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadAllowsEnvUUIDPath(c *gc.C) {
 	// Check that we can upload tools to https://host:port/ENVUUID/tools
 	environ, err := s.State.Environment()
 	c.Assert(err, gc.IsNil)
@@ -168,7 +168,7 @@ func (s *toolsSuite) TestUploadAllowsEnvUUIDPath(c *gc.C) {
 	s.assertUploadResponse(c, resp, expectedTools[0])
 }
 
-func (s *toolsSuite) TestUploadRejectsWrongEnvUUIDPath(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadRejectsWrongEnvUUIDPath(c *gc.C) {
 	// Check that we cannot access the tools at https://host:port/BADENVUUID/tools
 	url := s.toolsURL(c, "")
 	url.Path = "/environment/dead-beef-123456/tools"
@@ -177,7 +177,7 @@ func (s *toolsSuite) TestUploadRejectsWrongEnvUUIDPath(c *gc.C) {
 	s.assertErrorResponse(c, resp, http.StatusNotFound, `unknown environment: "dead-beef-123456"`)
 }
 
-func (s *toolsSuite) TestUploadFakeSeries(c *gc.C) {
+func (s *toolsSuite) TestToolsUploadFakeSeries(c *gc.C) {
 	// Make some fake tools.
 	expectedTools, vers, toolPath := s.setupToolsForUpload(c)
 	// Now try uploading them.

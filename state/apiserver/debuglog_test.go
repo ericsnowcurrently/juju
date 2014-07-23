@@ -33,20 +33,20 @@ type debugLogSuite struct {
 
 var _ = gc.Suite(&debugLogSuite{})
 
-func (s *debugLogSuite) TestWithHTTP(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogWithHTTP(c *gc.C) {
 	uri := s.logURL(c, "http", nil).String()
 	_, err := s.sendRequest(c, "", "", "GET", uri, "", nil)
 	c.Assert(err, gc.ErrorMatches, `.*malformed HTTP response.*`)
 }
 
-func (s *debugLogSuite) TestWithHTTPS(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogWithHTTPS(c *gc.C) {
 	uri := s.logURL(c, "https", nil).String()
 	response, err := s.sendRequest(c, "", "", "GET", uri, "", nil)
 	c.Assert(err, gc.IsNil)
 	c.Assert(response.StatusCode, gc.Equals, http.StatusBadRequest)
 }
 
-func (s *debugLogSuite) TestNoAuth(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogNoAuth(c *gc.C) {
 	conn, err := s.dialWebsocketInternal(c, nil, nil)
 	c.Assert(err, gc.IsNil)
 	defer conn.Close()
@@ -56,13 +56,13 @@ func (s *debugLogSuite) TestNoAuth(c *gc.C) {
 	s.assertWebsocketClosed(c, reader)
 }
 
-func (s *debugLogSuite) TestNoLogfile(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogNoLogfile(c *gc.C) {
 	reader := s.openWebsocket(c, nil)
 	s.assertErrorResponse(c, reader, "cannot open log file: .*: no such file or directory")
 	s.assertWebsocketClosed(c, reader)
 }
 
-func (s *debugLogSuite) TestBadParams(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogBadParams(c *gc.C) {
 	reader := s.openWebsocket(c, url.Values{"maxLines": {"foo"}})
 	s.assertErrorResponse(c, reader, `maxLines value "foo" is not a valid unsigned number`)
 	s.assertWebsocketClosed(c, reader)
@@ -76,13 +76,13 @@ func (s *debugLogSuite) assertLogReader(c *gc.C, reader *bufio.Reader) {
 	c.Assert(linesRead, jc.DeepEquals, logLines)
 }
 
-func (s *debugLogSuite) TestServesLog(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogServesLog(c *gc.C) {
 	s.ensureLogFile(c)
 	reader := s.openWebsocket(c, nil)
 	s.assertLogReader(c, reader)
 }
 
-func (s *debugLogSuite) TestReadFromTopLevelPath(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogReadFromTopLevelPath(c *gc.C) {
 	// Backwards compatibility check, that we can read the log file at
 	// https://host:port/log
 	s.ensureLogFile(c)
@@ -90,7 +90,7 @@ func (s *debugLogSuite) TestReadFromTopLevelPath(c *gc.C) {
 	s.assertLogReader(c, reader)
 }
 
-func (s *debugLogSuite) TestReadFromEnvUUIDPath(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogReadFromEnvUUIDPath(c *gc.C) {
 	// Check that we can read the log at https://host:port/ENVUUID/log
 	environ, err := s.State.Environment()
 	c.Assert(err, gc.IsNil)
@@ -99,7 +99,7 @@ func (s *debugLogSuite) TestReadFromEnvUUIDPath(c *gc.C) {
 	s.assertLogReader(c, reader)
 }
 
-func (s *debugLogSuite) TestReadRejectsWrongEnvUUIDPath(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogReadRejectsWrongEnvUUIDPath(c *gc.C) {
 	// Check that we cannot upload charms to https://host:port/BADENVUUID/charms
 	s.ensureLogFile(c)
 	reader := s.openWebsocketCustomPath(c, "/environment/dead-beef-123456/log")
@@ -107,7 +107,7 @@ func (s *debugLogSuite) TestReadRejectsWrongEnvUUIDPath(c *gc.C) {
 	s.assertWebsocketClosed(c, reader)
 }
 
-func (s *debugLogSuite) TestReadsFromEnd(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogReadsFromEnd(c *gc.C) {
 	s.writeLogLines(c, 10)
 
 	reader := s.openWebsocket(c, nil)
@@ -118,7 +118,7 @@ func (s *debugLogSuite) TestReadsFromEnd(c *gc.C) {
 	c.Assert(linesRead, jc.DeepEquals, logLines[10:])
 }
 
-func (s *debugLogSuite) TestReplayFromStart(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogReplayFromStart(c *gc.C) {
 	s.writeLogLines(c, 10)
 
 	reader := s.openWebsocket(c, url.Values{"replay": {"true"}})
@@ -129,7 +129,7 @@ func (s *debugLogSuite) TestReplayFromStart(c *gc.C) {
 	c.Assert(linesRead, jc.DeepEquals, logLines)
 }
 
-func (s *debugLogSuite) TestBacklog(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogBacklog(c *gc.C) {
 	s.writeLogLines(c, 10)
 
 	reader := s.openWebsocket(c, url.Values{"backlog": {"5"}})
@@ -140,7 +140,7 @@ func (s *debugLogSuite) TestBacklog(c *gc.C) {
 	c.Assert(linesRead, jc.DeepEquals, logLines[5:])
 }
 
-func (s *debugLogSuite) TestMaxLines(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogMaxLines(c *gc.C) {
 	s.writeLogLines(c, 10)
 
 	reader := s.openWebsocket(c, url.Values{"maxLines": {"10"}})
@@ -152,7 +152,7 @@ func (s *debugLogSuite) TestMaxLines(c *gc.C) {
 	s.assertWebsocketClosed(c, reader)
 }
 
-func (s *debugLogSuite) TestBacklogWithMaxLines(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogBacklogWithMaxLines(c *gc.C) {
 	s.writeLogLines(c, 10)
 
 	reader := s.openWebsocket(c, url.Values{"backlog": {"5"}, "maxLines": {"10"}})
@@ -164,7 +164,7 @@ func (s *debugLogSuite) TestBacklogWithMaxLines(c *gc.C) {
 	s.assertWebsocketClosed(c, reader)
 }
 
-func (s *debugLogSuite) TestFilter(c *gc.C) {
+func (s *debugLogSuite) TestDebugLogFilter(c *gc.C) {
 	s.ensureLogFile(c)
 
 	reader := s.openWebsocket(c, url.Values{
