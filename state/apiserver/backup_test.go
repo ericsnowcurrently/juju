@@ -6,13 +6,11 @@ package apiserver_test
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/juju/names"
 	jc "github.com/juju/testing/checkers"
-	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/environs"
@@ -31,50 +29,22 @@ type backupSuite struct {
 
 var _ = gc.Suite(&backupSuite{})
 
-func (s *backupSuite) backupURL(c *gc.C) string {
-	environ, err := s.State.Environment()
-	c.Assert(err, gc.IsNil)
-	uri := s.baseURL(c)
-	uri.Path = fmt.Sprintf("/environment/%s/backup", environ.UUID())
-	return uri.String()
+func (s *backupSuite) SetUpTest(c *gc.C) {
+	s.httpHandlerSuite.SetUpTest(c)
+	s.apiBinding = "backup"
+	s.httpMethod = "POST"
+
+	invalidBackup := func(*backup.DBConnInfo, string) (string, string, error) {
+		return "", "", fmt.Errorf("invalid")
+	}
+	s.invalidator = func() {
+		s.PatchValue(apiserver.Backup, invalidBackup)
+	}
 }
 
-func (s *backupSuite) TestBackupRequiresAuth(c *gc.C) {
-	resp, err := s.sendRequest(c, "", "", "POST", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
-}
-
-func (s *backupSuite) TestBackupRequiresPOST(c *gc.C) {
-	resp, err := s.authRequest(c, "PUT", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "PUT"`)
-
-	resp, err = s.authRequest(c, "GET", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
-}
-
-func (s *backupSuite) TestBackupAuthRequiresClientNotMachine(c *gc.C) {
-	// Add a machine and try to login.
-	machine, err := s.State.AddMachine("quantal", state.JobHostUnits)
-	c.Assert(err, gc.IsNil)
-	err = machine.SetProvisioned("foo", "fake_nonce", nil)
-	c.Assert(err, gc.IsNil)
-	password, err := utils.RandomPassword()
-	c.Assert(err, gc.IsNil)
-	err = machine.SetPassword(password)
-	c.Assert(err, gc.IsNil)
-
-	resp, err := s.sendRequest(c, machine.Tag().String(), password, "POST", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
-
-	// Now try a user login.
-	// (Still with an invalid method so we don't actually attempt backup.)
-	resp, err = s.authRequest(c, "GET", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, `unsupported method: "GET"`)
+func (s *backupSuite) TestBackupAPIBinding(c *gc.C) {
+	s.checkAPIBinding(c, "PUT", "GET")
+	s.checkLegacyPathDisallowed(c)
 }
 
 type happyBackup struct {
@@ -108,13 +78,10 @@ func (s *backupSuite) TestBackupCalledAndFileServedAndStored(c *gc.C) {
 	var b happyBackup
 	s.PatchValue(apiserver.Backup, b.Backup)
 	s.PatchValue(apiserver.GetDBConnInfo, testGetDBConnInfo)
-
-	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	defer resp.Body.Close()
+	resp := s.validRequest(c)
 
 	c.Check(b.tempDir, gc.NotNil)
-	_, err = os.Stat(b.tempDir)
+	_, err := os.Stat(b.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 	c.Check(b.mongoPassword, gc.Equals, "foobar")
 	c.Check(b.username, gc.Equals, "machine-0")
@@ -144,13 +111,10 @@ func (s *backupSuite) TestBackupErrorWhenBackupFails(c *gc.C) {
 		return "", "", fmt.Errorf("something bad")
 	}
 	s.PatchValue(apiserver.Backup, testBackup)
-
-	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	defer resp.Body.Close()
+	resp := s.validRequest(c)
 
 	c.Assert(data.tempDir, gc.NotNil)
-	_, err = os.Stat(data.tempDir)
+	_, err := os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 
 	s.checkErrorResponse(c, resp, 500, "backup failed: something bad")
@@ -164,13 +128,10 @@ func (s *backupSuite) TestBackupErrorWhenBackupFileDoesNotExist(c *gc.C) {
 		return backupFilePath, "some-sha", nil
 	}
 	s.PatchValue(apiserver.Backup, testBackup)
-
-	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
-	c.Assert(err, gc.IsNil)
-	defer resp.Body.Close()
+	resp := s.validRequest(c)
 
 	c.Assert(data.tempDir, gc.NotNil)
-	_, err = os.Stat(data.tempDir)
+	_, err := os.Stat(data.tempDir)
 	c.Check(err, jc.Satisfies, os.IsNotExist)
 
 	s.checkErrorResponse(c, resp, 500, `backup failed: .+`)
@@ -184,11 +145,8 @@ func (s *backupSuite) TestBackupErrorWhenBackupStorageFails(c *gc.C) {
 			return fmt.Errorf("blam")
 		},
 	)
+	resp := s.validRequest(c)
 
-	resp, err := s.authRequest(c, "POST", s.backupURL(c), "", nil)
-
-	c.Assert(err, gc.IsNil)
-	defer resp.Body.Close()
 	s.checkErrorResponse(c, resp, 500, "backup storage failed: blam")
 }
 

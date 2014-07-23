@@ -46,6 +46,10 @@ func (h *backupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.authError(w, h)
 		return
 	}
+	if err := h.validateEnvironUUID(r); err != nil {
+		h.sendError(w, http.StatusNotFound, err.Error())
+		return
+	}
 
 	switch r.Method {
 	case "POST":
