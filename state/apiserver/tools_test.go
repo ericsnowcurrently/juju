@@ -136,7 +136,7 @@ func (s *toolsSuite) checkTools(c *gc.C, fake *fakeTools) bool {
 //---------------------------
 // tests
 
-func (s *toolsSuite) TestBackupAPIBinding(c *gc.C) {
+func (s *toolsSuite) TestToolsAPIBinding(c *gc.C) {
 	s.checkAPIBinding(c, "PUT", "GET")
 	s.checkLegacyPathAllowed(c)
 }
@@ -156,7 +156,7 @@ func (s *toolsSuite) TestToolsUploadValid(c *gc.C) {
 }
 
 func (s *toolsSuite) TestToolsUploadRequiresVersion(c *gc.C) {
-	resp := s.authRequest(c, "", "", "", nil)
+	resp := s.validRequest(c)
 	s.checkErrorResponse(c, resp, http.StatusBadRequest, "expected binaryVersion argument")
 }
 
