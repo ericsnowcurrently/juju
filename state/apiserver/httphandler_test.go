@@ -229,6 +229,22 @@ func (s *httpHandlerSuite) checkErrorResponse(
 	return c.Check(failure, gc.ErrorMatches, msg) && res
 }
 
+func (s *httpHandlerSuite) checkResult(
+	c *gc.C, resp *http.Response, result interface{},
+) bool {
+	res := s.checkResponse(c, resp, http.StatusOK, "application/json")
+	s.jsonResponse(c, resp, result)
+	return res
+}
+
+func (s *httpHandlerSuite) checkRawResult(
+	c *gc.C, resp *http.Response, expBody, expType string,
+) bool {
+	res := s.checkResponse(c, resp, http.StatusOK, expType)
+	body := s.readResponse(c, resp)
+	return c.Check(string(body), gc.Equals, expBody) && res
+}
+
 //---------------------------
 // HTTP checks
 
