@@ -95,68 +95,125 @@ func (s *httpHandlerSuite) checkAPIBinding(c *gc.C, invalidMethods ...string) bo
 //---------------------------
 // request helpers
 
-func (s *httpHandlerSuite) sendRequest(
-	c *gc.C, tag, password, method, uri, contentType string, body io.Reader,
-) (*http.Response, error) {
+type APIAuth struct {
+	UserTag  string
+	Password string
+}
+
+func (a *APIAuth) SetHeader(req *http.Request) {
+	if a.UserTag != "" && a.Password != "" {
+		req.SetBasicAuth(a.UserTag, a.Password)
+	}
+}
+
+type APIDataPayload struct {
+	Data     io.Reader
+	Mimetype string
+}
+
+func (p *APIDataPayload) SetHeader(req *http.Request) {
+	contentType := p.Mimetype
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	req.Header.Set("Content-Type", contentType)
+}
+
+func (p *APIDataPayload) SetOnRequest(req *http.Request) {
+	body, ok := p.Data.(io.ReadCloser)
+	if !ok && p.Data != nil {
+		body = ioutil.NopCloser(p.Data)
+	}
+	req.Body = body
+
+	p.SetHeader(req)
+}
+
+func (s *httpHandlerSuite) requestDefaults(
+	c *gc.C, auth *APIAuth, method, uri string,
+) (*APIAuth, string, string) {
+	if auth == nil {
+		auth = &APIAuth{
+			UserTag:  s.userTag,
+			Password: s.password,
+		}
+	}
 	if method == "" {
 		method = s.httpMethod
 	}
 	if uri == "" {
 		uri = s.URL(c, "").String()
-		if s.noop {
-			uri += "?noop=1"
-		}
-	} else if s.noop {
+	}
+	return auth, method, uri
+}
+
+func (s *httpHandlerSuite) adjustURL(c *gc.C, uri string) string {
+	if s.noop {
 		if strings.Contains(uri, "?") {
 			uri += "&noop=1"
 		} else {
 			uri += "?noop=1"
 		}
 	}
-	logger.Debugf("sending request: %s", uri)
-	req, err := http.NewRequest(method, uri, body)
+	return uri
+}
+
+// XXX Change uri to be *url.URL.
+func (s *httpHandlerSuite) sendRequest(
+	c *gc.C, uri, method string, auth *APIAuth, payload *APIDataPayload,
+) (*http.Response, error) {
+	auth, method, uri = s.requestDefaults(c, auth, method, uri)
+	uri = s.adjustURL(c, uri)
+
+	req, err := http.NewRequest(method, uri, nil)
 	c.Assert(err, gc.IsNil)
 
-	if tag != "" && password != "" {
-		req.SetBasicAuth(tag, password)
+	auth.SetHeader(req)
+	if payload != nil {
+		payload.SetOnRequest(req)
 	}
 
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
+	logger.Debugf("sending request: %s", uri)
 	return s.httpClient.Do(req)
 }
 
-func (s *httpHandlerSuite) authRequest(
-	c *gc.C, method, uri, contentType string, body io.Reader,
-) *http.Response {
-	resp, err := s.sendRequest(c, s.userTag, s.password, method, uri, contentType, body)
+func (s *httpHandlerSuite) urlRequest(c *gc.C, URL *url.URL) *http.Response {
+	resp, err := s.sendRequest(c, URL.String(), "", nil, nil)
 	c.Assert(err, gc.IsNil)
 	return resp
 }
 
+func (s *httpHandlerSuite) queryRequest(c *gc.C, query string) *http.Response {
+	URL := s.URL(c, "")
+	URL.RawQuery = query
+	return s.urlRequest(c, URL)
+}
+
 func (s *httpHandlerSuite) validRequest(c *gc.C) *http.Response {
-	return s.authRequest(c, "", "", "", nil)
+	resp, err := s.sendRequest(c, "", "", nil, nil)
+	c.Assert(err, gc.IsNil)
+	return resp
 }
 
 func (s *httpHandlerSuite) uploadRequest(
 	c *gc.C, uri string, asZip bool, path string,
 ) *http.Response {
 	method := "POST"
-	contentType := "application/octet-stream"
+
+	payload := APIDataPayload{}
 	if asZip {
-		contentType = s.dataMimetype
+		payload.Mimetype = s.dataMimetype
 	}
 
-	if path == "" {
-		return s.authRequest(c, method, uri, contentType, nil)
+	if path != "" {
+		body, err := os.Open(path)
+		c.Assert(err, gc.IsNil)
+		payload.Data = body
 	}
 
-	file, err := os.Open(path)
+	resp, err := s.sendRequest(c, uri, method, nil, &payload)
 	c.Assert(err, gc.IsNil)
-	defer file.Close()
-	return s.authRequest(c, method, uri, contentType, file)
+	return resp
 }
 
 //---------------------------
@@ -253,14 +310,15 @@ func (s *httpHandlerSuite) checkServedSecurely(c *gc.C) bool {
 
 	URL := s.URL(c, "")
 	URL.Scheme = "http"
-	_, err := s.sendRequest(c, "", "", "", URL.String(), "", nil)
+	_, err := s.sendRequest(c, URL.String(), "", nil, nil)
 	return c.Check(err, gc.ErrorMatches, `.*malformed HTTP response.*`)
 }
 
 func (s *httpHandlerSuite) checkHTTPMethodInvalid(c *gc.C, method string) bool {
 	s.noop = true
 
-	resp := s.authRequest(c, method, "", "", nil)
+	resp, err := s.sendRequest(c, "", method, nil, nil)
+	c.Assert(err, gc.IsNil)
 	return s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, fmt.Sprintf(`unsupported method: "%s"`, method))
 }
 
@@ -272,7 +330,7 @@ func (s *httpHandlerSuite) checkLegacyPathDisallowed(c *gc.C) bool {
 
 	URL := s.URL(c, "")
 	URL.Path = "/" + s.apiBinding
-	resp := s.authRequest(c, "", URL.String(), "", nil)
+	resp := s.urlRequest(c, URL)
 	return c.Check(resp.StatusCode, gc.Equals, http.StatusNotFound)
 }
 
@@ -281,7 +339,7 @@ func (s *httpHandlerSuite) checkLegacyPathAllowed(c *gc.C) bool {
 
 	URL := s.URL(c, "")
 	URL.Path = "/" + s.apiBinding
-	resp := s.authRequest(c, "", URL.String(), "", nil)
+	resp := s.urlRequest(c, URL)
 	return s.checkErrorResponse(c, resp, http.StatusInternalServerError, "no-op")
 }
 
@@ -296,7 +354,7 @@ func (s *httpHandlerSuite) checkRejectsWrongEnvUUIDPath(c *gc.C) bool {
 	s.noop = true
 
 	URL := s.URL(c, "dead-beef-123456")
-	resp := s.authRequest(c, "", URL.String(), "", nil)
+	resp := s.urlRequest(c, URL)
 	return s.checkErrorResponse(c, resp, http.StatusNotFound, `unknown environment: "dead-beef-123456"`)
 }
 
@@ -306,7 +364,11 @@ func (s *httpHandlerSuite) checkRejectsWrongEnvUUIDPath(c *gc.C) bool {
 func (s *httpHandlerSuite) checkRequiresAuth(c *gc.C) bool {
 	s.noop = true
 
-	resp, err := s.sendRequest(c, "", "", "", "", "", nil)
+	auth := APIAuth{
+		UserTag:  "",
+		Password: "",
+	}
+	resp, err := s.sendRequest(c, "", "", &auth, nil)
 	c.Assert(err, gc.IsNil)
 	return s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 }
@@ -316,7 +378,11 @@ func (s *httpHandlerSuite) checkAuthRequiresUser(c *gc.C) bool {
 
 	// Add a machine and try to login.
 	tag, pw := s.addMachine(c, "quantal", "foo")
-	resp, err := s.sendRequest(c, tag, pw, "", "", "", nil)
+	auth := APIAuth{
+		UserTag:  tag,
+		Password: pw,
+	}
+	resp, err := s.sendRequest(c, "", "", &auth, nil)
 	c.Assert(err, gc.IsNil)
 	res := s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 

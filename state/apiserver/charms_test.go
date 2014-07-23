@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -315,6 +316,23 @@ func (s *charmsGetSuite) assertGetFileListResponse(c *gc.C, resp *http.Response,
 	s.jsonResponse(c, resp, &result)
 	c.Check(result.Error, gc.Equals, "")
 	c.Check(result.Files, gc.DeepEquals, expFiles)
+}
+
+// XXX eliminate!
+func (s *charmsGetSuite) sendRequest(
+	c *gc.C, tag, pw, meth, uri, ctype string, body io.Reader,
+) (*http.Response, error) {
+	auth := APIAuth{tag, pw}
+	return s.httpHandlerSuite.sendRequest(c, uri, meth, &auth, nil)
+}
+
+// XXX eliminate!
+func (s *httpHandlerSuite) authRequest(
+	c *gc.C, meth, uri, ctype string, body io.Reader,
+) *http.Response {
+	resp, err := s.sendRequest(c, uri, meth, nil, nil)
+	c.Assert(err, gc.IsNil)
+	return resp
 }
 
 func (s *charmsGetSuite) TestCharmsServedSecurely(c *gc.C) {

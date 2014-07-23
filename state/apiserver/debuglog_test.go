@@ -41,14 +41,13 @@ func (s *debugLogSuite) SetUpTest(c *gc.C) {
 
 func (s *debugLogSuite) TestDebugLogWithHTTP(c *gc.C) {
 	uri := s.logURL(c, "http", nil).String()
-	_, err := s.sendRequest(c, "", "", "GET", uri, "", nil)
+	_, err := s.sendRequest(c, uri, "", nil, nil)
 	c.Assert(err, gc.ErrorMatches, `.*malformed HTTP response.*`)
 }
 
 func (s *debugLogSuite) TestDebugLogWithHTTPS(c *gc.C) {
-	uri := s.logURL(c, "https", nil).String()
-	response, err := s.sendRequest(c, "", "", "GET", uri, "", nil)
-	c.Assert(err, gc.IsNil)
+	uri := s.logURL(c, "https", nil)
+	response := s.urlRequest(c, uri)
 	c.Assert(response.StatusCode, gc.Equals, http.StatusBadRequest)
 }
 
