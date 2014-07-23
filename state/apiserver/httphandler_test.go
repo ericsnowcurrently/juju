@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/juju/loggo"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 
@@ -23,6 +24,8 @@ import (
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/testing/factory"
 )
+
+var logger = loggo.GetLogger("juju.state.apiserver_test")
 
 type httpHandlerSuite struct {
 	jujutesting.JujuConnSuite
@@ -77,14 +80,14 @@ func (s *httpHandlerSuite) addMachine(c *gc.C, series, name string) (string, str
 func (s *httpHandlerSuite) checkAPIBinding(c *gc.C, invalidMethods ...string) bool {
 	res := s.checkServedSecurely(c)
 	for _, method := range invalidMethods {
-		res = res && s.checkHTTPMethodInvalid(c, method)
+		res = s.checkHTTPMethodInvalid(c, method) && res
 	}
 
-	res = res && s.checkRequiresAuth(c)
-	res = res && s.checkAuthRequiresUser(c)
+	res = s.checkRequiresAuth(c) && res
+	res = s.checkAuthRequiresUser(c) && res
 
-	res = res && s.checkEnvUUIDPathAllowed(c)
-	res = res && s.checkRejectsWrongEnvUUIDPath(c)
+	res = s.checkEnvUUIDPathAllowed(c) && res
+	res = s.checkRejectsWrongEnvUUIDPath(c) && res
 
 	return res
 }
@@ -110,6 +113,7 @@ func (s *httpHandlerSuite) sendRequest(
 			uri += "?noop=1"
 		}
 	}
+	logger.Debugf("sending request: %s", uri)
 	req, err := http.NewRequest(method, uri, body)
 	c.Assert(err, gc.IsNil)
 
@@ -136,20 +140,57 @@ func (s *httpHandlerSuite) validRequest(c *gc.C) *http.Response {
 	return s.authRequest(c, "", "", "", nil)
 }
 
-func (s *httpHandlerSuite) uploadRequest(c *gc.C, uri string, asZip bool, path string) *http.Response {
+func (s *httpHandlerSuite) uploadRequest(
+	c *gc.C, uri string, asZip bool, path string,
+) *http.Response {
+	method := "POST"
 	contentType := "application/octet-stream"
 	if asZip {
 		contentType = s.dataMimetype
 	}
 
 	if path == "" {
-		return s.authRequest(c, "", uri, contentType, nil)
+		return s.authRequest(c, method, uri, contentType, nil)
 	}
 
 	file, err := os.Open(path)
 	c.Assert(err, gc.IsNil)
 	defer file.Close()
-	return s.authRequest(c, "", uri, contentType, file)
+	return s.authRequest(c, method, uri, contentType, file)
+}
+
+//---------------------------
+// response helpers
+
+func (s *httpHandlerSuite) readResponse(c *gc.C, resp *http.Response) []byte {
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, gc.IsNil)
+	return body
+}
+
+func (s *httpHandlerSuite) jsonResponse(
+	c *gc.C, resp *http.Response, result interface{},
+) {
+	body := s.readResponse(c, resp)
+	err := json.Unmarshal(body, &result)
+	c.Assert(err, gc.IsNil)
+}
+
+func (s *httpHandlerSuite) extractFailure(c *gc.C, resp *http.Response) *params.Error {
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+
+	var result params.Error
+	if resp.Header.Get("Content-Type") != "application/json" {
+		result = params.Error{
+			Message: string(s.readResponse(c, resp)),
+		}
+	} else {
+		s.jsonResponse(c, resp, &result)
+	}
+	return &result
 }
 
 //---------------------------
@@ -160,30 +201,32 @@ func (s *httpHandlerSuite) checkResponse(
 ) bool {
 	res := c.Check(resp.StatusCode, gc.Equals, statusCode)
 	ctype := resp.Header.Get("Content-Type")
-	res = res && c.Check(ctype, gc.Equals, mimetype)
+	res = c.Check(ctype, gc.Equals, mimetype) && res
 	return res
 }
 
-func (s *httpHandlerSuite) jsonResponse(
-	c *gc.C, resp *http.Response, result interface{},
-) {
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, gc.IsNil)
-
-	err = json.Unmarshal(body, &result)
-	c.Assert(err, gc.IsNil)
+func (s *httpHandlerSuite) checkPossibleErrorResponse(
+	c *gc.C, resp *http.Response,
+) bool {
+	failure := s.extractFailure(c, resp)
+	if failure != nil {
+		c.Errorf("got failure: %v", failure)
+		return false
+	} else {
+		return true
+	}
 }
 
 func (s *httpHandlerSuite) checkErrorResponse(
 	c *gc.C, resp *http.Response, statusCode int, msg string,
 ) bool {
 	res := s.checkResponse(c, resp, statusCode, "application/json")
-
-	var result params.Error
-	s.jsonResponse(c, resp, &result)
-	res = res && c.Check(&result, gc.ErrorMatches, msg)
-	return res
+	failure := s.extractFailure(c, resp)
+	if failure == nil {
+		c.Error("no error found")
+		return false
+	}
+	return c.Check(failure, gc.ErrorMatches, msg) && res
 }
 
 //---------------------------
@@ -263,5 +306,5 @@ func (s *httpHandlerSuite) checkAuthRequiresUser(c *gc.C) bool {
 
 	// Now try a user login.
 	resp = s.validRequest(c)
-	return res && s.checkErrorResponse(c, resp, http.StatusInternalServerError, "no-op")
+	return s.checkErrorResponse(c, resp, http.StatusInternalServerError, "no-op") && res
 }

@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	//	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -22,73 +21,9 @@ import (
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/environs"
-	//	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/api/params"
-	//	"github.com/juju/juju/testing/factory"
 )
-
-/*
-type authHttpSuite struct {
-	jujutesting.JujuConnSuite
-	userTag            string
-	password           string
-	archiveContentType string
-}
-
-func (s *authHttpSuite) SetUpTest(c *gc.C) {
-	s.JujuConnSuite.SetUpTest(c)
-	s.password = "password"
-	user := s.Factory.MakeUser(factory.UserParams{Password: s.password})
-	s.userTag = user.Tag().String()
-}
-
-func (s *authHttpSuite) sendRequest(c *gc.C, tag, password, method, uri, contentType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest(method, uri, body)
-	c.Assert(err, gc.IsNil)
-	if tag != "" && password != "" {
-		req.SetBasicAuth(tag, password)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return utils.GetNonValidatingHTTPClient().Do(req)
-}
-
-func (s *authHttpSuite) baseURL(c *gc.C) *url.URL {
-	info := s.APIInfo(c)
-	return &url.URL{
-		Scheme: "https",
-		Host:   info.Addrs[0],
-		Path:   "",
-	}
-}
-
-func (s *authHttpSuite) authRequest(c *gc.C, method, uri, contentType string, body io.Reader) (*http.Response, error) {
-	return s.sendRequest(c, s.userTag, s.password, method, uri, contentType, body)
-}
-
-func (s *authHttpSuite) uploadRequest(c *gc.C, uri string, asZip bool, path string) (*http.Response, error) {
-	contentType := "application/octet-stream"
-	if asZip {
-		contentType = s.archiveContentType
-	}
-
-	if path == "" {
-		return s.authRequest(c, "POST", uri, contentType, nil)
-	}
-
-	file, err := os.Open(path)
-	c.Assert(err, gc.IsNil)
-	defer file.Close()
-	return s.authRequest(c, "POST", uri, contentType, file)
-}
-
-func (s *authHttpSuite) assertErrorResponse(c *gc.C, resp *http.Response, expCode int, expError string) {
-	body := assertResponse(c, resp, expCode, "application/json")
-	c.Check(jsonResponse(c, body).Error, gc.Matches, expError)
-}
-*/
 
 func assertResponse(c *gc.C, resp *http.Response, expCode int, expContentType string) []byte {
 	c.Check(resp.StatusCode, gc.Equals, expCode)
@@ -362,14 +297,9 @@ func (s *charmsGetSuite) assertErrorResponse(c *gc.C, resp *http.Response, expCo
 }
 
 func (s *charmsGetSuite) assertGetFileResponse(c *gc.C, resp *http.Response, expBody, expContentType string) {
-	if resp.StatusCode != http.StatusOK {
-		s.checkErrorResponse(c, resp, http.StatusOK, "spam")
+	if !s.checkPossibleErrorResponse(c, resp) {
 		return
 	}
-	//    if resp.Header.Get("Content-Type") == "application/json" {
-	//        s.checkErrorResponse(c, resp, http.StatusOK, "")
-	//        return
-	//    }
 	s.checkResponse(c, resp, http.StatusOK, expContentType)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, gc.IsNil)
@@ -377,8 +307,7 @@ func (s *charmsGetSuite) assertGetFileResponse(c *gc.C, resp *http.Response, exp
 }
 
 func (s *charmsGetSuite) assertGetFileListResponse(c *gc.C, resp *http.Response, expFiles []string) {
-	if resp.StatusCode != http.StatusOK {
-		s.checkErrorResponse(c, resp, http.StatusOK, "spam")
+	if !s.checkPossibleErrorResponse(c, resp) {
 		return
 	}
 	s.checkResponse(c, resp, http.StatusOK, "application/json")
