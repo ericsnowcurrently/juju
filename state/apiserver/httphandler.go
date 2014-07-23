@@ -5,6 +5,7 @@ package apiserver
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -86,4 +87,34 @@ func (h *httpHandler) validateEnvironUUID(r *http.Request) error {
 func (h *httpHandler) authError(w http.ResponseWriter, sender errorSender) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="juju"`)
 	sender.sendError(w, http.StatusUnauthorized, "unauthorized")
+}
+
+func (h *httpHandler) handleNoop(w http.ResponseWriter, r *http.Request) bool {
+	if r.URL.Query().Get("noop") != "" {
+		h.sendError(w, http.StatusInternalServerError, "no-op")
+		return true
+	} else {
+		return false
+	}
+}
+
+// sendJSON sends a JSON-encoded response to the client.
+func (h *httpHandler) sendJSON(
+	w http.ResponseWriter, statusCode int, result interface{},
+) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	body, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	w.Write(body)
+	return nil
+}
+
+// sendError sends a JSON-encoded error response.
+func (h *httpHandler) sendError(
+	w http.ResponseWriter, statusCode int, message string,
+) error {
+	return h.sendJSON(w, statusCode, &params.Error{Message: message})
 }

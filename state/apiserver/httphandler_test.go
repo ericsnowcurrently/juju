@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
@@ -24,13 +25,13 @@ import (
 
 type httpHandlerSuite struct {
 	jujutesting.JujuConnSuite
-	userTag     string
-	password    string
-	apiBinding  string
-	httpMethod  string
-	apiClient   *api.Client
-	httpClient  *http.Client
-	invalidator func()
+	userTag    string
+	password   string
+	apiBinding string
+	httpMethod string
+	apiClient  *api.Client
+	httpClient *http.Client
+	noop       bool
 }
 
 func (s *httpHandlerSuite) SetUpTest(c *gc.C) {
@@ -40,6 +41,7 @@ func (s *httpHandlerSuite) SetUpTest(c *gc.C) {
 	s.userTag = user.Tag().String()
 	s.apiClient = s.APIState.Client()
 	s.httpClient = utils.GetNonValidatingHTTPClient()
+	s.noop = false
 }
 
 func (s *httpHandlerSuite) URL(c *gc.C, uuid string) *url.URL {
@@ -70,12 +72,6 @@ func (s *httpHandlerSuite) addMachine(c *gc.C, series, name string) (string, str
 	return tag, password
 }
 
-func (s *httpHandlerSuite) setInvalidator(c *gc.C) {
-	// We use an invalid request just so that a real request isn't fulfilled.
-	c.Assert(s.invalidator, gc.NotNil)
-	s.invalidator()
-}
-
 func (s *httpHandlerSuite) checkAPIBinding(c *gc.C, invalidMethods ...string) bool {
 	res := s.checkServedSecurely(c)
 	for _, method := range invalidMethods {
@@ -102,6 +98,15 @@ func (s *httpHandlerSuite) sendRequest(
 	}
 	if uri == "" {
 		uri = s.URL(c, "").String()
+		if s.noop {
+			uri += "?noop=1"
+		}
+	} else if s.noop {
+		if strings.Contains(uri, "?") {
+			uri += "&noop=1"
+		} else {
+			uri += "?noop=1"
+		}
 	}
 	req, err := http.NewRequest(method, uri, body)
 	c.Assert(err, gc.IsNil)
@@ -161,7 +166,7 @@ func (s *httpHandlerSuite) checkErrorResponse(
 // HTTP checks
 
 func (s *httpHandlerSuite) checkServedSecurely(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	URL := s.URL(c, "")
 	URL.Scheme = "http"
@@ -170,7 +175,7 @@ func (s *httpHandlerSuite) checkServedSecurely(c *gc.C) bool {
 }
 
 func (s *httpHandlerSuite) checkHTTPMethodInvalid(c *gc.C, method string) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	resp := s.authRequest(c, method, "", "", nil)
 	return s.checkErrorResponse(c, resp, http.StatusMethodNotAllowed, fmt.Sprintf(`unsupported method: "%s"`, method))
@@ -180,7 +185,7 @@ func (s *httpHandlerSuite) checkHTTPMethodInvalid(c *gc.C, method string) bool {
 // path checks
 
 func (s *httpHandlerSuite) checkLegacyPathDisallowed(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	URL := s.URL(c, "")
 	URL.Path = "/" + s.apiBinding
@@ -189,23 +194,23 @@ func (s *httpHandlerSuite) checkLegacyPathDisallowed(c *gc.C) bool {
 }
 
 func (s *httpHandlerSuite) checkLegacyPathAllowed(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	URL := s.URL(c, "")
 	URL.Path = "/" + s.apiBinding
 	resp := s.authRequest(c, "", URL.String(), "", nil)
-	return s.checkErrorResponse(c, resp, http.StatusInternalServerError, ".* invalid")
+	return s.checkErrorResponse(c, resp, http.StatusInternalServerError, "no-op")
 }
 
 func (s *httpHandlerSuite) checkEnvUUIDPathAllowed(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	resp := s.validRequest(c)
-	return s.checkErrorResponse(c, resp, http.StatusInternalServerError, ".* invalid")
+	return s.checkErrorResponse(c, resp, http.StatusInternalServerError, "no-op")
 }
 
 func (s *httpHandlerSuite) checkRejectsWrongEnvUUIDPath(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	URL := s.URL(c, "dead-beef-123456")
 	resp := s.authRequest(c, "", URL.String(), "", nil)
@@ -216,7 +221,7 @@ func (s *httpHandlerSuite) checkRejectsWrongEnvUUIDPath(c *gc.C) bool {
 // auth checks
 
 func (s *httpHandlerSuite) checkRequiresAuth(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	resp, err := s.sendRequest(c, "", "", "", "", "", nil)
 	c.Assert(err, gc.IsNil)
@@ -224,7 +229,7 @@ func (s *httpHandlerSuite) checkRequiresAuth(c *gc.C) bool {
 }
 
 func (s *httpHandlerSuite) checkAuthRequiresUser(c *gc.C) bool {
-	s.setInvalidator(c)
+	s.noop = true
 
 	// Add a machine and try to login.
 	tag, pw := s.addMachine(c, "quantal", "foo")
@@ -234,5 +239,5 @@ func (s *httpHandlerSuite) checkAuthRequiresUser(c *gc.C) bool {
 
 	// Now try a user login.
 	resp = s.validRequest(c)
-	return res && s.checkErrorResponse(c, resp, http.StatusInternalServerError, ".* invalid")
+	return res && s.checkErrorResponse(c, resp, http.StatusInternalServerError, "no-op")
 }

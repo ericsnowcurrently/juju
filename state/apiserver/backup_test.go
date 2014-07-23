@@ -33,13 +33,6 @@ func (s *backupSuite) SetUpTest(c *gc.C) {
 	s.httpHandlerSuite.SetUpTest(c)
 	s.apiBinding = "backup"
 	s.httpMethod = "POST"
-
-	invalidBackup := func(*backup.DBConnInfo, string) (string, string, error) {
-		return "", "", fmt.Errorf("invalid")
-	}
-	s.invalidator = func() {
-		s.PatchValue(apiserver.Backup, invalidBackup)
-	}
 }
 
 func (s *backupSuite) TestBackupAPIBinding(c *gc.C) {

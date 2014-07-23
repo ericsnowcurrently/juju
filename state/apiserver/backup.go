@@ -53,6 +53,9 @@ func (h *backupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "POST":
+		if h.handleNoop(w, r) {
+			return
+		}
 		file, sha, err := h.doBackup()
 		if err != nil {
 			h.sendError(w, http.StatusInternalServerError, err.Error())
