@@ -26,6 +26,66 @@ import (
 	"github.com/juju/juju/state/api/params"
 )
 
+//---------------------------
+// charms common
+
+type charmsSuite struct {
+	httpHandlerSuite
+}
+
+var _ = gc.Suite(&charmsSuite{})
+
+func (s *charmsSuite) SetUpSuite(c *gc.C) {
+	s.httpHandlerSuite.SetUpSuite(c)
+	s.apiBinding = "charms"
+	s.httpMethod = "GET"
+}
+
+func (s *charmsSuite) charmsURL(c *gc.C, query string) *url.URL {
+	uri := s.URL(c, "")
+	uri.Path = "/charms"
+	uri.RawQuery = query
+	return uri
+}
+
+// XXX eliminate!
+func (s *charmsSuite) sendRequest(
+	c *gc.C, tag, pw, meth, uri, ctype string, body io.Reader,
+) (*http.Response, error) {
+	auth := APIAuth{tag, pw}
+	return s.httpHandlerSuite.sendRequest(c, uri, meth, &auth, nil)
+}
+
+// XXX eliminate!
+func (s *charmsSuite) authRequest(
+	c *gc.C, meth, uri, ctype string, body io.Reader,
+) *http.Response {
+	resp, err := s.httpHandlerSuite.sendRequest(c, uri, meth, nil, nil)
+	c.Assert(err, gc.IsNil)
+	return resp
+}
+
+func (s *charmsSuite) charmsURI(c *gc.C, query string) string {
+	if query != "" && query[0] == '?' {
+		query = query[1:]
+	}
+	return s.charmsURL(c, query).String()
+}
+
+func (s *charmsSuite) assertErrorResponse(c *gc.C, resp *http.Response, expCode int, expError string) {
+	s.checkErrorResponse(c, resp, expCode, expError)
+}
+
+func (s *charmsSuite) assertGetFileResponse(c *gc.C, resp *http.Response, expBody, expContentType string) {
+	if !s.checkPossibleErrorResponse(c, resp) {
+		return
+	}
+	s.checkResponse(c, resp, http.StatusOK, expContentType)
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, gc.IsNil)
+	c.Check(string(body), gc.Equals, expBody)
+}
+
 func assertResponse(c *gc.C, resp *http.Response, expCode int, expContentType string) []byte {
 	c.Check(resp.StatusCode, gc.Equals, expCode)
 	body, err := ioutil.ReadAll(resp.Body)
@@ -46,34 +106,15 @@ func jsonResponse(c *gc.C, body []byte) (jsonResponse params.CharmsResponse) {
 // charms upload
 
 type charmsUploadSuite struct {
-	httpHandlerSuite
+	charmsSuite
 }
 
 var _ = gc.Suite(&charmsUploadSuite{})
 
 func (s *charmsUploadSuite) SetUpSuite(c *gc.C) {
-	s.httpHandlerSuite.SetUpSuite(c)
-	s.apiBinding = "charms"
+	s.charmsSuite.SetUpSuite(c)
 	s.httpMethod = "POST"
 	s.dataMimetype = "application/zip"
-}
-
-func (s *charmsUploadSuite) charmsURL(c *gc.C, query string) *url.URL {
-	uri := s.URL(c, "")
-	uri.Path = "/charms"
-	uri.RawQuery = query
-	return uri
-}
-
-func (s *charmsUploadSuite) charmsURI(c *gc.C, query string) string {
-	if query != "" && query[0] == '?' {
-		query = query[1:]
-	}
-	return s.charmsURL(c, query).String()
-}
-
-func (s *charmsUploadSuite) assertErrorResponse(c *gc.C, resp *http.Response, expCode int, expError string) {
-	s.checkErrorResponse(c, resp, expCode, expError)
 }
 
 func (s *charmsUploadSuite) assertUploadResponse(c *gc.C, resp *http.Response, expCharmURL string) {
@@ -267,44 +308,15 @@ func (s *charmsUploadSuite) TestCharmsUploadRepackagesNestedArchives(c *gc.C) {
 // charms get
 
 type charmsGetSuite struct {
-	httpHandlerSuite
+	charmsSuite
 }
 
 var _ = gc.Suite(&charmsGetSuite{})
 
 func (s *charmsGetSuite) SetUpSuite(c *gc.C) {
-	s.httpHandlerSuite.SetUpSuite(c)
-	s.apiBinding = "charms"
+	s.charmsSuite.SetUpSuite(c)
 	s.httpMethod = "GET"
 	s.dataMimetype = "application/zip"
-}
-
-func (s *charmsGetSuite) charmsURL(c *gc.C, query string) *url.URL {
-	uri := s.URL(c, "")
-	uri.Path = "/charms"
-	uri.RawQuery = query
-	return uri
-}
-
-func (s *charmsGetSuite) charmsURI(c *gc.C, query string) string {
-	if query != "" && query[0] == '?' {
-		query = query[1:]
-	}
-	return s.charmsURL(c, query).String()
-}
-
-func (s *charmsGetSuite) assertErrorResponse(c *gc.C, resp *http.Response, expCode int, expError string) {
-	s.checkErrorResponse(c, resp, expCode, expError)
-}
-
-func (s *charmsGetSuite) assertGetFileResponse(c *gc.C, resp *http.Response, expBody, expContentType string) {
-	if !s.checkPossibleErrorResponse(c, resp) {
-		return
-	}
-	s.checkResponse(c, resp, http.StatusOK, expContentType)
-	body, err := ioutil.ReadAll(resp.Body)
-	c.Assert(err, gc.IsNil)
-	c.Check(string(body), gc.Equals, expBody)
 }
 
 func (s *charmsGetSuite) assertGetFileListResponse(c *gc.C, resp *http.Response, expFiles []string) {
@@ -316,23 +328,6 @@ func (s *charmsGetSuite) assertGetFileListResponse(c *gc.C, resp *http.Response,
 	s.jsonResponse(c, resp, &result)
 	c.Check(result.Error, gc.Equals, "")
 	c.Check(result.Files, gc.DeepEquals, expFiles)
-}
-
-// XXX eliminate!
-func (s *charmsGetSuite) sendRequest(
-	c *gc.C, tag, pw, meth, uri, ctype string, body io.Reader,
-) (*http.Response, error) {
-	auth := APIAuth{tag, pw}
-	return s.httpHandlerSuite.sendRequest(c, uri, meth, &auth, nil)
-}
-
-// XXX eliminate!
-func (s *httpHandlerSuite) authRequest(
-	c *gc.C, meth, uri, ctype string, body io.Reader,
-) *http.Response {
-	resp, err := s.sendRequest(c, uri, meth, nil, nil)
-	c.Assert(err, gc.IsNil)
-	return resp
 }
 
 func (s *charmsGetSuite) TestCharmsServedSecurely(c *gc.C) {
