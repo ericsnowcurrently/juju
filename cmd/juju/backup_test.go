@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/juju/cmd"
 	gc "launchpad.net/gocheck"
 
+	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/backup"
 	"github.com/juju/juju/testing"
@@ -26,7 +28,7 @@ var _ = gc.Suite(&BackupCommandSuite{})
 //---------------------------
 // a fake client and command
 
-var fakeBackupFilename = fmt.Sprintf(backup.FilenameTemplate, "999999999")
+var fakeBackupFilename = fmt.Sprintf(backup.FilenameTemplate, "9999999-9999")
 
 type fakeBackupClient struct {
 	hash    string
@@ -34,28 +36,20 @@ type fakeBackupClient struct {
 	err     *params.Error
 }
 
-func (c *fakeBackupClient) Backup(filename string, excl bool) (string, string, string, *params.Error) {
-	if c.err != nil {
-		return "", "", "", c.err
-	}
-
-	if filename == "" {
-		filename = fakeBackupFilename
-	}
-
-	_, err := os.Stat(filename)
-	if err == nil {
-		// The file exists!
-		if excl {
-			err := params.Error{
-				Message: fmt.Sprintf("already exists: %s", filename),
+func (c *fakeBackupClient) Backup(archive io.Writer) *api.BackupResult {
+	return backup.NewBackupResult(fakeBackupFilename, c.hash, c.expHash, c.err)
+	/*
+		_, err := os.Stat(res.File)
+		if err == nil {
+			// The file exists!
+			if excl {
+				err := params.Error{
+					Message: fmt.Sprintf("already exists: %s", filename),
+				}
+				return "", "", "", &err
 			}
-			return "", "", "", &err
 		}
-	}
-
-	// Don't actually do anything!
-	return filename, c.hash, c.expHash, nil
+	*/
 }
 
 type fakeBackupCommand struct {

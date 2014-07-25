@@ -5,6 +5,9 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"launchpad.net/gnuflag"
@@ -12,12 +15,17 @@ import (
 	"github.com/juju/cmd"
 	"github.com/juju/juju/cmd/envcmd"
 	"github.com/juju/juju/juju"
+	"github.com/juju/juju/state/api"
 	"github.com/juju/juju/state/api/params"
 	"github.com/juju/juju/state/backup"
 )
 
+var (
+	createEmptyFile = backup.CreateEmptyFile
+)
+
 type backupClient interface {
-	Backup(string, bool) (string, string, string, *params.Error)
+	Backup(io.Writer) *api.BackupResult
 }
 
 type BackupCommand struct {
@@ -66,25 +74,65 @@ func (c *BackupCommand) Init(args []string) error {
 	return nil
 }
 
+func (c *BackupCommand) handleBackupFailure(
+	failure *params.Error, filename string,
+) error {
+	if failure == nil {
+		return nil
+	}
+	if !c.Overwrite {
+		logger.Debugf("removing temp file: %s", filename)
+		err := os.Remove(filename)
+		if err != nil {
+			logger.Infof("could not remove temp file (%s): %v", filename, err)
+		}
+	}
+	if params.IsCodeNotImplemented(failure) {
+		return fmt.Errorf("server version not compatible with client version")
+	} else {
+		return failure
+	}
+}
+
 func (c *BackupCommand) runBackup(ctx *cmd.Context, client backupClient) error {
-	filename, hash, expectedHash, err := client.Backup(c.Filename, !c.Overwrite)
+	// Get an empty backup file ready *before* sending the request.
+	excl := !c.Overwrite
+	archive, filename, err := createEmptyFile(c.Filename, 0600, excl)
 	if err != nil {
-		if params.IsCodeNotImplemented(err) {
-			return fmt.Errorf("server version not compatible with client version")
+		return fmt.Errorf("error while preparing backup file: %v", err)
+	}
+	defer archive.Close()
+	isTemp := (filename != c.Filename)
+	absfilename, err := filepath.Abs(filename)
+	if err == nil { // Otherwise we stick with the old filename.
+		filename = absfilename
+	}
+	logger.Debugf("prepared empty backup file: %q", filename)
+
+	// Do the backup.
+	res := client.Backup(archive)
+	err = c.handleBackupFailure(res.Failure(), filename)
+	if err != nil {
+		return err
+	}
+	err = nil
+
+	// Compare the checksums.
+	if c.VerifyHash && !res.VerifyHash() {
+		err = fmt.Errorf("SHA-1 checksum mismatch (archive still saved)")
+	} else if isTemp {
+		target := filepath.Join(filepath.Base(filename), res.FilenameFromServer())
+		err = os.Rename(filename, target)
+		if err != nil {
+			err = fmt.Errorf("could not move tempfile to new location: %v", err)
 		} else {
-			return err
+			logger.Infof("backup file moved to %s", target)
 		}
 	}
 
+	// Print out the filename.
 	fmt.Fprintln(ctx.Stdout, filename)
-
-	if c.VerifyHash {
-		if hash != expectedHash {
-			return fmt.Errorf("SHA-1 checksum mismatch (archive still saved)")
-		}
-	}
-
-	return nil
+	return err
 }
 
 func (c *BackupCommand) Run(ctx *cmd.Context) error {
