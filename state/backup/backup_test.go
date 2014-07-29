@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/state/backup"
@@ -18,7 +19,12 @@ type fileStore struct {
 }
 
 func (f *fileStore) Put(name string, r io.Reader, len int64) error {
-	stored, err := os.Create(filepath.Join(f.dirname, name))
+	filename := filepath.Join(f.dirname, name)
+	err := os.MkdirAll(filepath.Dir(filename), 0777)
+	if err != nil {
+		return err
+	}
+	stored, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
@@ -29,13 +35,13 @@ func (f *fileStore) Put(name string, r io.Reader, len int64) error {
 	return nil
 }
 
-func (f *fileStore) Remove(name string) error {
-	return nil
-}
-
-func (f *fileStore) RemoveAll() error {
-	return nil
-}
+func (f *fileStore) Get(string) (io.ReadCloser, error)                      { return nil, nil }
+func (f *fileStore) List(string) ([]string, error)                          { return nil, nil }
+func (f *fileStore) URL(string) (string, error)                             { return "", nil }
+func (f *fileStore) DefaultConsistencyStrategy() (as utils.AttemptStrategy) { return }
+func (f *fileStore) ShouldRetry(error) bool                                 { return false }
+func (f *fileStore) Remove(string) error                                    { return nil }
+func (f *fileStore) RemoveAll() error                                       { return nil }
 
 //---------------------------
 // tests
@@ -60,8 +66,9 @@ func (b *BackupSuite) TestBackup(c *gc.C) {
 		Username: "bogus-user",
 		Password: "boguspassword",
 	}
-	stor := fileStore{b.cwd}
-	backup, err := backup.CreateBackup(&dbinfo, "", &stor)
+	stor, err := backup.NewBackupStorage(nil, &fileStore{b.cwd})
+	c.Assert(err, gc.IsNil)
+	backup, err := backup.CreateBackup(&dbinfo, "", stor, nil)
 	c.Assert(err, gc.IsNil)
 	c.Check(ranCommand, gc.Equals, true)
 
@@ -73,7 +80,7 @@ func (b *BackupSuite) TestBackup(c *gc.C) {
 	// client side filename conventions.
 	c.Check(bkpFile, gc.Matches, `^[a-z0-9_.-]+$`)
 
-	filename := filepath.Join(b.cwd, bkpFile)
+	filename := filepath.Join(b.cwd, "backups", bkpFile, "archive")
 	fileShaSum := shaSumFile(c, filename)
 	c.Check(shaSum, gc.Equals, fileShaSum)
 

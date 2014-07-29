@@ -4,7 +4,6 @@
 package backup_test
 
 import (
-	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/state/backup"
-	"github.com/juju/juju/testing"
 )
 
 //---------------------------

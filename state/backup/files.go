@@ -5,12 +5,9 @@ package backup
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/juju/utils/hash"
 )
 
 const (

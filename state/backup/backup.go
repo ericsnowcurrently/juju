@@ -8,11 +8,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/juju/loggo"
+	"github.com/juju/utils"
 
-	"github.com/juju/juju/environs/storage"
 	"github.com/juju/juju/version"
 )
 
@@ -27,12 +26,12 @@ var (
 // and a root.tar file which contains all the system files obtained from
 // the output of getFilesToBackup.
 func CreateBackup(
-	dbinfo *DBConnInfo, name string, storage storage.StorageWriter,
+	dbinfo *DBConnInfo, name string, stor BackupStorage, creator BackupCreator,
 ) (*BackupInfo, error) {
 	logger.Infof("backing up juju state")
 	info := BackupInfo{Name: name}
 
-	archive, err := create(&info, dbinfo)
+	archive, err := create(&info, dbinfo, creator)
 	if err != nil {
 		return nil, err
 	}
@@ -40,47 +39,51 @@ func CreateBackup(
 	logger.Infof("created: %q (SHA-1: %s)", info.Name, info.CheckSum)
 
 	// Store the backup.
-	err = store(&info, storage, archive)
+	logger.Debugf("storing %q", info.Name)
+	err = stor.Add(&info, archive)
+	if err != nil {
+		return nil, fmt.Errorf("error storing archive: %v", err)
+	}
+	logger.Infof("stored: %q (SHA-1: %s)", info.Name, info.CheckSum)
 
 	return &info, err
 }
 
-func create(info *BackupInfo, dbinfo *DBConnInfo) (_ io.ReadCloser, err error) {
-	newbackup := newBackup{}
+// Wraps the creator and sets the info fields.
+func create(info *BackupInfo, dbinfo *DBConnInfo, creator BackupCreator) (_ io.ReadCloser, err error) {
+	if creator == nil {
+		creator = &newBackup{}
+	}
 	cleanup := func() {
-		nbErr := newbackup.cleanup()
+		nbErr := creator.CleanUp()
 		if nbErr != nil && err == nil {
 			err = nbErr
 		}
 	}
 
 	// Prepare the backup.
-	err = newbackup.prepare()
+	err = creator.Prepare()
 	if err != nil {
 		return nil, err
 	}
 	defer cleanup()
 
 	// Run the backup.
-	sha1sum, err := newbackup.run(dbinfo)
+	sha1sum, err := creator.Run(dbinfo)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set the backup fields.
 	if info.Name == "" {
-		info.Name = filepath.Base(newbackup.filename)
+		info.Name = creator.Name()
 	}
-	timestamp, tsErr := ExtractTimestamp(newbackup.filename)
-	if tsErr != nil {
-		timestamp = time.Now().UTC()
-	}
-	info.Timestamp = timestamp
+	info.Timestamp = creator.Timestamp()
 	info.CheckSum = sha1sum
 	info.Version = version.Current.Number
 
 	// Open the archive (before we delete it).
-	archive, err := os.Open(newbackup.filename)
+	archive, err := os.Open(creator.Filename())
 	if err != nil {
 		return nil, fmt.Errorf("error opening archive: %v", err)
 	}
@@ -91,18 +94,6 @@ func create(info *BackupInfo, dbinfo *DBConnInfo) (_ io.ReadCloser, err error) {
 	info.Size = finfo.Size()
 
 	return archive, err
-}
-
-func store(info *BackupInfo, storage storage.StorageWriter, archive io.Reader) error {
-	logger.Debugf("storing %q", info.Name)
-
-	err := storage.Put(info.Name, archive, info.Size)
-	if err != nil {
-		return fmt.Errorf("error storing archive: %v", err)
-	}
-
-	logger.Infof("stored: %q (SHA-1: %s)", info.Name, info.CheckSum)
-	return nil
 }
 
 //---------------------------
@@ -124,13 +115,13 @@ func (f *fileStore) Put(name string, r io.Reader, len int64) error {
 	return nil
 }
 
-func (f *fileStore) Remove(name string) error {
-	return nil
-}
-
-func (f *fileStore) RemoveAll() error {
-	return nil
-}
+func (f *fileStore) Get(string) (io.ReadCloser, error)                      { return nil, nil }
+func (f *fileStore) List(string) ([]string, error)                          { return nil, nil }
+func (f *fileStore) URL(string) (string, error)                             { return "", nil }
+func (f *fileStore) DefaultConsistencyStrategy() (as utils.AttemptStrategy) { return }
+func (f *fileStore) ShouldRetry(error) bool                                 { return false }
+func (f *fileStore) Remove(string) error                                    { return nil }
+func (f *fileStore) RemoveAll() error                                       { return nil }
 
 // XXX Remove!
 func Backup(pw, tag, outputFolder, host string) (string, string, error) {
@@ -139,8 +130,11 @@ func Backup(pw, tag, outputFolder, host string) (string, string, error) {
 		Username: tag,
 		Password: pw,
 	}
-	stor := fileStore{outputFolder}
-	backup, err := CreateBackup(&dbinfo, "", &stor)
+	stor, err := NewBackupStorage(nil, &fileStore{outputFolder})
+	if err != nil {
+		return "", "", err
+	}
+	backup, err := CreateBackup(&dbinfo, "", stor, nil)
 	if err != nil {
 		return "", "", err
 	}

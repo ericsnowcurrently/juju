@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/juju/utils/hash"
 	"github.com/juju/utils/tar"
@@ -23,6 +24,18 @@ type DBConnInfo struct {
 	Password string
 }
 
+type BackupCreator interface {
+	Name() string
+	Filename() string
+	Timestamp() time.Time
+	Prepare() error
+	CleanUp() error
+	Run(*DBConnInfo) (checksum string, err error)
+}
+
+//---------------------------
+// BackupCreator implementation
+
 type newBackup struct {
 	tempdir  string
 	root     string
@@ -31,7 +44,23 @@ type newBackup struct {
 	filename string
 }
 
-func (nb *newBackup) prepare() error {
+func (nb *newBackup) Name() string {
+	return filepath.Base(nb.filename)
+}
+
+func (nb *newBackup) Filename() string {
+	return nb.filename
+}
+
+func (nb *newBackup) Timestamp() time.Time {
+	timestamp, tsErr := ExtractTimestamp(nb.Name())
+	if tsErr != nil {
+		timestamp = time.Now().UTC()
+	}
+	return timestamp
+}
+
+func (nb *newBackup) Prepare() error {
 	// Prepare the temp directories.
 	var bkpDir, dumpDir string
 	tempDir, err := ioutil.TempDir("", "jujuBackup")
@@ -58,7 +87,7 @@ func (nb *newBackup) prepare() error {
 	return nil
 }
 
-func (nb newBackup) cleanup() error {
+func (nb newBackup) CleanUp() error {
 	if nb.tempdir != "" {
 		err := os.RemoveAll(nb.tempdir)
 		if err != nil {
@@ -111,19 +140,21 @@ func (nb newBackup) writeTarball() (string, error) {
 	// Create the tarball.
 	hasher := hash.NewSHA1Proxy(nb.archive)
 	tarball := gzip.NewWriter(hasher)
+	// We ignore the checksum returned here since it matches the
+	// uncompressed archive rather than the compressed one.
 	_, err := tar.TarFiles([]string{nb.root}, tarball, nb.tempdir+sep)
 
-	// Close the writers.
+	// Close the tarball.
 	tbErr := tarball.Close()
 	if tbErr != nil && err == nil {
 		err = fmt.Errorf("error closing gzip writer: %v", tbErr)
 	}
 
-	sha1sum := hasher.Hash()
+	sha1sum := hasher.Hash() // ...must happen *after* closing the tarball.
 	return sha1sum, err
 }
 
-func (nb *newBackup) run(dbinfo *DBConnInfo) (string, error) {
+func (nb *newBackup) Run(dbinfo *DBConnInfo) (string, error) {
 	err := nb.dumpDatabase(dbinfo)
 	if err != nil {
 		return "", err
