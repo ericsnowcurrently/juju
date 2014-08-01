@@ -23,7 +23,7 @@ type BackupStorage interface {
 }
 
 type DocStorage interface {
-	AddDoc(id string, doc interface{}) error
+	AddDoc(id string, doc interface{}) (string, error)
 	Doc(id string, doc interface{}) error
 }
 
@@ -38,19 +38,19 @@ type FileStorage interface {
 
 // NewBackupStorage returns a new backup storage based on the state.
 func NewBackupStorage(docs DocStorage, files FileStorage) BackupStorage {
-	bstor := backupStorage{
+	bstor := WrappingBackupStorage{
 		docs:  docs,
 		files: files,
 	}
 	return &bstor
 }
 
-type backupStorage struct {
+type WrappingBackupStorage struct {
 	docs  DocStorage
 	files FileStorage
 }
 
-func (s *backupStorage) Info(name string) (*BackupInfo, error) {
+func (s *WrappingBackupStorage) Info(name string) (*BackupInfo, error) {
 	var info BackupInfo
 	err := s.docs.Doc(name, &info)
 	if err != nil {
@@ -59,15 +59,15 @@ func (s *backupStorage) Info(name string) (*BackupInfo, error) {
 	return &info, nil
 }
 
-func (s *backupStorage) Archive(name string) (io.ReadCloser, error) {
+func (s *WrappingBackupStorage) Archive(name string) (io.ReadCloser, error) {
 	return s.files.File(name)
 }
 
-func (s *backupStorage) URL(name string) (string, error) {
+func (s *WrappingBackupStorage) URL(name string) (string, error) {
 	return s.files.URL(name)
 }
 
-func (s *backupStorage) Add(info *BackupInfo, archive io.Reader) error {
+func (s *WrappingBackupStorage) Add(info *BackupInfo, archive io.Reader) error {
 	err := s.docs.AddDoc(info.Name, info)
 	if err != nil {
 		return err
