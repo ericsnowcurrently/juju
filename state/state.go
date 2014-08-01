@@ -67,6 +67,9 @@ const (
 	stateServersC      = "stateServers"
 	openedPortsC       = "openedPorts"
 
+	// This collection is used just for storing metadata.
+	backupsC = "backups"
+
 	// These collections are used by the mgo transaction runner.
 	txnLogC = "txns.log"
 	txnsC   = "txns"
