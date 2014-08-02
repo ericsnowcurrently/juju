@@ -4,8 +4,6 @@
 package state_test
 
 import (
-	"os"
-
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
@@ -22,9 +20,13 @@ type backupSuite struct {
 var _ = gc.Suite(&backupSuite{})
 
 func (s *backupSuite) metadata(c *gc.C) *backup.Metadata {
-	origin := state.NewBackupOrigin(s.State, "0")
-	origin.Hostname = "localhost"
-	return backup.NewMetadata("some-hash", 42, *origin, "")
+	origin := backup.NewOrigin(
+		s.State.EnvironTag().Id(),
+		"0",
+		"localhost",
+		version.Current.Number,
+	)
+	return backup.NewMetadata(int64(42), "some hash", *origin, "")
 }
 
 func (s *backupSuite) checkMetadata(
@@ -32,31 +34,16 @@ func (s *backupSuite) checkMetadata(
 ) bool {
 	res := true
 	if id != "" {
-		res = c.Check(metadata.ID, gc.Equals, id)
+		res = c.Check(metadata.ID(), gc.Equals, id)
 	}
-	res = c.Check(metadata.Notes, gc.Equals, expected.Notes) && res
-	res = c.Check(metadata.Timestamp.Unix(), gc.DeepEquals, expected.Timestamp.Unix()) && res
-	res = c.Check(metadata.CheckSum, gc.Equals, expected.CheckSum) && res
-	res = c.Check(metadata.CheckSumFormat, gc.Equals, expected.CheckSumFormat) && res
-	res = c.Check(metadata.Size, gc.Equals, expected.Size) && res
-	res = c.Check(metadata.Origin, gc.DeepEquals, expected.Origin) && res
-	res = c.Check(metadata.Stored, gc.DeepEquals, expected.Stored) && res
+	res = c.Check(metadata.Notes(), gc.Equals, expected.Notes()) && res
+	res = c.Check(metadata.Timestamp().Unix(), gc.DeepEquals, expected.Timestamp().Unix()) && res
+	res = c.Check(metadata.Checksum(), gc.Equals, expected.Checksum()) && res
+	res = c.Check(metadata.ChecksumFormat(), gc.Equals, expected.ChecksumFormat()) && res
+	res = c.Check(metadata.Size(), gc.Equals, expected.Size()) && res
+	res = c.Check(metadata.Origin(), gc.DeepEquals, expected.Origin()) && res
+	res = c.Check(metadata.Stored(), gc.DeepEquals, expected.Stored()) && res
 	return res
-}
-
-//---------------------------
-// NewBackupOrigin()
-
-func (s *backupSuite) TestBackupsNewBackupOrigin(c *gc.C) {
-	origin := state.NewBackupOrigin(s.State, "0")
-	hostname, err := os.Hostname()
-	c.Assert(err, gc.IsNil)
-
-	c.Check(origin.Environment, gc.Matches, s.State.EnvironTag().Id())
-	c.Check(origin.Machine, gc.Equals, "0")
-	c.Check(origin.Hostname, gc.Equals, hostname)
-	c.Check(origin.Version.Major, gc.Equals, version.Current.Major)
-	c.Check(origin.Version.Minor, gc.Equals, version.Current.Minor)
 }
 
 //---------------------------
@@ -94,7 +81,7 @@ func (s *backupSuite) TestBackupsAddBackupMetadataSuccess(c *gc.C) {
 
 func (s *backupSuite) TestBackupsAddBackupMetadataGeneratedID(c *gc.C) {
 	expected := s.metadata(c)
-	expected.ID = "spam"
+	expected.SetID("spam")
 	id, err := state.AddBackupMetadata(s.State, expected)
 	c.Check(err, gc.IsNil)
 
@@ -103,6 +90,7 @@ func (s *backupSuite) TestBackupsAddBackupMetadataGeneratedID(c *gc.C) {
 
 func (s *backupSuite) TestBackupsAddBackupMetadataEmpty(c *gc.C) {
 	original := backup.Metadata{}
+	c.Assert(original.Timestamp(), gc.NotNil)
 	id, err := state.AddBackupMetadata(s.State, &original)
 	c.Check(err, gc.IsNil)
 
@@ -129,14 +117,14 @@ func (s *backupSuite) TestBackupsSetBackupStoredSuccess(c *gc.C) {
 	c.Check(err, gc.IsNil)
 	metadata, err := state.GetBackupMetadata(s.State, id)
 	c.Assert(err, gc.IsNil)
-	c.Assert(metadata.Stored, gc.Equals, false)
+	c.Assert(metadata.Stored(), gc.Equals, false)
 
 	err = state.SetBackupStored(s.State, id)
 	c.Check(err, gc.IsNil)
 
 	metadata, err = state.GetBackupMetadata(s.State, id)
 	c.Assert(err, gc.IsNil)
-	c.Assert(metadata.Stored, gc.Equals, true)
+	c.Assert(metadata.Stored(), gc.Equals, true)
 }
 
 func (s *backupSuite) TestBackupsSetBackupStoredNotFound(c *gc.C) {
