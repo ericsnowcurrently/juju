@@ -8,6 +8,9 @@ import (
 
 	gitjujutesting "github.com/juju/testing"
 	gc "launchpad.net/gocheck"
+
+	"github.com/juju/juju/environmentserver/authentication"
+	"github.com/juju/juju/mongo"
 )
 
 // MgoTestPackage should be called to register the tests for any package
@@ -19,6 +22,11 @@ func MgoTestPackage(t *testing.T) {
 // MgoSuite is a core-specific wrapper around testing.MgoSuite.
 type MgoSuite struct {
 	gitjujutesting.MgoSuite
+}
+
+func (s *MgoSuite) Server() *gitjujutesting.MgoInstance {
+	// XXX(ericsnow) Eliminate this global state!
+	return gitjujutesting.MgoServer
 }
 
 // BaseMgoSuite adds BaseSuite to the local MgoSuite.

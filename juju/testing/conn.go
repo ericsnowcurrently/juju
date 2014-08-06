@@ -15,7 +15,6 @@ import (
 	charmtesting "github.com/juju/charm/testing"
 	"github.com/juju/errors"
 	"github.com/juju/names"
-	gitjujutesting "github.com/juju/testing"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
 	"launchpad.net/goyaml"
@@ -410,7 +409,7 @@ type GetStater interface {
 }
 
 func (s *JujuConnSuite) tearDownConn(c *gc.C) {
-	serverAlive := gitjujutesting.MgoServer.Addr() != ""
+	serverAlive := s.Server().Addr() != ""
 
 	// Bootstrap will set the admin password, and render non-authorized use
 	// impossible. s.State may still hold the right password, so try to reset

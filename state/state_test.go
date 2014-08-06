@@ -155,7 +155,7 @@ func (s *StateSuite) TestAddresses(c *gc.C) {
 
 func (s *StateSuite) TestPing(c *gc.C) {
 	c.Assert(s.State.Ping(), gc.IsNil)
-	gitjujutesting.MgoServer.Restart()
+	s.Server().Restart()
 	c.Assert(s.State.Ping(), gc.NotNil)
 }
 

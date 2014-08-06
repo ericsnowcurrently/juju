@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/juju/charm"
-	jtesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
@@ -34,7 +33,7 @@ func (s *factorySuite) SetUpTest(c *gc.C) {
 
 	info := &authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{jtesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 	}

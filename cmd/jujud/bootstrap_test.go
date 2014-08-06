@@ -12,7 +12,6 @@ import (
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 	"github.com/juju/names"
-	gitjujutesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
 	gc "launchpad.net/gocheck"
@@ -121,7 +120,7 @@ func (s *BootstrapSuite) initBootstrapCommand(c *gc.C, jobs []params.MachineJob,
 		UpgradedToVersion: version.Current.Number,
 		Password:          testPasswordHash(),
 		Nonce:             agent.BootstrapNonce,
-		StateAddresses:    []string{gitjujutesting.MgoServer.Addr()},
+		StateAddresses:    []string{s.Server().Addr()},
 		APIAddresses:      []string{"0.1.2.3:1234"},
 		CACert:            testing.CACert,
 		Values: map[string]string{
@@ -133,7 +132,7 @@ func (s *BootstrapSuite) initBootstrapCommand(c *gc.C, jobs []params.MachineJob,
 		Cert:       "some cert",
 		PrivateKey: "some key",
 		APIPort:    3737,
-		StatePort:  gitjujutesting.MgoServer.Port(),
+		StatePort:  s.Server().Port(),
 	}
 
 	machineConf, err = agent.NewStateMachineConfig(agentParams, servingInfo)
@@ -179,7 +178,7 @@ func (s *BootstrapSuite) TestInitializeEnvironment(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -226,7 +225,7 @@ func (s *BootstrapSuite) TestSetConstraints(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -260,7 +259,7 @@ func (s *BootstrapSuite) TestDefaultMachineJobs(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -281,7 +280,7 @@ func (s *BootstrapSuite) TestConfiguredMachineJobs(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -316,7 +315,7 @@ func (s *BootstrapSuite) TestInitialPassword(c *gc.C) {
 	// password.
 	info := &authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 	}
