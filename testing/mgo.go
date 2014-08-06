@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	gitjujutesting "github.com/juju/testing"
+	"gopkg.in/mgo.v2"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/environmentserver/authentication"
@@ -19,8 +20,21 @@ func MgoTestPackage(t *testing.T) {
 	gitjujutesting.MgoTestPackage(t, Certs)
 }
 
+type MgoServer interface {
+	Addr() string
+	Port() int
+	Start(*gitjujutesting.Certs) error
+	Destroy()
+	DestroyWithLog()
+	DialInfo() *mgo.DialInfo
+	Dial() (*mgo.Session, error)
+	MustDial() *mgo.Session
+	DialDirect() (*mgo.Session, error)
+	MustDialDirect() *mgo.Session
+}
+
 // NewMgoServer returns a wrapper around a new mongod process.
-func NewMgoServer(extraArgs ...string) *gitjujutesting.MgoInstance {
+func NewMgoServer(extraArgs ...string) MgoServer {
 	server := gitjujutesting.MgoInstance{
 		Params: extraArgs,
 	}
@@ -35,7 +49,7 @@ type MgoSuite struct {
 	gitjujutesting.MgoSuite
 }
 
-func (s *MgoSuite) Server() *gitjujutesting.MgoInstance {
+func (s *MgoSuite) Server() MgoServer {
 	// XXX(ericsnow) Eliminate this global state!
 	return gitjujutesting.MgoServer
 }

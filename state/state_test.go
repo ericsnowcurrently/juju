@@ -15,7 +15,6 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
-	gitjujutesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/txn"
 	"github.com/juju/utils"
@@ -2084,7 +2083,7 @@ func (s *StateSuite) TestOpenDoesnotSetWriteMajority(c *gc.C) {
 }
 
 func (s *StateSuite) TestOpenSetsWriteMajority(c *gc.C) {
-	inst := gitjujutesting.MgoInstance{Params: []string{"--replSet", "juju"}}
+	inst := testing.NewMgoServer("--replSet", "juju")
 	err := inst.Start(testing.Certs)
 	c.Assert(err, gc.IsNil)
 	defer inst.Destroy()
@@ -2121,7 +2120,7 @@ func (s *StateSuite) TestOpenDoesNotForceGroupCommits(c *gc.C) {
 }
 
 func (s *StateSuite) TestOpenForcesGroupCommits(c *gc.C) {
-	inst := gitjujutesting.MgoInstance{EnableJournal: true}
+	inst := testing.NewMgoServer("--journal")
 	err := inst.Start(testing.Certs)
 	c.Assert(err, gc.IsNil)
 	defer inst.Destroy()

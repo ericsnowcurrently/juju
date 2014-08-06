@@ -46,7 +46,7 @@ func (s *adminSuite) SetUpTest(c *gc.C) {
 }
 
 func (s *adminSuite) TestEnsureAdminUser(c *gc.C) {
-	inst := &gitjujutesting.MgoInstance{}
+	inst := coretesting.NewMgoServer()
 	err := inst.Start(coretesting.Certs)
 	c.Assert(err, gc.IsNil)
 	defer inst.DestroyWithLog()
@@ -98,7 +98,7 @@ func (s *adminSuite) TestEnsureAdminUser(c *gc.C) {
 }
 
 func (s *adminSuite) TestEnsureAdminUserError(c *gc.C) {
-	inst := &gitjujutesting.MgoInstance{}
+	inst := coretesting.NewMgoServer()
 	err := inst.Start(coretesting.Certs)
 	c.Assert(err, gc.IsNil)
 	defer inst.Destroy()
@@ -129,7 +129,7 @@ func (s *adminSuite) ensureAdminUser(c *gc.C, dialInfo *mgo.DialInfo, user, pass
 }
 
 func (s *adminSuite) setUpMongo(c *gc.C) *mgo.DialInfo {
-	inst := &gitjujutesting.MgoInstance{}
+	inst := coretesting.NewMgoServer()
 	err := inst.Start(coretesting.Certs)
 	c.Assert(err, gc.IsNil)
 	s.AddCleanup(func(*gc.C) { inst.Destroy() })

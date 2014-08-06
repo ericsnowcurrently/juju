@@ -474,7 +474,13 @@ func (s *MongoSuite) TestJournalDisabledDetected(c *gc.C) {
 }
 
 func (s *MongoSuite) testJournalEnabled(c *gc.C, enabled bool) {
-	inst := &testing.MgoInstance{EnableJournal: enabled}
+	var extraArgs []string
+	if enabled {
+		extraArgs = append(extraArgs, "--journal")
+	} else {
+		extraArgs = append(extraArgs, "--nojournal")
+	}
+	inst := coretesting.NewMgoServer(extraArgs...)
 	err := inst.Start(coretesting.Certs)
 	c.Assert(err, gc.IsNil)
 	defer inst.DestroyWithLog()
