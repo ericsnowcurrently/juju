@@ -16,8 +16,7 @@ import (
 )
 
 type SettingsSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	state *State
 	key   string
 }
@@ -43,19 +42,8 @@ func TestingDialOpts() mongo.DialOpts {
 	}
 }
 
-func (s *SettingsSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *SettingsSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
 func (s *SettingsSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	// TODO(dfc) this logic is duplicated with the metawatcher_test.
 	state, err := Open(TestingMongoInfo(), TestingDialOpts(), Policy(nil))
 	c.Assert(err, gc.IsNil)
@@ -66,8 +54,7 @@ func (s *SettingsSuite) SetUpTest(c *gc.C) {
 
 func (s *SettingsSuite) TearDownTest(c *gc.C) {
 	s.state.Close()
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 func (s *SettingsSuite) TestCreateEmptySettings(c *gc.C) {

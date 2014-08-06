@@ -57,8 +57,7 @@ type JujuConnSuite struct {
 	// /var/lib/juju: the use cases are completely non-overlapping, and any tests that
 	// really do need both to exist ought to be embedding distinct fixtures for the
 	// distinct environments.
-	testing.FakeJujuHomeSuite
-	gitjujutesting.MgoSuite
+	testing.FakeHomeMgoSuite
 	envtesting.ToolsFixture
 	State        *state.State
 	Environ      environs.Environ
@@ -76,19 +75,8 @@ type JujuConnSuite struct {
 
 const AdminSecret = "dummy-secret"
 
-func (s *JujuConnSuite) SetUpSuite(c *gc.C) {
-	s.FakeJujuHomeSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *JujuConnSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.FakeJujuHomeSuite.TearDownSuite(c)
-}
-
 func (s *JujuConnSuite) SetUpTest(c *gc.C) {
-	s.FakeJujuHomeSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.FakeHomeMgoSuite.SetUpTest(c)
 	s.ToolsFixture.SetUpTest(c)
 	s.setUpConn(c)
 	s.Factory = factory.NewFactory(s.State, c)
@@ -97,8 +85,7 @@ func (s *JujuConnSuite) SetUpTest(c *gc.C) {
 func (s *JujuConnSuite) TearDownTest(c *gc.C) {
 	s.tearDownConn(c)
 	s.ToolsFixture.TearDownTest(c)
-	s.MgoSuite.TearDownTest(c)
-	s.FakeJujuHomeSuite.TearDownTest(c)
+	s.FakeHomeMgoSuite.TearDownTest(c)
 }
 
 // Reset returns environment state to that which existed at the start of

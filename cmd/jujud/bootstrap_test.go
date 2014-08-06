@@ -42,8 +42,7 @@ var _ = configstore.Default
 // We don't want to use JujuConnSuite because it gives us
 // an already-bootstrapped environment.
 type BootstrapSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	envcfg          string
 	instanceId      instance.Id
 	dataDir         string
@@ -82,29 +81,21 @@ func (s *BootstrapSuite) SetUpSuite(c *gc.C) {
 	s.PatchValue(&ensureMongoServer, s.fakeEnsureMongo.fakeEnsureMongo)
 	s.PatchValue(&maybeInitiateMongoServer, s.fakeEnsureMongo.fakeInitiateMongo)
 
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
+	s.BaseMgoSuite.SetUpSuite(c)
 	s.makeTestEnv(c)
 }
 
 func (s *BootstrapSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
+	s.BaseMgoSuite.TearDownSuite(c)
 	dummy.Reset()
 }
 
 func (s *BootstrapSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	s.dataDir = c.MkDir()
 	s.logDir = c.MkDir()
 	s.mongoOplogSize = "1234"
 	s.fakeEnsureMongo = fakeEnsure{}
-}
-
-func (s *BootstrapSuite) TearDownTest(c *gc.C) {
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
 }
 
 var testPassword = "my-admin-secret"

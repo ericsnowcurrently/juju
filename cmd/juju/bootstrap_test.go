@@ -37,21 +37,14 @@ import (
 )
 
 type BootstrapSuite struct {
-	coretesting.FakeJujuHomeSuite
-	gitjujutesting.MgoSuite
+	coretesting.FakeHomeMgoSuite
 	envtesting.ToolsFixture
 }
 
 var _ = gc.Suite(&BootstrapSuite{})
 
-func (s *BootstrapSuite) SetUpSuite(c *gc.C) {
-	s.FakeJujuHomeSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
 func (s *BootstrapSuite) SetUpTest(c *gc.C) {
-	s.FakeJujuHomeSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.FakeHomeMgoSuite.SetUpTest(c)
 	s.ToolsFixture.SetUpTest(c)
 
 	// Set up a local source with tools.
@@ -61,15 +54,9 @@ func (s *BootstrapSuite) SetUpTest(c *gc.C) {
 	s.PatchValue(&envtools.BundleTools, toolstesting.GetMockBundleTools(c))
 }
 
-func (s *BootstrapSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.FakeJujuHomeSuite.TearDownSuite(c)
-}
-
 func (s *BootstrapSuite) TearDownTest(c *gc.C) {
 	s.ToolsFixture.TearDownTest(c)
-	s.MgoSuite.TearDownTest(c)
-	s.FakeJujuHomeSuite.TearDownTest(c)
+	s.FakeHomeMgoSuite.TearDownTest(c)
 	dummy.Reset()
 }
 

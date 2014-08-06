@@ -27,31 +27,10 @@ import (
 )
 
 type bootstrapSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 }
 
 var _ = gc.Suite(&bootstrapSuite{})
-
-func (s *bootstrapSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *bootstrapSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
-func (s *bootstrapSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
-}
-
-func (s *bootstrapSuite) TearDownTest(c *gc.C) {
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
-}
 
 func (s *bootstrapSuite) TestInitializeState(c *gc.C) {
 	dataDir := c.MkDir()

@@ -8,7 +8,6 @@ import (
 	stdtesting "testing"
 	"time"
 
-	gitjujutesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
@@ -45,63 +44,46 @@ func init() {
 }
 
 type liveSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	jujutest.LiveTests
 }
 
 func (s *liveSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
+	s.BaseMgoSuite.SetUpSuite(c)
 	s.LiveTests.SetUpSuite(c)
 }
 
 func (s *liveSuite) TearDownSuite(c *gc.C) {
 	s.LiveTests.TearDownSuite(c)
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
+	s.BaseMgoSuite.TearDownSuite(c)
 }
 
 func (s *liveSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	s.LiveTests.SetUpTest(c)
 }
 
 func (s *liveSuite) TearDownTest(c *gc.C) {
 	s.Destroy(c)
 	s.LiveTests.TearDownTest(c)
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 type suite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	jujutest.Tests
 }
 
-func (s *suite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *suite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
 func (s *suite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	s.Tests.SetUpTest(c)
 }
 
 func (s *suite) TearDownTest(c *gc.C) {
 	s.Tests.TearDownTest(c)
-	s.MgoSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 	dummy.Reset()
-	s.BaseSuite.TearDownTest(c)
+	//	s.BaseSuite.TearDownTest(c)
 }
 
 func (s *suite) bootstrapTestEnviron(c *gc.C, preferIPv6 bool) environs.Environ {
