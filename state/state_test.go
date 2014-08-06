@@ -17,6 +17,7 @@ import (
 	"github.com/juju/names"
 	gitjujutesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
+	"github.com/juju/txn"
 	"github.com/juju/utils"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -37,33 +38,10 @@ import (
 	"github.com/juju/juju/testing/factory"
 	"github.com/juju/juju/version"
 	"github.com/juju/juju/worker/peergrouper"
-	"github.com/juju/txn"
 )
 
 var goodPassword = "foo-12345678901234567890"
 var alternatePassword = "bar-12345678901234567890"
-
-// preventUnitDestroyRemove sets a non-pending status on the unit, and hence
-// prevents it from being unceremoniously removed from state on Destroy. This
-// is useful because several tests go through a unit's lifecycle step by step,
-// asserting the behaviour of a given method in each state, and the unit quick-
-// remove change caused many of these to fail.
-func preventUnitDestroyRemove(c *gc.C, u *state.Unit) {
-	err := u.SetStatus(params.StatusStarted, "", nil)
-	c.Assert(err, gc.IsNil)
-}
-
-// TestingInitialize initializes the state and returns it. If state was not
-// already initialized, and cfg is nil, the minimal default environment
-// configuration will be used.
-func TestingInitialize(c *gc.C, cfg *config.Config, policy state.Policy) *state.State {
-	if cfg == nil {
-		cfg = testing.EnvironConfig(c)
-	}
-	st, err := state.Initialize(state.TestingMongoInfo(), cfg, state.TestingDialOpts(), policy)
-	c.Assert(err, gc.IsNil)
-	return st
-}
 
 type StateSuite struct {
 	ConnSuite

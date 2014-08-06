@@ -15,8 +15,7 @@ import (
 )
 
 type InitializeSuite struct {
-	testing.BaseMgoSuite
-	State *state.State
+	BaseStateSuite
 }
 
 var _ = gc.Suite(&InitializeSuite{})
@@ -25,15 +24,6 @@ func (s *InitializeSuite) openState(c *gc.C) {
 	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	s.State = st
-}
-
-func (s *InitializeSuite) TearDownTest(c *gc.C) {
-	if s.State != nil {
-		s.State.Close()
-	} else {
-		c.Logf("skipping State.Close() due to previous error")
-	}
-	s.BaseMgoSuite.TearDownTest(c)
 }
 
 func (s *InitializeSuite) TestInitialize(c *gc.C) {
@@ -76,7 +66,7 @@ func (s *InitializeSuite) TestInitialize(c *gc.C) {
 func (s *InitializeSuite) TestDoubleInitializeConfig(c *gc.C) {
 	cfg := testing.EnvironConfig(c)
 	initial := cfg.AllAttrs()
-	st := TestingInitialize(c, cfg, nil)
+	st := s.initialize(c, cfg, nil)
 	st.Close()
 
 	// A second initialize returns an open *State, but ignores its params.
@@ -105,7 +95,7 @@ func (s *InitializeSuite) TestEnvironConfigWithAdminSecret(c *gc.C) {
 	c.Assert(err, gc.ErrorMatches, "admin-secret should never be written to the state")
 
 	// admin-secret blocks UpdateEnvironConfig.
-	st := TestingInitialize(c, good, nil)
+	st := s.initialize(c, good, nil)
 	st.Close()
 
 	s.openState(c)
@@ -129,7 +119,7 @@ func (s *InitializeSuite) TestEnvironConfigWithoutAgentVersion(c *gc.C) {
 	_, err = state.Initialize(state.TestingMongoInfo(), bad, state.TestingDialOpts(), state.Policy(nil))
 	c.Assert(err, gc.ErrorMatches, "agent-version must always be set in state")
 
-	st := TestingInitialize(c, good, nil)
+	st := s.initialize(c, good, nil)
 	// yay side effects
 	st.Close()
 

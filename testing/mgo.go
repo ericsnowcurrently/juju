@@ -19,6 +19,9 @@ func MgoTestPackage(t *testing.T) {
 	gitjujutesting.MgoTestPackage(t, Certs)
 }
 
+//---------------------------
+// base mgo suite
+
 // MgoSuite is a core-specific wrapper around testing.MgoSuite.
 type MgoSuite struct {
 	gitjujutesting.MgoSuite
@@ -28,6 +31,28 @@ func (s *MgoSuite) Server() *gitjujutesting.MgoInstance {
 	// XXX(ericsnow) Eliminate this global state!
 	return gitjujutesting.MgoServer
 }
+
+// MongoInfo returns information suitable for
+// connecting to the testing state server's mongo database.
+func (s *MgoSuite) MongoInfo() *authentication.MongoInfo {
+	return &authentication.MongoInfo{
+		Info: mongo.Info{
+			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			CACert: CACert,
+		},
+	}
+}
+
+// DialOpts returns configuration parameters for
+// connecting to the testing state server.
+func (s *MgoSuite) DialOpts() mongo.DialOpts {
+	return mongo.DialOpts{
+		Timeout: LongWait,
+	}
+}
+
+//---------------------------
+// extended suites
 
 // BaseMgoSuite adds BaseSuite to the local MgoSuite.
 type BaseMgoSuite struct {

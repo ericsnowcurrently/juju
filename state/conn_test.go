@@ -4,26 +4,17 @@
 package state_test
 
 import (
-	stdtesting "testing"
-
 	"gopkg.in/mgo.v2"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/state"
-	statetesting "github.com/juju/juju/state/testing"
-	"github.com/juju/juju/testing"
 	"github.com/juju/juju/testing/factory"
 )
-
-// TestPackage integrates the tests into gotest.
-func TestPackage(t *stdtesting.T) {
-	testing.MgoTestPackage(t)
-}
 
 // ConnSuite provides the infrastructure for all other
 // test suites (StateSuite, CharmSuite, MachineSuite, etc).
 type ConnSuite struct {
-	testing.BaseMgoSuite
+	BaseStateSuite
 	annotations  *mgo.Collection
 	charms       *mgo.Collection
 	machines     *mgo.Collection
@@ -31,15 +22,13 @@ type ConnSuite struct {
 	services     *mgo.Collection
 	units        *mgo.Collection
 	stateServers *mgo.Collection
-	State        *state.State
-	policy       statetesting.MockPolicy
 	factory      *factory.Factory
 }
 
 func (cs *ConnSuite) SetUpTest(c *gc.C) {
-	cs.BaseMgoSuite.SetUpTest(c)
-	cs.policy = statetesting.MockPolicy{}
-	cs.State = TestingInitialize(c, nil, &cs.policy)
+	cs.BaseStateSuite.SetUpTest(c)
+	cs.State.AddAdminUser("pass")
+
 	cs.annotations = cs.MgoSuite.Session.DB("juju").C("annotations")
 	cs.charms = cs.MgoSuite.Session.DB("juju").C("charms")
 	cs.machines = cs.MgoSuite.Session.DB("juju").C("machines")
@@ -47,16 +36,8 @@ func (cs *ConnSuite) SetUpTest(c *gc.C) {
 	cs.services = cs.MgoSuite.Session.DB("juju").C("services")
 	cs.units = cs.MgoSuite.Session.DB("juju").C("units")
 	cs.stateServers = cs.MgoSuite.Session.DB("juju").C("stateServers")
-	cs.State.AddAdminUser("pass")
-	cs.factory = factory.NewFactory(cs.State, c)
-}
 
-func (cs *ConnSuite) TearDownTest(c *gc.C) {
-	if cs.State != nil {
-		// If setup fails, we don't have a State yet
-		cs.State.Close()
-	}
-	cs.BaseMgoSuite.TearDownTest(c)
+	cs.factory = factory.NewFactory(cs.State, c)
 }
 
 func (s *ConnSuite) AddTestingCharm(c *gc.C, name string) *state.Charm {
