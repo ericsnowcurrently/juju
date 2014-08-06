@@ -24,8 +24,7 @@ func TestPackage(t *stdtesting.T) {
 // ConnSuite provides the infrastructure for all other
 // test suites (StateSuite, CharmSuite, MachineSuite, etc).
 type ConnSuite struct {
-	gitjujutesting.MgoSuite
-	testing.BaseSuite
+	testing.BaseMgoSuite
 	annotations  *mgo.Collection
 	charms       *mgo.Collection
 	machines     *mgo.Collection
@@ -38,19 +37,8 @@ type ConnSuite struct {
 	factory      *factory.Factory
 }
 
-func (cs *ConnSuite) SetUpSuite(c *gc.C) {
-	cs.BaseSuite.SetUpSuite(c)
-	cs.MgoSuite.SetUpSuite(c)
-}
-
-func (cs *ConnSuite) TearDownSuite(c *gc.C) {
-	cs.MgoSuite.TearDownSuite(c)
-	cs.BaseSuite.TearDownSuite(c)
-}
-
 func (cs *ConnSuite) SetUpTest(c *gc.C) {
-	cs.BaseSuite.SetUpTest(c)
-	cs.MgoSuite.SetUpTest(c)
+	cs.BaseMgoSuite.SetUpTest(c)
 	cs.policy = statetesting.MockPolicy{}
 	cs.State = TestingInitialize(c, nil, &cs.policy)
 	cs.annotations = cs.MgoSuite.Session.DB("juju").C("annotations")
@@ -69,8 +57,7 @@ func (cs *ConnSuite) TearDownTest(c *gc.C) {
 		// If setup fails, we don't have a State yet
 		cs.State.Close()
 	}
-	cs.MgoSuite.TearDownTest(c)
-	cs.BaseSuite.TearDownTest(c)
+	cs.BaseMgoSuite.TearDownTest(c)
 }
 
 func (s *ConnSuite) AddTestingCharm(c *gc.C, name string) *state.Charm {

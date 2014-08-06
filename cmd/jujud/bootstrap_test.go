@@ -42,8 +42,7 @@ var _ = configstore.Default
 // We don't want to use JujuConnSuite because it gives us
 // an already-bootstrapped environment.
 type BootstrapSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	envcfg          string
 	instanceId      instance.Id
 	dataDir         string
@@ -82,29 +81,21 @@ func (s *BootstrapSuite) SetUpSuite(c *gc.C) {
 	s.PatchValue(&ensureMongoServer, s.fakeEnsureMongo.fakeEnsureMongo)
 	s.PatchValue(&maybeInitiateMongoServer, s.fakeEnsureMongo.fakeInitiateMongo)
 
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
+	s.BaseMgoSuite.SetUpSuite(c)
 	s.makeTestEnv(c)
 }
 
 func (s *BootstrapSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
+	s.BaseMgoSuite.TearDownSuite(c)
 	dummy.Reset()
 }
 
 func (s *BootstrapSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	s.dataDir = c.MkDir()
 	s.logDir = c.MkDir()
 	s.mongoOplogSize = "1234"
 	s.fakeEnsureMongo = fakeEnsure{}
-}
-
-func (s *BootstrapSuite) TearDownTest(c *gc.C) {
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
 }
 
 var testPassword = "my-admin-secret"
@@ -130,7 +121,7 @@ func (s *BootstrapSuite) initBootstrapCommand(c *gc.C, jobs []params.MachineJob,
 		UpgradedToVersion: version.Current.Number,
 		Password:          testPasswordHash(),
 		Nonce:             agent.BootstrapNonce,
-		StateAddresses:    []string{gitjujutesting.MgoServer.Addr()},
+		StateAddresses:    []string{s.Server().Addr()},
 		APIAddresses:      []string{"0.1.2.3:1234"},
 		CACert:            testing.CACert,
 		Values: map[string]string{
@@ -142,7 +133,7 @@ func (s *BootstrapSuite) initBootstrapCommand(c *gc.C, jobs []params.MachineJob,
 		Cert:       "some cert",
 		PrivateKey: "some key",
 		APIPort:    3737,
-		StatePort:  gitjujutesting.MgoServer.Port(),
+		StatePort:  s.Server().Port(),
 	}
 
 	machineConf, err = agent.NewStateMachineConfig(agentParams, servingInfo)
@@ -188,7 +179,7 @@ func (s *BootstrapSuite) TestInitializeEnvironment(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -235,7 +226,7 @@ func (s *BootstrapSuite) TestSetConstraints(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -269,7 +260,7 @@ func (s *BootstrapSuite) TestDefaultMachineJobs(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -290,7 +281,7 @@ func (s *BootstrapSuite) TestConfiguredMachineJobs(c *gc.C) {
 
 	st, err := state.Open(&authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 		Password: testPasswordHash(),
@@ -325,7 +316,7 @@ func (s *BootstrapSuite) TestInitialPassword(c *gc.C) {
 	// password.
 	info := &authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 	}

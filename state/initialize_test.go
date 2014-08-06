@@ -16,27 +16,11 @@ import (
 )
 
 type InitializeSuite struct {
-	gitjujutesting.MgoSuite
-	testing.BaseSuite
+	testing.BaseMgoSuite
 	State *state.State
 }
 
 var _ = gc.Suite(&InitializeSuite{})
-
-func (s *InitializeSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *InitializeSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
-func (s *InitializeSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
-}
 
 func (s *InitializeSuite) openState(c *gc.C) {
 	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
@@ -50,8 +34,7 @@ func (s *InitializeSuite) TearDownTest(c *gc.C) {
 	} else {
 		c.Logf("skipping State.Close() due to previous error")
 	}
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 func (s *InitializeSuite) TestInitialize(c *gc.C) {

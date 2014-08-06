@@ -18,27 +18,15 @@ import (
 // for ensuring state operations behave correctly across
 // schema changes.
 type compatSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	state *State
 	env   *Environment
 }
 
 var _ = gc.Suite(&compatSuite{})
 
-func (s *compatSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *compatSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
 func (s *compatSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	st, err := Initialize(TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), nil)
 	c.Assert(err, gc.IsNil)
 	s.state = st
@@ -51,8 +39,7 @@ func (s *compatSuite) TearDownTest(c *gc.C) {
 	if s.state != nil {
 		s.state.Close()
 	}
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 func (s *compatSuite) TestEnvironAssertAlive(c *gc.C) {

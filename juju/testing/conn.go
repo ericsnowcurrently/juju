@@ -58,7 +58,7 @@ type JujuConnSuite struct {
 	// really do need both to exist ought to be embedding distinct fixtures for the
 	// distinct environments.
 	testing.FakeJujuHomeSuite
-	gitjujutesting.MgoSuite
+	testing.MgoSuite
 	envtesting.ToolsFixture
 	State        *state.State
 	Environ      environs.Environ
@@ -423,7 +423,7 @@ type GetStater interface {
 }
 
 func (s *JujuConnSuite) tearDownConn(c *gc.C) {
-	serverAlive := gitjujutesting.MgoServer.Addr() != ""
+	serverAlive := s.Server().Addr() != ""
 
 	// Bootstrap will set the admin password, and render non-authorized use
 	// impossible. s.State may still hold the right password, so try to reset

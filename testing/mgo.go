@@ -4,13 +4,51 @@
 package testing
 
 import (
-	"testing"
+	stdtesting "testing"
 
-	gitjujutesting "github.com/juju/testing"
+	"github.com/juju/testing/mgo"
+	gc "launchpad.net/gocheck"
 )
+
+var MgoServer *mgo.MgoServer
 
 // MgoTestPackage should be called to register the tests for any package
 // that requires a secure connection to a MongoDB server.
-func MgoTestPackage(t *testing.T) {
-	gitjujutesting.MgoTestPackage(t, Certs)
+func MgoTestPackage(t *stdtesting.T) {
+	// TODO(ericsnow) don't hard-code the path.
+	mgo.MgoTestPackage(t, Certs, "/usr/lib/juju/bin/mongod")
+}
+
+type MgoSuite struct {
+	mgo.MgoSuite
+}
+
+func (s *MgoSuite) SetUpSuite(c *gc.C) {
+	s.MgoSuite.SetUpSuite(c)
+	MgoServer = s.Server()
+}
+
+type BaseMgoSuite struct {
+	BaseSuite
+	MgoSuite
+}
+
+func (s *BaseMgoSuite) SetUpSuite(c *gc.C) {
+	s.BaseSuite.SetUpSuite(c)
+	s.MgoSuite.SetUpSuite(c)
+}
+
+func (s *BaseMgoSuite) TearDownSuite(c *gc.C) {
+	s.MgoSuite.TearDownSuite(c)
+	s.BaseSuite.TearDownSuite(c)
+}
+
+func (s *BaseMgoSuite) SetUpTest(c *gc.C) {
+	s.BaseSuite.SetUpTest(c)
+	s.MgoSuite.SetUpTest(c)
+}
+
+func (s *BaseMgoSuite) TearDownTest(c *gc.C) {
+	s.MgoSuite.TearDownTest(c)
+	s.BaseSuite.TearDownTest(c)
 }

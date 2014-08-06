@@ -46,8 +46,7 @@ func TestPackage(t *stdtesting.T) {
 }
 
 type watcherSuite struct {
-	gitjujutesting.MgoSuite
-	testing.BaseSuite
+	testing.BaseMgoSuite
 
 	log       *mgo.Collection
 	stash     *mgo.Collection
@@ -71,20 +70,17 @@ func (s *FastPeriodSuite) SetUpSuite(c *gc.C) {
 var _ = gc.Suite(&FastPeriodSuite{})
 
 func (s *watcherSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
+	s.BaseMgoSuite.SetUpSuite(c)
 	s.oldPeriod = watcher.Period
 }
 
 func (s *watcherSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
+	s.BaseMgoSuite.TearDownSuite(c)
 	watcher.Period = s.oldPeriod
 }
 
 func (s *watcherSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 
 	db := s.MgoSuite.Session.DB("juju")
 	s.log = db.C("txnlog")
@@ -102,8 +98,7 @@ func (s *watcherSuite) SetUpTest(c *gc.C) {
 func (s *watcherSuite) TearDownTest(c *gc.C) {
 	c.Assert(s.w.Stop(), gc.IsNil)
 
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 type M map[string]interface{}

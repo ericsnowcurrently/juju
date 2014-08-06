@@ -344,7 +344,7 @@ func parseHostPort(s string) (network.HostPort, error) {
 }
 
 // writeStateAgentConfig creates and writes a state agent config.
-func writeStateAgentConfig(c *gc.C, stateInfo *authentication.MongoInfo, dataDir string, tag names.Tag, password string, vers version.Binary) agent.ConfigSetterWriter {
+func (s *agentSuite) writeStateAgentConfig(c *gc.C, stateInfo *authentication.MongoInfo, dataDir string, tag names.Tag, password string, vers version.Binary) agent.ConfigSetterWriter {
 	port := gitjujutesting.FindTCPPort()
 	apiAddr := []string{fmt.Sprintf("localhost:%d", port)}
 	conf, err := agent.NewStateMachineConfig(
@@ -361,7 +361,7 @@ func writeStateAgentConfig(c *gc.C, stateInfo *authentication.MongoInfo, dataDir
 		params.StateServingInfo{
 			Cert:       coretesting.ServerCert,
 			PrivateKey: coretesting.ServerKey,
-			StatePort:  gitjujutesting.MgoServer.Port(),
+			StatePort:  s.Server().Port(),
 			APIPort:    port,
 		})
 	c.Assert(err, gc.IsNil)
@@ -382,7 +382,7 @@ func (s *agentSuite) primeStateAgent(
 	c.Assert(tools1, gc.DeepEquals, agentTools)
 
 	stateInfo := s.MongoInfo(c)
-	conf := writeStateAgentConfig(c, stateInfo, s.DataDir(), tag, password, vers)
+	conf := s.writeStateAgentConfig(c, stateInfo, s.DataDir(), tag, password, vers)
 	s.primeAPIHostPorts(c)
 	return conf, agentTools
 }

@@ -16,24 +16,12 @@ import (
 )
 
 type upgradesSuite struct {
-	testing.BaseSuite
-	gitjujutesting.MgoSuite
+	testing.BaseMgoSuite
 	state *State
 }
 
-func (s *upgradesSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *upgradesSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
 func (s *upgradesSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	var err error
 	s.state, err = Initialize(TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), Policy(nil))
 	c.Assert(err, gc.IsNil)
@@ -41,8 +29,7 @@ func (s *upgradesSuite) SetUpTest(c *gc.C) {
 
 func (s *upgradesSuite) TearDownTest(c *gc.C) {
 	s.state.Close()
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 var _ = gc.Suite(&upgradesSuite{})

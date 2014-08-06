@@ -22,27 +22,15 @@ func TestPackage(t *stdtesting.T) {
 }
 
 type PresenceSuite struct {
-	gitjujutesting.MgoSuite
-	testing.BaseSuite
+	testing.BaseMgoSuite
 	presence *mgo.Collection
 	pings    *mgo.Collection
 }
 
 var _ = gc.Suite(&PresenceSuite{})
 
-func (s *PresenceSuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *PresenceSuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
 func (s *PresenceSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 
 	db := s.MgoSuite.Session.DB("presence")
 	s.presence = db.C("presence")
@@ -52,8 +40,7 @@ func (s *PresenceSuite) SetUpTest(c *gc.C) {
 }
 
 func (s *PresenceSuite) TearDownTest(c *gc.C) {
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 
 	presence.RealTimeSlot()
 	presence.RealPeriod()

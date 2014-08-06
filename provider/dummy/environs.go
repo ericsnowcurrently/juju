@@ -36,7 +36,6 @@ import (
 	"github.com/juju/loggo"
 	"github.com/juju/names"
 	"github.com/juju/schema"
-	gitjujutesting "github.com/juju/testing"
 
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/constraints"
@@ -96,10 +95,10 @@ func SampleConfig() testing.Attrs {
 // shared dummy state, if it exists. If preferIPv6 is true, an IPv6 endpoint
 // will be added as primary.
 func stateInfo(preferIPv6 bool) *authentication.MongoInfo {
-	if gitjujutesting.MgoServer.Addr() == "" {
+	if testing.MgoServer.Addr() == "" {
 		panic("dummy environ state tests must be run with MgoTestPackage")
 	}
-	mongoPort := strconv.Itoa(gitjujutesting.MgoServer.Port())
+	mongoPort := strconv.Itoa(testing.MgoServer.Port())
 	var addrs []string
 	if preferIPv6 {
 		addrs = []string{
@@ -272,7 +271,7 @@ func Reset() {
 	}
 	providerInstance.state = make(map[int]*environState)
 	if mongoAlive() {
-		gitjujutesting.MgoServer.Reset()
+		testing.MgoServer.Reset()
 	}
 	providerInstance.statePolicy = environs.NewStatePolicy()
 }
@@ -293,7 +292,7 @@ func (state *environState) destroy() {
 		state.apiState = nil
 	}
 	if mongoAlive() {
-		gitjujutesting.MgoServer.Reset()
+		testing.MgoServer.Reset()
 	}
 	state.bootstrapped = false
 }
@@ -303,7 +302,7 @@ func (state *environState) destroy() {
 // If it has been deliberately destroyed, we will
 // expect some errors when closing things down.
 func mongoAlive() bool {
-	return gitjujutesting.MgoServer.Addr() != ""
+	return testing.MgoServer.Addr() != ""
 }
 
 // GetStateInAPIServer returns the state connection used by the API server

@@ -124,7 +124,7 @@ func (s *mongoPingerSuite) TestAgentConnectionsShutDownWhenStateDies(c *gc.C) {
 	st, _ := s.OpenAPIAsNewMachine(c)
 	err := st.Ping()
 	c.Assert(err, gc.IsNil)
-	gitjujutesting.MgoServer.Destroy()
+	s.Server().Destroy()
 
 	attempt := utils.AttemptStrategy{
 		Total: coretesting.LongWait,

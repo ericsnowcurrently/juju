@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/juju/charm"
-	jtesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	gc "launchpad.net/gocheck"
 
@@ -21,32 +20,20 @@ import (
 )
 
 type factorySuite struct {
-	testing.BaseSuite
-	jtesting.MgoSuite
+	testing.BaseMgoSuite
 	State   *state.State
 	Factory *factory.Factory
 }
 
 var _ = gc.Suite(&factorySuite{})
 
-func (s *factorySuite) SetUpSuite(c *gc.C) {
-	s.BaseSuite.SetUpSuite(c)
-	s.MgoSuite.SetUpSuite(c)
-}
-
-func (s *factorySuite) TearDownSuite(c *gc.C) {
-	s.MgoSuite.TearDownSuite(c)
-	s.BaseSuite.TearDownSuite(c)
-}
-
 func (s *factorySuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.MgoSuite.SetUpTest(c)
+	s.BaseMgoSuite.SetUpTest(c)
 	policy := statetesting.MockPolicy{}
 
 	info := &authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{jtesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: testing.CACert,
 		},
 	}
@@ -64,8 +51,7 @@ func (s *factorySuite) TearDownTest(c *gc.C) {
 	if s.State != nil {
 		s.State.Close()
 	}
-	s.MgoSuite.TearDownTest(c)
-	s.BaseSuite.TearDownTest(c)
+	s.BaseMgoSuite.TearDownTest(c)
 }
 
 func (s *factorySuite) TestMakeUserNil(c *gc.C) {
