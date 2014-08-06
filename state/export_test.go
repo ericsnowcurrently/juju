@@ -23,6 +23,14 @@ import (
 	"github.com/juju/juju/instance"
 )
 
+func RunTransaction(st *State, ops []txn.Op) error {
+	return st.runTransaction(ops)
+}
+
+func GetCollection(st *State, coll string) (*mgo.Collection, func()) {
+	return st.getCollection(coll)
+}
+
 func SetTestHooks(c *gc.C, st *State, hooks ...jujutxn.TestHook) txntesting.TransactionChecker {
 	runner := jujutxn.NewRunner(jujutxn.RunnerParams{Database: st.db})
 	st.transactionRunner = runner

@@ -344,7 +344,7 @@ func (s *MachineSuite) TestTag(c *gc.C) {
 }
 
 func (s *MachineSuite) TestSetMongoPassword(c *gc.C) {
-	testSetMongoPassword(c, func(st *state.State) (entity, error) {
+	s.setMongoPassword(c, func(st *state.State) (entity, error) {
 		return st.Machine(s.machine.Id())
 	})
 }
@@ -989,7 +989,7 @@ func (s *MachineSuite) TestWatchDiesOnStateClose(c *gc.C) {
 	//  Unit.Watch
 	//  State.WatchForEnvironConfigChanges
 	//  Unit.WatchConfigSettings
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		m, err := st.Machine(s.machine.Id())
 		c.Assert(err, gc.IsNil)
 		w := m.Watch()
@@ -1094,7 +1094,7 @@ func (s *MachineSuite) TestWatchPrincipalUnits(c *gc.C) {
 func (s *MachineSuite) TestWatchPrincipalUnitsDiesOnStateClose(c *gc.C) {
 	// This test is testing logic in watcher.unitsWatcher, which
 	// is also used by Unit.WatchSubordinateUnits.
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		m, err := st.Machine(s.machine.Id())
 		c.Assert(err, gc.IsNil)
 		w := m.WatchPrincipalUnits()
@@ -1198,7 +1198,7 @@ func (s *MachineSuite) TestWatchUnits(c *gc.C) {
 }
 
 func (s *MachineSuite) TestWatchUnitsDiesOnStateClose(c *gc.C) {
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		m, err := st.Machine(s.machine.Id())
 		c.Assert(err, gc.IsNil)
 		w := m.WatchUnits()
@@ -1934,7 +1934,7 @@ func (s *MachineSuite) TestWatchInterfaces(c *gc.C) {
 }
 
 func (s *MachineSuite) TestWatchInterfacesDiesOnStateClose(c *gc.C) {
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		m, err := st.Machine(s.machine.Id())
 		c.Assert(err, gc.IsNil)
 		w := m.WatchInterfaces()

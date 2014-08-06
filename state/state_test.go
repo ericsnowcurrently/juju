@@ -62,7 +62,7 @@ func (s *StateSuite) SetUpTest(c *gc.C) {
 func (s *StateSuite) TestDialAgain(c *gc.C) {
 	// Ensure idempotent operations on Dial are working fine.
 	for i := 0; i < 2; i++ {
-		st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
+		st, err := state.Open(s.MongoInfo(), s.DialOpts(), state.Policy(nil))
 		c.Assert(err, gc.IsNil)
 		c.Assert(st.Close(), gc.IsNil)
 	}
@@ -1526,7 +1526,7 @@ func (s *StateSuite) TestWatchServicesDiesOnStateClose(c *gc.C) {
 	//     Service.WatchRelations
 	//     State.WatchEnviron
 	//     Machine.WatchContainers
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		w := st.WatchServices()
 		<-w.Changes()
 		return w
@@ -1925,7 +1925,7 @@ func (s *StateSuite) TestWatchEnvironConfig(c *gc.C) {
 }
 
 func (s *StateSuite) TestWatchEnvironConfigDiesOnStateClose(c *gc.C) {
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		w := st.WatchEnvironConfig()
 		<-w.Changes()
 		return w
@@ -2057,32 +2057,24 @@ func (s *StateSuite) TestAddAndGetEquivalence(c *gc.C) {
 	c.Assert(relation1, jc.DeepEquals, relation3)
 }
 
-func tryOpenState(info *authentication.MongoInfo) error {
-	st, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
-	if err == nil {
-		st.Close()
-	}
-	return err
-}
-
 func (s *StateSuite) TestOpenWithoutSetMongoPassword(c *gc.C) {
-	info := state.TestingMongoInfo()
+	info := s.MongoInfo()
 	info.Tag, info.Password = names.NewUserTag("arble"), "bar"
-	err := tryOpenState(info)
+	err := s.tryOpenState(info)
 	c.Assert(err, jc.Satisfies, errors.IsUnauthorized)
 
 	info.Tag, info.Password = names.NewUserTag("arble"), ""
-	err = tryOpenState(info)
+	err = s.tryOpenState(info)
 	c.Assert(err, jc.Satisfies, errors.IsUnauthorized)
 
 	info.Tag, info.Password = nil, ""
-	err = tryOpenState(info)
+	err = s.tryOpenState(info)
 	c.Assert(err, gc.IsNil)
 }
 
 func (s *StateSuite) TestOpenDoesnotSetWriteMajority(c *gc.C) {
-	info := state.TestingMongoInfo()
-	st, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	info := s.MongoInfo()
+	st, err := state.Open(info, s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -2118,8 +2110,8 @@ func (s *StateSuite) TestOpenSetsWriteMajority(c *gc.C) {
 }
 
 func (s *StateSuite) TestOpenDoesNotForceGroupCommits(c *gc.C) {
-	info := state.TestingMongoInfo()
-	st, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	info := s.MongoInfo()
+	st, err := state.Open(info, s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -2134,7 +2126,7 @@ func (s *StateSuite) TestOpenForcesGroupCommits(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	defer inst.Destroy()
 	stateInfo := &authentication.MongoInfo{Info: mongo.Info{Addrs: []string{inst.Addr()}, CACert: testing.CACert}}
-	st, err := state.Open(stateInfo, state.TestingDialOpts(), state.Policy(nil))
+	st, err := state.Open(stateInfo, s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -2144,7 +2136,7 @@ func (s *StateSuite) TestOpenForcesGroupCommits(c *gc.C) {
 }
 
 func (s *StateSuite) TestOpenBadAddress(c *gc.C) {
-	info := state.TestingMongoInfo()
+	info := s.MongoInfo()
 	info.Addrs = []string{"0.1.2.3:1234"}
 	st, err := state.Open(info, mongo.DialOpts{
 		Timeout: 1 * time.Millisecond,
@@ -2158,7 +2150,7 @@ func (s *StateSuite) TestOpenBadAddress(c *gc.C) {
 func (s *StateSuite) TestOpenDelaysRetryBadAddress(c *gc.C) {
 	// Default mgo retry delay
 	retryDelay := 500 * time.Millisecond
-	info := state.TestingMongoInfo()
+	info := s.MongoInfo()
 	info.Addrs = []string{"0.1.2.3:1234"}
 
 	t0 := time.Now()
@@ -2256,60 +2248,6 @@ type entity interface {
 	state.MongoPassworder
 }
 
-func testSetMongoPassword(c *gc.C, getEntity func(st *state.State) (entity, error)) {
-	info := state.TestingMongoInfo()
-	st, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
-	c.Assert(err, gc.IsNil)
-	defer st.Close()
-	// Turn on fully-authenticated mode.
-	err = st.SetAdminMongoPassword("admin-secret")
-	c.Assert(err, gc.IsNil)
-
-	// Set the password for the entity
-	ent, err := getEntity(st)
-	c.Assert(err, gc.IsNil)
-	err = ent.SetMongoPassword("foo")
-	c.Assert(err, gc.IsNil)
-
-	// Check that we cannot log in with the wrong password.
-	info.Tag = ent.Tag()
-	info.Password = "bar"
-	err = tryOpenState(info)
-	c.Assert(err, jc.Satisfies, errors.IsUnauthorized)
-
-	// Check that we can log in with the correct password.
-	info.Password = "foo"
-	st1, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
-	c.Assert(err, gc.IsNil)
-	defer st1.Close()
-
-	// Change the password with an entity derived from the newly
-	// opened and authenticated state.
-	ent, err = getEntity(st)
-	c.Assert(err, gc.IsNil)
-	err = ent.SetMongoPassword("bar")
-	c.Assert(err, gc.IsNil)
-
-	// Check that we cannot log in with the old password.
-	info.Password = "foo"
-	err = tryOpenState(info)
-	c.Assert(err, jc.Satisfies, errors.IsUnauthorized)
-
-	// Check that we can log in with the correct password.
-	info.Password = "bar"
-	err = tryOpenState(info)
-	c.Assert(err, gc.IsNil)
-
-	// Check that the administrator can still log in.
-	info.Tag, info.Password = nil, "admin-secret"
-	err = tryOpenState(info)
-	c.Assert(err, gc.IsNil)
-
-	// Remove the admin password so that the test harness can reset the state.
-	err = st.SetAdminMongoPassword("")
-	c.Assert(err, gc.IsNil)
-}
-
 func (s *StateSuite) TestSetAdminMongoPassword(c *gc.C) {
 	// Check that we can SetAdminMongoPassword to nothing when there's
 	// no password currently set.
@@ -2319,12 +2257,12 @@ func (s *StateSuite) TestSetAdminMongoPassword(c *gc.C) {
 	err = s.State.SetAdminMongoPassword("foo")
 	c.Assert(err, gc.IsNil)
 	defer s.State.SetAdminMongoPassword("")
-	info := state.TestingMongoInfo()
-	err = tryOpenState(info)
+	info := s.MongoInfo()
+	err = s.tryOpenState(info)
 	c.Assert(err, jc.Satisfies, errors.IsUnauthorized)
 
 	info.Password = "foo"
-	err = tryOpenState(info)
+	err = s.tryOpenState(info)
 	c.Assert(err, gc.IsNil)
 
 	err = s.State.SetAdminMongoPassword("")
@@ -2335,7 +2273,7 @@ func (s *StateSuite) TestSetAdminMongoPassword(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	info.Password = ""
-	err = tryOpenState(info)
+	err = s.tryOpenState(info)
 	c.Assert(err, gc.IsNil)
 }
 
@@ -2614,7 +2552,7 @@ func (s *StateSuite) TestWatchCleanups(c *gc.C) {
 }
 
 func (s *StateSuite) TestWatchCleanupsDiesOnStateClose(c *gc.C) {
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		w := st.WatchCleanups()
 		<-w.Changes()
 		return w
@@ -2737,7 +2675,7 @@ func (s *StateSuite) TestWatchMinUnits(c *gc.C) {
 }
 
 func (s *StateSuite) TestWatchMinUnitsDiesOnStateClose(c *gc.C) {
-	testWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
+	s.assertWatcherDiesWhenStateCloses(c, func(c *gc.C, st *state.State) waiter {
 		w := st.WatchMinUnits()
 		<-w.Changes()
 		return w
@@ -2929,34 +2867,6 @@ func (s *StateSuite) TestSetEnvironAgentVersionExcessiveContention(c *gc.C) {
 	s.assertAgentVersion(c, envConfig, currentVersion)
 }
 
-type waiter interface {
-	Wait() error
-}
-
-// testWatcherDiesWhenStateCloses calls the given function to start a watcher,
-// closes the state and checks that the watcher dies with the expected error.
-// The watcher should already have consumed the first
-// event, otherwise the watcher's initialisation logic may
-// interact with the closed state, causing it to return an
-// unexpected error (often "Closed explictly").
-func testWatcherDiesWhenStateCloses(c *gc.C, startWatcher func(c *gc.C, st *state.State) waiter) {
-	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
-	c.Assert(err, gc.IsNil)
-	watcher := startWatcher(c, st)
-	err = st.Close()
-	c.Assert(err, gc.IsNil)
-	done := make(chan error)
-	go func() {
-		done <- watcher.Wait()
-	}()
-	select {
-	case err := <-done:
-		c.Assert(err, gc.Equals, state.ErrStateClosed)
-	case <-time.After(testing.LongWait):
-		c.Fatalf("watcher %T did not exit when state closed", watcher)
-	}
-}
-
 func (s *StateSuite) TestStateServerInfo(c *gc.C) {
 	ids, err := s.State.StateServerInfo()
 	c.Assert(err, gc.IsNil)
@@ -2982,7 +2892,7 @@ func (s *StateSuite) TestOpenCreatesStateServersDoc(c *gc.C) {
 	c.Assert(err, gc.NotNil)
 	c.Assert(info, gc.IsNil)
 
-	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
+	st, err := state.Open(s.MongoInfo(), s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -3008,7 +2918,7 @@ func (s *StateSuite) TestOpenCreatesAPIHostPortsDoc(c *gc.C) {
 	c.Assert(err, gc.NotNil)
 	c.Assert(addrs, gc.IsNil)
 
-	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
+	st, err := state.Open(s.MongoInfo(), s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -3022,7 +2932,7 @@ func (s *StateSuite) TestReopenWithNoMachines(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(info, jc.DeepEquals, &state.StateServerInfo{})
 
-	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
+	st, err := state.Open(s.MongoInfo(), s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -3053,7 +2963,7 @@ func (s *StateSuite) TestOpenReplacesOldStateServersDoc(c *gc.C) {
 	c.Assert(info.MachineIds, gc.HasLen, 0)
 	c.Assert(info.VotingMachineIds, gc.HasLen, 0)
 
-	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
+	st, err := state.Open(s.MongoInfo(), s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 
@@ -3421,7 +3331,7 @@ func (s *StateSuite) TestOpenCreatesStateServingInfoDoc(c *gc.C) {
 	err := s.stateServers.DropCollection()
 	c.Assert(err, gc.IsNil)
 
-	st, err := state.Open(state.TestingMongoInfo(), state.TestingDialOpts(), state.Policy(nil))
+	st, err := state.Open(s.MongoInfo(), s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 

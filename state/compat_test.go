@@ -26,7 +26,7 @@ var _ = gc.Suite(&compatSuite{})
 
 func (s *compatSuite) SetUpTest(c *gc.C) {
 	s.BaseMgoSuite.SetUpTest(c)
-	st, err := Initialize(TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), nil)
+	st, err := Initialize(s.MongoInfo(), testing.EnvironConfig(c), s.DialOpts(), nil)
 	c.Assert(err, gc.IsNil)
 	s.state = st
 	env, err := s.state.Environment()

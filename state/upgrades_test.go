@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package state
+package state_test
 
 import (
 	"time"
@@ -11,24 +11,11 @@ import (
 	"gopkg.in/mgo.v2/txn"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/testing"
+	"github.com/juju/juju/state"
 )
 
 type upgradesSuite struct {
-	testing.BaseMgoSuite
-	state *State
-}
-
-func (s *upgradesSuite) SetUpTest(c *gc.C) {
-	s.BaseMgoSuite.SetUpTest(c)
-	var err error
-	s.state, err = Initialize(TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), Policy(nil))
-	c.Assert(err, gc.IsNil)
-}
-
-func (s *upgradesSuite) TearDownTest(c *gc.C) {
-	s.state.Close()
-	s.BaseMgoSuite.TearDownTest(c)
+	BaseStateSuite
 }
 
 var _ = gc.Suite(&upgradesSuite{})
@@ -56,18 +43,18 @@ func (s *upgradesSuite) TestLastLoginMigrate(c *gc.C) {
 			Insert: oldDoc,
 		},
 	}
-	err := s.state.runTransaction(ops)
+	err := state.RunTransaction(s.State, ops)
 	c.Assert(err, gc.IsNil)
 
-	err = MigrateUserLastConnectionToLastLogin(s.state)
+	err = state.MigrateUserLastConnectionToLastLogin(s.State)
 	c.Assert(err, gc.IsNil)
-	user, err := s.state.User(userId)
+	user, err := s.State.User(userId)
 	c.Assert(err, gc.IsNil)
 	c.Assert(*user.LastLogin(), gc.Equals, now)
 
 	// check to see if _id_ field is removed
 	userMap := map[string]interface{}{}
-	users, closer := s.state.getCollection("users")
+	users, closer := state.GetCollection(s.State, "users")
 	defer closer()
 	err = users.Find(bson.D{{"_id", userId}}).One(&userMap)
 	c.Assert(err, gc.IsNil)

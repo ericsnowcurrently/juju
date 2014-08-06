@@ -864,7 +864,7 @@ func (s *UnitSuite) TestTag(c *gc.C) {
 }
 
 func (s *UnitSuite) TestSetMongoPassword(c *gc.C) {
-	testSetMongoPassword(c, func(st *state.State) (entity, error) {
+	s.setMongoPassword(c, func(st *state.State) (entity, error) {
 		return st.Unit(s.unit.Name())
 	})
 }
@@ -887,8 +887,8 @@ func (s *UnitSuite) TestSetMongoPasswordOnUnitAfterConnectingAsMachineEntity(c *
 	// as a side-effect of a principal entering relation scope.)
 	subUnit := s.addSubordinateUnit(c)
 
-	info := state.TestingMongoInfo()
-	st, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	info := s.MongoInfo()
+	st, err := state.Open(info, s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 	// Turn on fully-authenticated mode.
@@ -912,13 +912,13 @@ func (s *UnitSuite) TestSetMongoPasswordOnUnitAfterConnectingAsMachineEntity(c *
 	// password
 	info.Tag = m.Tag()
 	info.Password = "foo1"
-	err = tryOpenState(info)
+	err = s.tryOpenState(info)
 	c.Assert(err, jc.Satisfies, errors.IsUnauthorized)
 
 	// Connect as the machine entity.
 	info.Tag = m.Tag()
 	info.Password = "foo"
-	st1, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	st1, err := state.Open(info, s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st1.Close()
 
@@ -933,7 +933,7 @@ func (s *UnitSuite) TestSetMongoPasswordOnUnitAfterConnectingAsMachineEntity(c *
 	// that entity, change the password for a new unit.
 	info.Tag = unit.Tag()
 	info.Password = "bar"
-	st2, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	st2, err := state.Open(info, s.DialOpts(), state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st2.Close()
 

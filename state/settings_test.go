@@ -5,13 +5,10 @@ package state
 
 import (
 	"github.com/juju/errors"
-	gitjujutesting "github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"gopkg.in/mgo.v2/txn"
 	gc "launchpad.net/gocheck"
 
-	"github.com/juju/juju/environmentserver/authentication"
-	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/testing"
 )
 
@@ -23,29 +20,10 @@ type SettingsSuite struct {
 
 var _ = gc.Suite(&SettingsSuite{})
 
-// TestingMongoInfo returns information suitable for
-// connecting to the testing state server's mongo database.
-func TestingMongoInfo() *authentication.MongoInfo {
-	return &authentication.MongoInfo{
-		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
-			CACert: testing.CACert,
-		},
-	}
-}
-
-// TestingDialOpts returns configuration parameters for
-// connecting to the testing state server.
-func TestingDialOpts() mongo.DialOpts {
-	return mongo.DialOpts{
-		Timeout: testing.LongWait,
-	}
-}
-
 func (s *SettingsSuite) SetUpTest(c *gc.C) {
 	s.BaseMgoSuite.SetUpTest(c)
 	// TODO(dfc) this logic is duplicated with the metawatcher_test.
-	state, err := Open(TestingMongoInfo(), TestingDialOpts(), Policy(nil))
+	state, err := Open(s.MongoInfo(), s.DialOpts(), Policy(nil))
 	c.Assert(err, gc.IsNil)
 
 	s.state = state

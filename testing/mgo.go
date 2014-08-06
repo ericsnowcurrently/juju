@@ -19,6 +19,14 @@ func MgoTestPackage(t *testing.T) {
 	gitjujutesting.MgoTestPackage(t, Certs)
 }
 
+// NewMgoServer returns a wrapper around a new mongod process.
+func NewMgoServer(extraArgs ...string) *gitjujutesting.MgoInstance {
+	server := gitjujutesting.MgoInstance{
+		Params: extraArgs,
+	}
+	return &server
+}
+
 //---------------------------
 // base mgo suite
 
@@ -37,7 +45,7 @@ func (s *MgoSuite) Server() *gitjujutesting.MgoInstance {
 func (s *MgoSuite) MongoInfo() *authentication.MongoInfo {
 	return &authentication.MongoInfo{
 		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
+			Addrs:  []string{s.Server().Addr()},
 			CACert: CACert,
 		},
 	}

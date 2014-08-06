@@ -35,7 +35,7 @@ type storeManagerStateSuite struct {
 
 func (s *storeManagerStateSuite) SetUpTest(c *gc.C) {
 	s.BaseMgoSuite.SetUpTest(c)
-	st, err := Initialize(TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), nil)
+	st, err := Initialize(s.MongoInfo(), testing.EnvironConfig(c), s.DialOpts(), nil)
 	c.Assert(err, gc.IsNil)
 	s.State = st
 	s.State.AddAdminUser("pass")
