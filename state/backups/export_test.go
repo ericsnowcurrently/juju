@@ -7,4 +7,6 @@ var (
 	GetDumpCmd       = &getDumpCmd
 	GetFilesToBackup = &getFilesToBackup
 	RunCommand       = &runCommand
+
+	Create = create
 )

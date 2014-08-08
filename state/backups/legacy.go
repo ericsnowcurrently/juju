@@ -18,21 +18,6 @@ import (
 	"github.com/juju/utils/tar"
 
 	"github.com/juju/juju/state/backups/config"
-	coreutils "github.com/juju/juju/utils"
-)
-
-var sep = string(os.PathSeparator)
-
-var (
-	runCommand       = coreutils.RunCommand
-	getFilesToBackup = func(config config.BackupsConfig) ([]string, error) {
-		return config.FilesToBackUp()
-	}
-	getDumpCmd = func(
-		config config.BackupsConfig, outdir string,
-	) (string, []string, error) {
-		return config.DBDump(outdir)
-	}
 )
 
 // Backup creates a tar.gz file named juju-backup_<date YYYYMMDDHHMMSS>.tar.gz
@@ -141,6 +126,7 @@ func dumpFiles(backupFiles []string, dumpdir string) error {
 	}
 	defer tarFile.Close()
 
+	sep := string(os.PathSeparator)
 	_, err = tar.TarFiles(backupFiles, tarFile, sep)
 	if err != nil {
 		return errors.Annotate(err, "cannot backup configuration files")
