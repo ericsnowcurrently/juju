@@ -9,6 +9,7 @@ import (
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/config"
 	"github.com/juju/juju/testing"
 )
 
@@ -21,8 +22,12 @@ type sourcesSuite struct {
 }
 
 func (s *sourcesSuite) TestGetFilesToBackup(c *gc.C) {
-	files, err := getFilesToBackup()
-	c.Assert(err, gc.IsNil)
+	conf := config.NewConfig(
+		config.NewDBInfo("", "", nil),
+		config.NewFiles("", "", "", "", ""),
+		"0",
+	)
+	files := getFilesToBackup(conf)
 
 	sort.Strings(files)
 	c.Check(files, gc.DeepEquals, []string{

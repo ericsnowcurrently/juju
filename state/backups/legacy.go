@@ -15,7 +15,28 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/utils/hash"
 	"github.com/juju/utils/tar"
+
+	"github.com/juju/juju/state/backups/config"
+	"github.com/juju/juju/utils"
 )
+
+var sep = string(os.PathSeparator)
+
+var runCommand = func(command string, args ...string) error {
+	return utils.RunCommand(command, args...)
+}
+
+var getFilesToBackup = func(conf config.Config) []string {
+	return conf.FilesToBackUp()
+}
+
+var getMongodumpPath = func(conf config.Config) string {
+	return conf.DBInfo().DumpBinary()
+}
+
+// TODO(ericsnow) One concern is files that get out of date by the time
+// backup finishes running.  This is particularly a problem with log
+// files.
 
 // Backup creates a tar.gz file named juju-backup_<date YYYYMMDDHHMMSS>.tar.gz
 // in the specified outputFolder.
@@ -24,7 +45,9 @@ import (
 //   juju-backup/root.tar - contains all the files needed by juju
 // Between the two, this is all that is necessary to later restore the
 // juju agent on another machine.
-func Backup(password string, username string, outputFolder string, addr string) (filename string, sha1sum string, err error) {
+func Backup(
+	password string, user string, outputFolder string, addr string,
+) (filename string, sha1sum string, err error) {
 	// YYYYMMDDHHMMSS
 	formattedDate := time.Now().Format("20060102150405")
 	bkpFile := fmt.Sprintf("juju-backup_%s.tar.gz", formattedDate)
@@ -36,17 +59,29 @@ func Backup(password string, username string, outputFolder string, addr string) 
 	}
 	defer os.RemoveAll(root)
 
+	// Prep the config.
+	conf := config.NewConfig(
+		config.NewDBInfo("", "", config.NewDBConnInfo(addr, user, password)),
+		config.NewFiles("", "", "", "", ""),
+		"0",
+	)
+
 	// Dump the files.
 	logger.Debugf("dumping state-related files")
-	err = dumpFiles(contentdir)
+	err = dumpFiles(
+		getFilesToBackup(conf),
+		contentdir,
+	)
 	if err != nil {
 		return "", "", errors.Trace(err)
 	}
 
 	// Dump the database.
 	logger.Debugf("dumping database")
-	dbinfo := NewDBConnInfo(addr, username, password)
-	err = dumpDatabase(dbinfo, dumpdir)
+	err = dumpDatabase(
+		getMongodumpPath(conf),
+		conf.DBInfo().DumpArgs(dumpdir),
+	)
 	if err != nil {
 		return "", "", errors.Trace(err)
 	}
@@ -70,6 +105,28 @@ func prepareTemp() (root, contentdir, dumpdir string, err error) {
 		err = errors.Annotate(err, "error creating temporary directories")
 	}
 	return
+}
+
+func dumpFiles(files []string, dumpdir string) error {
+	tarFile, err := os.Create(filepath.Join(dumpdir, "root.tar"))
+	if err != nil {
+		return errors.Annotate(err, "error while opening initial archive")
+	}
+	defer tarFile.Close()
+
+	_, err = tar.TarFiles(files, tarFile, sep)
+	if err != nil {
+		return errors.Annotate(err, "cannot backup configuration files")
+	}
+	return nil
+}
+
+func dumpDatabase(command string, args []string) error {
+	err := runCommand(command, args...)
+	if err != nil {
+		return errors.Annotate(err, "failed to dump database")
+	}
+	return nil
 }
 
 func createBundle(name, outdir, contentdir, root string) (string, error) {
