@@ -20,6 +20,14 @@ var sep = string(os.PathSeparator)
 
 var runCommand = coreutils.RunCommand
 
+func mustExist(path) {
+	if _, err := os.Stat(dump); err != nil {
+		err = errors.Errorf("%q not found: %v", dump, err)
+		logging.Criticalf(err.Error())
+		panic(err)
+	}
+}
+
 //---------------------------
 // state-related files
 
