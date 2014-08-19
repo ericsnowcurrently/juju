@@ -19,75 +19,16 @@ import (
 
 	"github.com/juju/juju/state/backups/config"
 	"github.com/juju/juju/state/backups/create"
-	"github.com/juju/juju/testing"
+	"github.com/juju/juju/state/backups/testing"
 )
-
-func shaSumFile(c *gc.C, fileToSum string) string {
-	f, err := os.Open(fileToSum)
-	c.Assert(err, gc.IsNil)
-	defer f.Close()
-	shahash := sha1.New()
-	_, err = io.Copy(shahash, f)
-	c.Assert(err, gc.IsNil)
-	return base64.StdEncoding.EncodeToString(shahash.Sum(nil))
-}
 
 // Register the suite.
 var _ = gc.Suite(&createSuite{})
 
 type createSuite struct {
-	testing.BaseSuite
-	cwd        string
-	config     config.BackupsConfig
-	testFiles  []string
+	testing.BackupSuite
+
 	ranCommand bool
-}
-
-func (s *createSuite) SetUpTest(c *gc.C) {
-	s.BaseSuite.SetUpTest(c)
-	s.cwd = c.MkDir()
-
-	// Set the config.
-	connInfo := config.NewDBConnInfo("localhost:8080", "bogus-user", "boguspw")
-	dbInfo, err := config.NewDBInfo(connInfo)
-	c.Assert(err, gc.IsNil)
-	config, err := config.NewBackupsConfig(dbInfo, nil)
-	c.Assert(err, gc.IsNil)
-	s.config = config
-}
-
-func (s *createSuite) createTestFiles(c *gc.C) {
-	tarDirE := path.Join(s.cwd, "TarDirectoryEmpty")
-	err := os.Mkdir(tarDirE, os.FileMode(0755))
-	c.Check(err, gc.IsNil)
-
-	tarDirP := path.Join(s.cwd, "TarDirectoryPopulated")
-	err = os.Mkdir(tarDirP, os.FileMode(0755))
-	c.Check(err, gc.IsNil)
-
-	tarSubFile1 := path.Join(tarDirP, "TarSubFile1")
-	tarSubFile1Handle, err := os.Create(tarSubFile1)
-	c.Check(err, gc.IsNil)
-	tarSubFile1Handle.WriteString("TarSubFile1")
-	tarSubFile1Handle.Close()
-
-	tarSubDir := path.Join(tarDirP, "TarDirectoryPopulatedSubDirectory")
-	err = os.Mkdir(tarSubDir, os.FileMode(0755))
-	c.Check(err, gc.IsNil)
-
-	tarFile1 := path.Join(s.cwd, "TarFile1")
-	tarFile1Handle, err := os.Create(tarFile1)
-	c.Check(err, gc.IsNil)
-	tarFile1Handle.WriteString("TarFile1")
-	tarFile1Handle.Close()
-
-	tarFile2 := path.Join(s.cwd, "TarFile2")
-	tarFile2Handle, err := os.Create(tarFile2)
-	c.Check(err, gc.IsNil)
-	tarFile2Handle.WriteString("TarFile2")
-	tarFile2Handle.Close()
-	s.testFiles = []string{tarDirE, tarDirP, tarFile1, tarFile2}
-
 }
 
 func (s *createSuite) patchExternals(c *gc.C) {
@@ -98,74 +39,56 @@ func (s *createSuite) patchExternals(c *gc.C) {
 		c.Assert(err, gc.IsNil)
 		return "bogusmongodump", args, nil
 	})
-	s.PatchValue(create.GetFilesToBackup, func(
-		config config.BackupsConfig,
-	) ([]string, error) {
-		return s.testFiles, nil
-	})
+	//	s.PatchValue(create.GetFilesToBackup, func(
+	//		config config.BackupsConfig,
+	//	) ([]string, error) {
+	//		return s.testFiles, nil
+	//	})
 	s.PatchValue(create.RunCommand, func(cmd string, args ...string) error {
 		s.ranCommand = true
 		return nil
 	})
 }
 
-func (s *createSuite) copyArchiveFile(c *gc.C, orig io.ReadCloser) string {
-	defer orig.Close()
+func (s *createSuite) checkArchive(c *gc.C, filename string, paths config.Paths) {
+	ar := archive.NewArchive(filename, "")
 
-	bkpFile := "juju-backup.tar.gz"
-	filename := path.Join(s.cwd, bkpFile)
-	file, err := os.Create(filename)
+	compressed, err := os.Open(filename)
 	c.Assert(err, gc.IsNil)
-	defer file.Close()
+	defer compressed.Close()
 
-	_, err = io.Copy(file, orig)
+	uncompressed, err = gzip.NewReader(file)
 	c.Assert(err, gc.IsNil)
 
-	return filename
-}
+	tarReader := tar.NewReader(gzr)
 
-type expectedTarContents struct {
-	Name string
-	Body string
-}
-
-var testExpectedTarContents = []expectedTarContents{
-	{"TarDirectoryEmpty", ""},
-	{"TarDirectoryPopulated", ""},
-	{"TarDirectoryPopulated/TarSubFile1", "TarSubFile1"},
-	{"TarDirectoryPopulated/TarDirectoryPopulatedSubDirectory", ""},
-	{"TarFile1", "TarFile1"},
-	{"TarFile2", "TarFile2"},
-}
-
-// Assert thar contents checks that the tar[.gz] file provided contains the
-// Expected files
-// expectedContents: is a slice of the filenames with relative paths that are
-// expected to be on the tar file
-// tarFile: is the path of the file to be checked
-func (s *createSuite) assertTarContents(
-	c *gc.C, expected []expectedTarContents, tarFile string, compressed bool,
-) {
-	f, err := os.Open(tarFile)
-	c.Assert(err, gc.IsNil)
-	defer f.Close()
-	var r io.Reader = f
-	if compressed {
-		r, err = gzip.NewReader(r)
-		c.Assert(err, gc.IsNil)
-	}
-
-	tr := tar.NewReader(r)
-
-	tarContents := make(map[string]string)
 	// Iterate through the files in the archive.
+	foundDBDumpDir := false
+	foundContentDir := false
+	var fileBundle io.ReadWriteCloser
+	dbDumpFiles := []string{}
 	for {
-		hdr, err := tr.Next()
+		hdr, err := tarReader.Next()
 		if err == io.EOF {
 			// end of tar archive
 			break
 		}
 		c.Assert(err, gc.IsNil)
+
+		if hdr.Name == ar.ContentDir() {
+			foundContentDir = true
+		} else if hdr.Name == ar.DBDumpDir() {
+			foundDBDumpeDir = true
+		} else if strings.HasPrefix(hdr.Name, ar.DBDumpDir()) {
+			dbDumpFiles.append(hdr.Name)
+		} else if hdr.Name == ar.BundleFile() {
+			_, fileBundle, _ = s.WS.Create("")
+			_, err := io.Copy(fileBundle, tarReader)
+			c.Assert(err, gc.IsNil)
+			_, err = fileBundle.Seek(0, os.SEEK_SET)
+			c.Assert(err, gc.IsNil)
+		}
+
 		buf, err := ioutil.ReadAll(tr)
 		c.Assert(err, gc.IsNil)
 		tarContents[hdr.Name] = string(buf)
@@ -188,10 +111,14 @@ func (s *createSuite) assertTarContents(
 func (s *createSuite) checkResult(c *gc.C, result *create.Result) {
 	c.Assert(result, gc.NotNil)
 
-	filename := s.copyArchiveFile(c, result.ArchiveFile)
+	filename := s.CopyArchiveFile(c, result.ArchiveFile)
 
 	fileShaSum := shaSumFile(c, filename)
 	c.Assert(result.Checksum, gc.Equals, fileShaSum)
+
+	ar := archive.NewArchive(filename, s.WS.RootDir())
+
+	s.checkArchive(ar, s.Paths)
 
 	bkpExpectedContents := []expectedTarContents{
 		{"juju-backup", ""},
@@ -205,7 +132,7 @@ func (s *createSuite) TestBuilderBuildOkay(c *gc.C) {
 	s.createTestFiles(c)
 	s.patchExternals(c)
 
-	builder, err := create.NewBuilder(s.config)
+	builder, err := create.NewBuilder(s.Config)
 	c.Assert(err, gc.IsNil)
 	defer builder.Close()
 
