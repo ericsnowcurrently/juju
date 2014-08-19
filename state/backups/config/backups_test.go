@@ -11,13 +11,14 @@ import (
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/state/backups/config"
-	"github.com/juju/juju/testing"
+	"github.com/juju/juju/state/backups/config/testing"
+	jujutesting "github.com/juju/juju/testing"
 )
 
 var _ = gc.Suite(&sourcesSuite{})
 
 type sourcesSuite struct {
-	testing.BaseSuite
+	jujutesting.BaseSuite
 	root   string
 	paths  config.Paths
 	dbInfo config.DBInfo
@@ -26,55 +27,10 @@ type sourcesSuite struct {
 func (s *sourcesSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 
-	root := c.MkDir()
-	paths := config.ReRoot(&config.DefaultPaths, root)
-	dbConnInfo := config.NewDBConnInfo(
-		"some-host.com:8080",
-		"awesome",
-		"bad-pw",
-	)
-	dbInfo, err := config.NewDBInfo(dbConnInfo)
-	c.Assert(err, gc.IsNil)
-	s.root = root
+	ws, paths := testing.NewPaths(c)
 	s.paths = paths
-	s.dbInfo = dbInfo
-
-	// Prep the fake FS.
-	mkdir := func(path string) string {
-		dirname := filepath.Join(s.root, path)
-		os.MkdirAll(dirname, 0777)
-		return dirname
-	}
-	touch := func(dirname, name string) {
-		path := filepath.Join(dirname, name)
-		file, err := os.Create(path)
-		c.Assert(err, gc.IsNil)
-		file.Close()
-	}
-
-	dirname := mkdir("/var/lib/juju")
-	touch(dirname, "tools")
-	touch(dirname, "system-identity")
-	touch(dirname, "nonce.txt")
-	touch(dirname, "server.pem")
-	touch(dirname, "shared-secret")
-
-	dirname = mkdir("/var/lib/juju/agents")
-	touch(dirname, "machine-0.conf")
-
-	dirname = mkdir("/var/log/juju")
-	touch(dirname, "all-machines.log")
-	touch(dirname, "machine-0.log")
-
-	dirname = mkdir("/etc/init")
-	touch(dirname, "jujud-machine-0.conf")
-	touch(dirname, "juju-db.conf")
-
-	dirname = mkdir("/etc/rsyslog.d")
-	touch(dirname, "spam-juju.conf")
-
-	dirname = mkdir("/home/ubuntu/.ssh")
-	touch(dirname, "authorized_keys")
+	s.root = ws.RootDir()
+	s.dbInfo = testing.NewDBInfo(c)
 }
 
 func (s *sourcesSuite) TestBackupsConfigNewBackupsConfigOkay(c *gc.C) {

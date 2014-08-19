@@ -99,3 +99,8 @@ func (bc *backupsConfig) DBDump(outDir string) (string, []string, error) {
 
 	return bin, args, nil
 }
+
+// ReRoot sets a custom rootDir for the paths.
+func ReRoot(p *paths, rootDir string) *paths {
+	return p.reRoot(rootDir)
+}

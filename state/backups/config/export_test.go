@@ -29,7 +29,3 @@ func ExposePaths(p *paths) (root, data, startup, loggingConf, logs, ssh string) 
 func ResolvePath(p *paths, kind, relPath string) (string, error) {
 	return p.resolve(kind, relPath)
 }
-
-func ReRoot(p *paths, rootDir string) *paths {
-	return p.reRoot(rootDir)
-}
