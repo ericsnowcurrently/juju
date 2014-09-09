@@ -38,6 +38,7 @@ func NewBackupsCommand() cmd.Command {
 			},
 		),
 	}
+	backupsCmd.Register(envcmd.Wrap(&BackupsCreate))
 	return &backupsCmd
 }
 
