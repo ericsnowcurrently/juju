@@ -83,3 +83,47 @@ func RunCommand(ctx *cmd.Context, com cmd.Command, args ...string) (opc chan dum
 	}()
 	return
 }
+
+// CheckHelp will check the output of run a command with its --help option.
+func CheckHelp(c *gc.C, supercmd string, command cmd.Command) {
+	info := command.Info()
+
+	_options := ""
+	if !command.IsSuperCommand() {
+		_options = "[options] "
+	}
+	_usage := fmt.Sprintf("usage: %s %s %s%s", supercmd, info.Name, _options, info.Args)
+	_purpose := fmt.Sprintf("purpose: %s", info.Purpose)
+
+	// Run the command, ensuring it is actually there.
+	args := append(strings.Fields(supercmd), info.Name, "--help")
+	out := BadRun(c, 0, args...)
+	out = out[:len(out)-1] // Strip the trailing \n.
+
+	// Check the usage string.
+	parts := strings.SplitN(out, "\n", 2)
+	c.Assert(parts, gc.HasLen, 2)
+	usage := parts[0]
+	out = parts[1]
+	c.Check(usage, gc.Equals, _usage)
+
+	// Check the purpose string.
+	parts = strings.SplitN(out, "\n\n", 2)
+	c.Assert(parts, gc.HasLen, 2)
+	purpose := parts[0]
+	out = parts[1]
+	c.Check(purpose, gc.Equals, _purpose)
+
+	// Check the options.
+	parts = strings.SplitN(out, "\n\n", 2)
+	c.Assert(parts, gc.HasLen, 2)
+	options := strings.Split(parts[0], "\n-")
+	out = parts[1]
+	c.Assert(options, gc.HasLen, 4)
+	c.Check(options[0], gc.Equals, "options:")
+	c.Check(strings.Contains(options[1], "environment"), gc.Equals, true)
+
+	// Check the doc.
+	doc := out
+	c.Check(doc, gc.Equals, info.Doc)
+}
