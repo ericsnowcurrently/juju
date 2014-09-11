@@ -9,8 +9,8 @@ import (
 
 	gc "launchpad.net/gocheck"
 
-	cmdtesting "github.com/juju/juju/cmd/testing"
-	_ "github.com/juju/juju/provider/dummy" // XXX Why?
+	jcmdtesting "github.com/juju/juju/cmd/testing"
+	_ "github.com/juju/juju/provider/dummy"
 	"github.com/juju/juju/testing"
 )
 
@@ -20,13 +20,13 @@ func TestPackage(t *stdtesting.T) {
 
 func badrun(c *gc.C, exit int, args ...string) string {
 	args = append([]string{"juju"}, args...)
-	return cmdtesting.BadRun(c, exit, args...)
+	return jcmdtesting.BadRun(c, exit, args...)
 }
 
 // Reentrancy point for testing (something as close as possible to) the juju
 // tool itself.
 func TestRunMain(t *stdtesting.T) {
-	if *cmdtesting.FlagRunMain {
+	if *jcmdtesting.FlagRunMain {
 		Main(flag.Args())
 	}
 }

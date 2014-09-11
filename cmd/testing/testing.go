@@ -4,16 +4,14 @@
 package testing
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/juju/cmd"
-	"launchpad.net/gnuflag"
+	"github.com/juju/cmd/cmdtesting"
 	gc "launchpad.net/gocheck"
 
 	"github.com/juju/juju/juju/osenv"
@@ -35,27 +33,6 @@ func BadRun(c *gc.C, exit int, args ...string) string {
 		c.Assert(err, gc.ErrorMatches, fmt.Sprintf("exit status %d", exit))
 	}
 	return string(output)
-}
-
-// HelpText returns a command's formatted help text.
-func HelpText(command cmd.Command, name string) string {
-	buff := &bytes.Buffer{}
-	info := command.Info()
-	info.Name = name
-	f := gnuflag.NewFlagSet(info.Name, gnuflag.ContinueOnError)
-	command.SetFlags(f)
-	buff.Write(info.Help(f))
-	return buff.String()
-}
-
-// NullContext returns a no-op command context.
-func NullContext(c *gc.C) *cmd.Context {
-	ctx, err := cmd.DefaultContext()
-	c.Assert(err, gc.IsNil)
-	ctx.Stdin = io.LimitReader(nil, 0)
-	ctx.Stdout = ioutil.Discard
-	ctx.Stderr = ioutil.Discard
-	return ctx
 }
 
 // RunCommand runs the command and returns channels holding the
@@ -81,4 +58,16 @@ func RunCommand(ctx *cmd.Context, com cmd.Command, args ...string) (opc chan dum
 		errc <- err
 	}()
 	return
+}
+
+// CheckHelp will check the output of run a command with its --help option.
+func CheckHelp(c *gc.C, command cmd.Command, supercmd string) {
+	info := command.Info()
+
+	// Run the command, ensuring it is actually there.
+	args := append(strings.Fields(supercmd), info.Name, "--help")
+	out := BadRun(c, 0, args...)
+	out = out[:len(out)-1] // Strip the trailing \n.
+
+	cmdtesting.CheckHelpOutput(c, out, command, supercmd)
 }
