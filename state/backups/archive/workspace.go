@@ -4,35 +4,34 @@
 package archive
 
 import (
-	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/juju/errors"
-	"github.com/juju/utils/tar"
 
 	"github.com/juju/juju/state/backups/metadata"
+	"github.com/juju/juju/utils/workspace"
 )
 
 // Workspace is a wrapper around backup archive info that has a concrete
 // root directory and an archive unpacked in it.
 type Workspace struct {
+	workspace.Workspace
 	Archive
-	rootDir string
 }
 
 func newWorkspace(filename string) (*Workspace, error) {
-	dirName, err := ioutil.TempDir("", "juju-backups-")
+	base, err := workspace.NewWorkspace("juju-backups-")
 	if err != nil {
-		return nil, errors.Annotate(err, "while creating workspace dir")
+		return nil, errors.Trace(err)
 	}
 
-	ar := NewArchive(filename, dirName)
+	ar := NewArchive(filename, base.RootDir())
+
 	ws := Workspace{
-		Archive: *ar,
-		rootDir: dirName,
+		Workspace: *base,
+		Archive:   *ar,
 	}
 	return &ws, nil
 }
@@ -49,7 +48,7 @@ func NewWorkspace(filename string) (*Workspace, error) {
 			return nil, errors.Trace(err)
 		}
 	} else {
-		if err := unpack(archiveFile, ws.rootDir); err != nil {
+		if err := workspace.Uncompress(ws, archiveFile, "gzip"); err != nil {
 			return nil, errors.Trace(err)
 		}
 	}
@@ -64,39 +63,14 @@ func NewWorkspaceFromFile(archiveFile io.Reader) (*Workspace, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	err = unpack(archiveFile, ws.rootDir)
+	err = workspace.Uncompress(ws, archiveFile, "gzip")
 	return ws, errors.Trace(err)
-}
-
-func unpack(tarFile io.Reader, targetDir string) error {
-	tarFile, err := gzip.NewReader(tarFile)
-	if err != nil {
-		return errors.Annotate(err, "while uncompressing archive file")
-	}
-	if err := tar.UntarFiles(tarFile, targetDir); err != nil {
-		return errors.Annotate(err, "while extracting files from archive")
-	}
-	return nil
-}
-
-// Close cleans up the workspace dir.
-func (ws *Workspace) Close() error {
-	err := os.RemoveAll(ws.rootDir)
-	return errors.Trace(err)
 }
 
 // UnpackFiles unpacks the archived files bundle into the targeted dir.
 func (ws *Workspace) UnpackFiles(targetRoot string) error {
-	tarFile, err := os.Open(ws.FilesBundle())
-	if err != nil {
-		return errors.Trace(err)
-	}
-	defer tarFile.Close()
-
-	if err := tar.UntarFiles(tarFile, targetRoot); err != nil {
-		return errors.Annotate(err, "while unpacking system files")
-	}
-	return nil
+	err := workspace.UnpackArchive(ws.FilesBundle(), targetRoot)
+	return errors.Trace(err)
 }
 
 // OpenFile returns an open ReadCloser for the corresponding file in
@@ -105,18 +79,8 @@ func (ws *Workspace) OpenFile(filename string) (io.Reader, error) {
 	if filepath.IsAbs(filename) {
 		return nil, errors.Errorf("filename must be relative, got %q", filename)
 	}
-
-	tarFile, err := os.Open(ws.FilesBundle())
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	_, file, err := tar.FindFile(tarFile, filename)
-	if err != nil {
-		tarFile.Close()
-		return nil, errors.Trace(err)
-	}
-	return file, nil
+	file, err := workspace.OpenArchived(ws.FilesBundle())
+	return file, errors.Trace(err)
 }
 
 // Metadata returns the metadata derived from the JSON file in the archive.
