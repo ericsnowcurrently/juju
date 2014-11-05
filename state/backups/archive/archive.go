@@ -8,6 +8,8 @@ import (
 )
 
 const (
+	defaultFilename = "juju-backup.tar.gz"
+
 	contentDir   = "juju-backup"
 	filesBundle  = "root.tar"
 	dbDumpDir    = "dump"
@@ -27,6 +29,27 @@ type Archive struct {
 	// getter methods of an Archive.  It may be left blank (e.g. when
 	// dealing with the paths within a tar file).
 	UnpackedRootDir string
+}
+
+// NewArchive returns an Archive using the provided paths.   If no
+// filename is provided then the default filename is used.  If dirname
+// is provided and filename is a relative path then dirname is prepended
+// to the filename.
+func NewArchive(filename, dirName string) *Archive {
+	if filename == "" {
+		filename = defaultFilename
+	}
+
+	if dirName != "" && !filepath.IsAbs(filename) {
+		filename = filepath.Join(dirName, filename)
+	}
+
+	ar := Archive{
+		Filename:        filename,
+		UnpackedRootDir: dirName,
+	}
+
+	return &ar
 }
 
 // ContentDir is the path to the directory within the archive containing
