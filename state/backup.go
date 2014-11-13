@@ -20,7 +20,7 @@ import (
 	"gopkg.in/mgo.v2/txn"
 
 	"github.com/juju/juju/mongo"
-	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backup"
 	"github.com/juju/juju/version"
 )
 
@@ -34,7 +34,7 @@ archives.  As a result, here are a couple concerns worth mentioning.
 First, as noted above backup is about state but not a part of state.
 So exposing backup-related methods on State would imply the wrong
 thing.  Thus the backup functionality here in the state package (not
-state/backups) is exposed as functions to which you pass a state
+state/backup) is exposed as functions to which you pass a state
 object.
 
 Second, backup creates an archive file containing a dump of state's
@@ -58,13 +58,13 @@ code that directly interacts with State (and its DB) lives in this
 file.  As mentioned previously, the functionality here is exposed
 through functions that take State, rather than as methods on State.
 Furthermore, the bulk of the backup-related code, which does not need
-direct interaction with State, lives in the state/backups package.
+direct interaction with State, lives in the state/backup package.
 */
 
 //---------------------------
 // Backup metadata document
 
-// backupMetaDoc is a mirror of backups.Metadata, used just for DB storage.
+// backupMetaDoc is a mirror of backup.Metadata, used just for DB storage.
 type backupMetaDoc struct {
 	ID string `bson:"_id"`
 
@@ -149,9 +149,9 @@ func (doc *backupMetaDoc) validate() error {
 	return nil
 }
 
-// asMetadata returns a new backups.Metadata based on the backupMetaDoc.
-func (doc *backupMetaDoc) asMetadata() *backups.Metadata {
-	meta := backups.Metadata{
+// asMetadata returns a new backup.Metadata based on the backupMetaDoc.
+func (doc *backupMetaDoc) asMetadata() *backup.Metadata {
+	meta := backup.Metadata{
 		Started: time.Unix(doc.Started, 0).UTC(),
 		Notes:   doc.Notes,
 	}
@@ -185,7 +185,7 @@ func (doc *backupMetaDoc) asMetadata() *backups.Metadata {
 
 // UpdateFromMetadata copies the corresponding data from the backup
 // Metadata into the backupMetaDoc.
-func (doc *backupMetaDoc) UpdateFromMetadata(meta *backups.Metadata) {
+func (doc *backupMetaDoc) UpdateFromMetadata(meta *backup.Metadata) {
 	// Ignore metadata.ID.
 
 	doc.Checksum = meta.Checksum()
@@ -395,21 +395,21 @@ func setBackupStored(dbWrap *backupDBWrapper, id string, stored time.Time) error
 //---------------------------
 // metadata storage
 
-type backupsDocStorage struct {
+type backupDocStorage struct {
 	dbWrap *backupDBWrapper
 }
 
-type backupsMetadataStorage struct {
+type backupMetadataStorage struct {
 	filestorage.MetadataDocStorage
 	db      *mgo.Database
 	envUUID string
 }
 
-func newBackupMetadataStorage(dbWrap *backupDBWrapper) *backupsMetadataStorage {
+func newBackupMetadataStorage(dbWrap *backupDBWrapper) *backupMetadataStorage {
 	dbWrap = dbWrap.Copy()
 
-	docStor := backupsDocStorage{dbWrap}
-	stor := backupsMetadataStorage{
+	docStor := backupDocStorage{dbWrap}
+	stor := backupMetadataStorage{
 		MetadataDocStorage: filestorage.MetadataDocStorage{&docStor},
 		db:                 dbWrap.db,
 		envUUID:            dbWrap.envUUID,
@@ -418,11 +418,11 @@ func newBackupMetadataStorage(dbWrap *backupDBWrapper) *backupsMetadataStorage {
 }
 
 // AddDoc adds the document to storage and returns the new ID.
-func (s *backupsDocStorage) AddDoc(doc filestorage.Document) (string, error) {
+func (s *backupDocStorage) AddDoc(doc filestorage.Document) (string, error) {
 	var metaDoc backupMetaDoc
-	metadata, ok := doc.(*backups.Metadata)
+	metadata, ok := doc.(*backup.Metadata)
 	if !ok {
-		return "", errors.Errorf("doc must be of type *backups.Metadata")
+		return "", errors.Errorf("doc must be of type *backup.Metadata")
 	}
 	metaDoc.UpdateFromMetadata(metadata)
 
@@ -434,7 +434,7 @@ func (s *backupsDocStorage) AddDoc(doc filestorage.Document) (string, error) {
 }
 
 // Doc returns the stored document associated with the given ID.
-func (s *backupsDocStorage) Doc(id string) (filestorage.Document, error) {
+func (s *backupDocStorage) Doc(id string) (filestorage.Document, error) {
 	dbWrap := s.dbWrap.Copy()
 	defer dbWrap.Close()
 
@@ -448,7 +448,7 @@ func (s *backupsDocStorage) Doc(id string) (filestorage.Document, error) {
 }
 
 // ListDocs returns the list of all stored documents.
-func (s *backupsDocStorage) ListDocs() ([]filestorage.Document, error) {
+func (s *backupDocStorage) ListDocs() ([]filestorage.Document, error) {
 	dbWrap := s.dbWrap.Copy()
 	defer dbWrap.Close()
 
@@ -466,7 +466,7 @@ func (s *backupsDocStorage) ListDocs() ([]filestorage.Document, error) {
 }
 
 // RemoveDoc removes the identified document from storage.
-func (s *backupsDocStorage) RemoveDoc(id string) error {
+func (s *backupDocStorage) RemoveDoc(id string) error {
 	dbWrap := s.dbWrap.Copy()
 	defer dbWrap.Close()
 
@@ -474,13 +474,13 @@ func (s *backupsDocStorage) RemoveDoc(id string) error {
 }
 
 // Close releases the DB resources.
-func (s *backupsDocStorage) Close() error {
+func (s *backupDocStorage) Close() error {
 	return s.dbWrap.Close()
 }
 
 // SetStored records in the metadata the fact that the file was stored.
-func (s *backupsMetadataStorage) SetStored(id string) error {
-	dbWrap := newBackupDBWrapper(s.db, backupsMetaC, s.envUUID)
+func (s *backupMetadataStorage) SetStored(id string) error {
+	dbWrap := newBackupDBWrapper(s.db, backupMetaC, s.envUUID)
 	defer dbWrap.Close()
 
 	err := setBackupStored(dbWrap, id, time.Now())
@@ -543,14 +543,14 @@ func (s *backupBlobStorage) Close() error {
 //---------------------------
 // backup storage
 
-const backupDB = "backups"
+const backupDB = "backup"
 
 // NewBackupStorage returns a new FileStorage to use for storing backup
 // archives (and metadata).
 func NewBackupStorage(st *State) filestorage.FileStorage {
 	envUUID := st.EnvironTag().Id()
 	db := st.MongoSession().DB(backupDB)
-	dbWrap := newBackupDBWrapper(db, backupsMetaC, envUUID)
+	dbWrap := newBackupDBWrapper(db, backupMetaC, envUUID)
 	defer dbWrap.Close()
 
 	files := newBackupFileStorage(dbWrap, backupStorageRoot)
@@ -558,11 +558,11 @@ func NewBackupStorage(st *State) filestorage.FileStorage {
 	return filestorage.NewFileStorage(docs, files)
 }
 
-// NewBackups returns a new backups based on the state.
-func NewBackups(st *State) (backups.Backups, io.Closer) {
+// NewBackup returns a new backup based on the state.
+func NewBackups(st *State) (backup.Backups, io.Closer) {
 	stor := NewBackupStorage(st)
 
-	backups := backups.NewBackups(stor)
+	backups := backup.NewBackups(stor)
 	return backups, stor
 }
 
@@ -572,28 +572,28 @@ func NewBackups(st *State) (backups.Backups, io.Closer) {
 // ignoredDatabases is the list of databases that should not be
 // backed up.
 var ignoredDatabases = set.NewStrings(
-	"backups",
+	backupDB,
 	"presence",
 )
 
 // NewDBBackupInfo returns the information needed by backups to dump
 // the database.
-func NewDBBackupInfo(st *State) (*backups.DBInfo, error) {
+func NewDBBackupInfo(st *State) (*backup.DBInfo, error) {
 	connInfo := newMongoConnInfo(st.MongoConnectionInfo())
 	targets, err := getBackupTargetDatabases(st)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	info := backups.DBInfo{
+	info := backup.DBInfo{
 		DBConnInfo: *connInfo,
 		Targets:    targets,
 	}
 	return &info, nil
 }
 
-func newMongoConnInfo(mgoInfo *mongo.MongoInfo) *backups.DBConnInfo {
-	info := backups.DBConnInfo{
+func newMongoConnInfo(mgoInfo *mongo.MongoInfo) *backup.DBConnInfo {
+	info := backup.DBConnInfo{
 		Address:  mgoInfo.Addrs[0],
 		Password: mgoInfo.Password,
 	}
@@ -620,7 +620,7 @@ func getBackupTargetDatabases(st *State) (set.Strings, error) {
 // snapshot is a new backup Origin value, for use in a backup's
 // metadata.  Every value except for the machine name is populated
 // either from juju state or some other implicit mechanism.
-func NewBackupOrigin(st *State, machine string) (*backups.Origin, error) {
+func NewBackupOrigin(st *State, machine string) (*backup.Origin, error) {
 	// hostname could be derived from the environment...
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -628,7 +628,7 @@ func NewBackupOrigin(st *State, machine string) (*backups.Origin, error) {
 		// Run for the hills.
 		return nil, errors.Annotate(err, "could not get hostname (system unstable?)")
 	}
-	origin := backups.NewOrigin(
+	origin := backup.NewOrigin(
 		st.EnvironTag().Id(),
 		machine,
 		hostname,

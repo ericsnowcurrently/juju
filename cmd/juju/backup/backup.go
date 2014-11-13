@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups
+package backup
 
 import (
 	"fmt"
@@ -10,16 +10,16 @@ import (
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 
-	"github.com/juju/juju/api/backups"
+	"github.com/juju/juju/api/backup"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/cmd/envcmd"
 )
 
-var backupsDoc = `
-"juju backups" is used to manage backups of the state of a juju environment.
+var backupDoc = `
+"juju backup" is used to manage backups of the state of a juju environment.
 `
 
-const backupsPurpose = "create, manage, and restore backups of juju's state"
+const backupPurpose = "create, manage, and restore backups of juju's state"
 
 // Command is the top-level command wrapping all backups functionality.
 type Command struct {
@@ -28,46 +28,46 @@ type Command struct {
 
 // NewCommand returns a new backups super-command.
 func NewCommand() cmd.Command {
-	backupsCmd := Command{
+	backupCmd := Command{
 		SuperCommand: *cmd.NewSuperCommand(
 			cmd.SuperCommandParams{
-				Name:        "backups",
-				Doc:         backupsDoc,
+				Name:        "backup",
+				Doc:         backupDoc,
 				UsagePrefix: "juju",
-				Purpose:     backupsPurpose,
+				Purpose:     backupPurpose,
 			},
 		),
 	}
-	backupsCmd.Register(envcmd.Wrap(&CreateCommand{}))
-	backupsCmd.Register(envcmd.Wrap(&InfoCommand{}))
-	backupsCmd.Register(envcmd.Wrap(&ListCommand{}))
-	backupsCmd.Register(envcmd.Wrap(&DownloadCommand{}))
-	backupsCmd.Register(envcmd.Wrap(&RemoveCommand{}))
-	return &backupsCmd
+	backupCmd.Register(envcmd.Wrap(&CreateCommand{}))
+	backupCmd.Register(envcmd.Wrap(&InfoCommand{}))
+	backupCmd.Register(envcmd.Wrap(&ListCommand{}))
+	backupCmd.Register(envcmd.Wrap(&DownloadCommand{}))
+	backupCmd.Register(envcmd.Wrap(&RemoveCommand{}))
+	return &backupCmd
 }
 
 // APIClient represents the backups API client functionality used by
-// the backups command.
+// the backup command.
 type APIClient interface {
 	io.Closer
 	// Create sends an RPC request to create a new backup.
-	Create(notes string) (*params.BackupsMetadataResult, error)
+	Create(notes string) (*params.BackupMetadataResult, error)
 	// Info gets the backup's metadata.
-	Info(id string) (*params.BackupsMetadataResult, error)
+	Info(id string) (*params.BackupMetadataResult, error)
 	// List gets all stored metadata.
-	List() (*params.BackupsListResult, error)
+	List() (*params.BackupListResult, error)
 	// Download pulls the backup archive file.
 	Download(id string) (io.ReadCloser, error)
 	// Remove removes the stored backup.
 	Remove(id string) error
 }
 
-// CommandBase is the base type for backups sub-commands.
+// CommandBase is the base type for backup sub-commands.
 type CommandBase struct {
 	envcmd.EnvCommandBase
 }
 
-// NewAPIClient returns a client for the backups api endpoint.
+// NewAPIClient returns a client for the backup api endpoint.
 func (c *CommandBase) NewAPIClient() (APIClient, error) {
 	return newAPIClient(c)
 }
@@ -77,11 +77,11 @@ var newAPIClient = func(c *CommandBase) (APIClient, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return backups.NewClient(root), nil
+	return backup.NewClient(root), nil
 }
 
 // dumpMetadata writes the formatted backup metadata to stdout.
-func (c *CommandBase) dumpMetadata(ctx *cmd.Context, result *params.BackupsMetadataResult) {
+func (c *CommandBase) dumpMetadata(ctx *cmd.Context, result *params.BackupMetadataResult) {
 	fmt.Fprintf(ctx.Stdout, "backup ID:       %q\n", result.ID)
 	fmt.Fprintf(ctx.Stdout, "checksum:        %q\n", result.Checksum)
 	fmt.Fprintf(ctx.Stdout, "checksum format: %q\n", result.ChecksumFormat)

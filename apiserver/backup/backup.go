@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups
+package backup
 
 import (
 	"io"
@@ -11,19 +11,19 @@ import (
 
 	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backup"
 )
 
 func init() {
-	common.RegisterStandardFacade("Backups", 0, NewAPI)
+	common.RegisterStandardFacade("Backup", 0, NewAPI)
 }
 
-var logger = loggo.GetLogger("juju.apiserver.backups")
+var logger = loggo.GetLogger("juju.apiserver.backup")
 
 // API serves backup-specific API methods.
 type API struct {
 	st    *state.State
-	paths backups.Paths
+	paths backup.Paths
 }
 
 // NewAPI creates a new instance of the Backups API facade.
@@ -52,7 +52,7 @@ func NewAPI(st *state.State, resources *common.Resources, authorizer common.Auth
 		}
 	}
 
-	var paths backups.Paths
+	var paths backup.Paths
 	paths.DataDir = dataDir.String()
 	paths.LogsDir = logDir.String()
 
@@ -63,7 +63,7 @@ func NewAPI(st *state.State, resources *common.Resources, authorizer common.Auth
 	return &b, nil
 }
 
-var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
+var newBackups = func(st *state.State) (backup.Backups, io.Closer) {
 	backups, stor := state.NewBackups(st)
 	return backups, stor
 }

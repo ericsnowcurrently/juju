@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package backup_test
 
 import (
 	"strings"
@@ -20,13 +20,13 @@ var expectedSubCommmandNames = []string{
 	"remove",
 }
 
-type backupsSuite struct {
-	BaseBackupsSuite
+type backupSuite struct {
+	BaseBackupSuite
 }
 
-var _ = gc.Suite(&backupsSuite{})
+var _ = gc.Suite(&backupSuite{})
 
-func (s *backupsSuite) checkHelpCommands(c *gc.C) {
+func (s *backupSuite) checkHelpCommands(c *gc.C) {
 	ctx, err := testing.RunCommand(c, s.command, "--help")
 	c.Assert(err, gc.IsNil)
 
@@ -42,11 +42,11 @@ func (s *backupsSuite) checkHelpCommands(c *gc.C) {
 	c.Check(namesFound, gc.DeepEquals, expectedSubCommmandNames)
 }
 
-func (s *backupsSuite) TestHelp(c *gc.C) {
+func (s *backupSuite) TestHelp(c *gc.C) {
 	ctx, err := testing.RunCommand(c, s.command, "--help")
 	c.Assert(err, gc.IsNil)
 
-	expected := "(?s)usage: juju backups <command> .+"
+	expected := "(?s)usage: juju backup <command> .+"
 	c.Check(testing.Stdout(ctx), gc.Matches, expected)
 	expected = "(?sm).*^purpose: " + s.command.Purpose + "$.*"
 	c.Check(testing.Stdout(ctx), gc.Matches, expected)

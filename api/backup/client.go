@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups
+package backup
 
 import (
 	"net/http"
@@ -27,7 +27,7 @@ type httpAPICallCloser interface {
 
 // NewClient returns a new backups API client.
 func NewClient(st httpAPICallCloser) *Client {
-	frontend, backend := base.NewClientFacade(st, "Backups")
+	frontend, backend := base.NewClientFacade(st, "Backup")
 	return &Client{
 		ClientFacade: frontend,
 		facade:       backend,

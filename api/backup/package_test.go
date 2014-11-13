@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package backup_test
 
 import (
 	"testing"
@@ -9,11 +9,11 @@ import (
 
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/juju/api/backups"
+	"github.com/juju/juju/api/backup"
 	"github.com/juju/juju/apiserver/params"
 	jujutesting "github.com/juju/juju/juju/testing"
-	stbackups "github.com/juju/juju/state/backups"
-	backupstesting "github.com/juju/juju/state/backups/testing"
+	stbackup "github.com/juju/juju/state/backup"
+	backuptesting "github.com/juju/juju/state/backup/testing"
 	coretesting "github.com/juju/juju/testing"
 )
 
@@ -23,23 +23,23 @@ func TestAll(t *testing.T) {
 
 type baseSuite struct {
 	jujutesting.JujuConnSuite
-	backupstesting.BaseSuite
-	client *backups.Client
+	backuptesting.BaseSuite
+	client *backup.Client
 }
 
 func (s *baseSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.JujuConnSuite.SetUpTest(c)
-	s.client = backups.NewClient(s.APIState)
+	s.client = backup.NewClient(s.APIState)
 }
 
-func (s *baseSuite) metadataResult() *params.BackupsMetadataResult {
-	result := &params.BackupsMetadataResult{}
+func (s *baseSuite) metadataResult() *params.BackupMetadataResult {
+	result := &params.BackupMetadataResult{}
 	result.UpdateFromMetadata(s.Meta)
 	return result
 }
 
-func (s *baseSuite) checkMetadataResult(c *gc.C, result *params.BackupsMetadataResult, meta *stbackups.Metadata) {
+func (s *baseSuite) checkMetadataResult(c *gc.C, result *params.BackupMetadataResult, meta *stbackup.Metadata) {
 	var finished, stored time.Time
 	if meta.Finished != nil {
 		finished = *meta.Finished

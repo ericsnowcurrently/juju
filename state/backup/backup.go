@@ -1,9 +1,9 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-// backups contains all the stand-alone backup-related functionality for
-// juju state.
-package backups
+// Package backup contains all the stand-alone backup-related
+// functionality for juju state.
+package backup
 
 import (
 	"io"
@@ -13,7 +13,7 @@ import (
 	"github.com/juju/utils/filestorage"
 )
 
-var logger = loggo.GetLogger("juju.state.backups")
+var logger = loggo.GetLogger("juju.state.backup")
 
 var (
 	getFilesToBackUp = GetFilesToBackUp
@@ -126,7 +126,7 @@ func (b *backups) Get(id string) (*Metadata, io.ReadCloser, error) {
 
 	meta, ok := rawmeta.(*Metadata)
 	if !ok {
-		return nil, nil, errors.New("did not get a backups.Metadata value from storage")
+		return nil, nil, errors.New("did not get a backup.Metadata value from storage")
 	}
 
 	return meta, archiveFile, nil
@@ -142,7 +142,7 @@ func (b *backups) List() ([]Metadata, error) {
 	for i, meta := range metaList {
 		m, ok := meta.(*Metadata)
 		if !ok {
-			msg := "expected backups.Metadata value from storage for %q, got %T"
+			msg := "expected backup.Metadata value from storage for %q, got %T"
 			return nil, errors.Errorf(msg, meta.ID(), meta)
 		}
 		result[i] = *m

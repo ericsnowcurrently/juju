@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package backup_test
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ import (
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/apiserver/params"
-	"github.com/juju/juju/cmd/juju/backups"
+	"github.com/juju/juju/cmd/juju/backup"
 	jujutesting "github.com/juju/juju/testing"
 )
 
@@ -42,27 +42,27 @@ func TestPackage(t *testing.T) {
 	gc.TestingT(t)
 }
 
-type BaseBackupsSuite struct {
+type BaseBackupSuite struct {
 	jujutesting.FakeJujuHomeSuite
 
-	command    *backups.Command
-	metaresult *params.BackupsMetadataResult
+	command    *backup.Command
+	metaresult *params.BackupMetadataResult
 	data       string
 
 	filename string
 }
 
-func (s *BaseBackupsSuite) SetUpTest(c *gc.C) {
+func (s *BaseBackupSuite) SetUpTest(c *gc.C) {
 	s.FakeJujuHomeSuite.SetUpTest(c)
 
-	s.command = backups.NewCommand().(*backups.Command)
-	s.metaresult = &params.BackupsMetadataResult{
+	s.command = backup.NewCommand().(*backup.Command)
+	s.metaresult = &params.BackupMetadataResult{
 		ID: "spam",
 	}
 	s.data = "<compressed archive data>"
 }
 
-func (s *BaseBackupsSuite) TearDownTest(c *gc.C) {
+func (s *BaseBackupSuite) TearDownTest(c *gc.C) {
 	if s.filename != "" {
 		err := os.Remove(s.filename)
 		if !os.IsNotExist(err) {
@@ -73,33 +73,33 @@ func (s *BaseBackupsSuite) TearDownTest(c *gc.C) {
 	s.FakeJujuHomeSuite.TearDownTest(c)
 }
 
-func (s *BaseBackupsSuite) patchAPIClient(client backups.APIClient) {
-	s.PatchValue(backups.NewAPIClient,
-		func(c *backups.CommandBase) (backups.APIClient, error) {
+func (s *BaseBackupSuite) patchAPIClient(client backup.APIClient) {
+	s.PatchValue(backup.NewAPIClient,
+		func(c *backup.CommandBase) (backup.APIClient, error) {
 			return client, nil
 		},
 	)
 }
 
-func (s *BaseBackupsSuite) setSuccess() *fakeAPIClient {
+func (s *BaseBackupSuite) setSuccess() *fakeAPIClient {
 	client := &fakeAPIClient{metaresult: s.metaresult}
 	s.patchAPIClient(client)
 	return client
 }
 
-func (s *BaseBackupsSuite) setFailure(failure string) *fakeAPIClient {
+func (s *BaseBackupSuite) setFailure(failure string) *fakeAPIClient {
 	client := &fakeAPIClient{err: errors.New(failure)}
 	s.patchAPIClient(client)
 	return client
 }
 
-func (s *BaseBackupsSuite) setDownload() *fakeAPIClient {
+func (s *BaseBackupSuite) setDownload() *fakeAPIClient {
 	client := s.setSuccess()
 	client.archive = ioutil.NopCloser(bytes.NewBufferString(s.data))
 	return client
 }
 
-func (s *BaseBackupsSuite) checkArchive(c *gc.C) {
+func (s *BaseBackupSuite) checkArchive(c *gc.C) {
 	c.Assert(s.filename, gc.Not(gc.Equals), "")
 	archive, err := os.Open(s.filename)
 	c.Assert(err, gc.IsNil)
@@ -109,7 +109,7 @@ func (s *BaseBackupsSuite) checkArchive(c *gc.C) {
 	c.Check(string(data), gc.Equals, s.data)
 }
 
-func (s *BaseBackupsSuite) diffStrings(c *gc.C, value, expected string) {
+func (s *BaseBackupSuite) diffStrings(c *gc.C, value, expected string) {
 	// If only Go had a diff library.
 	vlines := strings.Split(value, "\n")
 	elines := strings.Split(expected, "\n")
@@ -138,20 +138,20 @@ func (s *BaseBackupsSuite) diffStrings(c *gc.C, value, expected string) {
 
 }
 
-func (s *BaseBackupsSuite) checkString(c *gc.C, value, expected string) {
+func (s *BaseBackupSuite) checkString(c *gc.C, value, expected string) {
 	if !c.Check(value, gc.Equals, expected) {
 		s.diffStrings(c, value, expected)
 	}
 }
 
-func (s *BaseBackupsSuite) checkStd(c *gc.C, ctx *cmd.Context, out, err string) {
+func (s *BaseBackupSuite) checkStd(c *gc.C, ctx *cmd.Context, out, err string) {
 	c.Check(ctx.Stdin.(*bytes.Buffer).String(), gc.Equals, "")
 	s.checkString(c, ctx.Stdout.(*bytes.Buffer).String(), out)
 	s.checkString(c, ctx.Stderr.(*bytes.Buffer).String(), err)
 }
 
 type fakeAPIClient struct {
-	metaresult *params.BackupsMetadataResult
+	metaresult *params.BackupMetadataResult
 	archive    io.ReadCloser
 	err        error
 
@@ -167,7 +167,7 @@ func (f *fakeAPIClient) Check(c *gc.C, id, notes string, calls ...string) {
 	c.Check(f.notes, gc.Equals, notes)
 }
 
-func (c *fakeAPIClient) Create(notes string) (*params.BackupsMetadataResult, error) {
+func (c *fakeAPIClient) Create(notes string) (*params.BackupMetadataResult, error) {
 	c.calls = append(c.calls, "Create")
 	c.args = append(c.args, "notes")
 	c.notes = notes
@@ -177,7 +177,7 @@ func (c *fakeAPIClient) Create(notes string) (*params.BackupsMetadataResult, err
 	return c.metaresult, nil
 }
 
-func (c *fakeAPIClient) Info(id string) (*params.BackupsMetadataResult, error) {
+func (c *fakeAPIClient) Info(id string) (*params.BackupMetadataResult, error) {
 	c.calls = append(c.calls, "Info")
 	c.args = append(c.args, "id")
 	c.idArg = id
@@ -187,13 +187,13 @@ func (c *fakeAPIClient) Info(id string) (*params.BackupsMetadataResult, error) {
 	return c.metaresult, nil
 }
 
-func (c *fakeAPIClient) List() (*params.BackupsListResult, error) {
+func (c *fakeAPIClient) List() (*params.BackupListResult, error) {
 	c.calls = append(c.calls, "List")
 	if c.err != nil {
 		return nil, c.err
 	}
-	var result params.BackupsListResult
-	result.List = []params.BackupsMetadataResult{*c.metaresult}
+	var result params.BackupListResult
+	result.List = []params.BackupMetadataResult{*c.metaresult}
 	return &result, nil
 }
 

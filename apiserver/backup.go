@@ -15,12 +15,12 @@ import (
 	apihttp "github.com/juju/juju/apiserver/http"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/state"
-	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backup"
 )
 
 // TODO(ericsnow) This code should be in the backups package.
 
-var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
+var newBackups = func(st *state.State) (backup.Backups, io.Closer) {
 	return state.NewBackups(st)
 }
 
@@ -84,13 +84,13 @@ func (h *backupHandler) read(req *http.Request, expectedType string) ([]byte, er
 	return body, nil
 }
 
-func (h *backupHandler) parseGETArgs(req *http.Request) (*params.BackupsDownloadArgs, error) {
+func (h *backupHandler) parseGETArgs(req *http.Request) (*params.BackupDownloadArgs, error) {
 	body, err := h.read(req, apihttp.CTYPE_JSON)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	var args params.BackupsDownloadArgs
+	var args params.BackupDownloadArgs
 	if err := json.Unmarshal(body, &args); err != nil {
 		return nil, errors.Annotate(err, "while de-serializing args")
 	}
