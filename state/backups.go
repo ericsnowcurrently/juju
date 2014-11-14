@@ -558,14 +558,6 @@ func NewBackupStorage(st *State) filestorage.FileStorage {
 	return filestorage.NewFileStorage(docs, files)
 }
 
-// NewBackups returns a new backups based on the state.
-func NewBackups(st *State) (backups.Backups, io.Closer) {
-	stor := NewBackupStorage(st)
-
-	backups := backups.NewBackups(stor)
-	return backups, stor
-}
-
 //---------------------------
 // utilities
 
