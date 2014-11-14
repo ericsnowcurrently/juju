@@ -11,14 +11,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/utils/hash"
 	"github.com/juju/utils/tar"
-
-	"github.com/juju/juju/state/backups/archive"
-	"github.com/juju/juju/state/backups/db"
 )
 
 // TODO(ericsnow) One concern is files that get out of date by the time
@@ -32,7 +30,7 @@ const (
 
 type createArgs struct {
 	filesToBackUp []string
-	db            db.Dumper
+	db            DBDumper
 	metadataFile  io.Reader
 }
 
@@ -89,14 +87,16 @@ func create(args *createArgs) (_ *createResult, err error) {
 
 // builder exposes the machinery for creating a backup of juju's state.
 type builder struct {
-	// archive is the backups archive summary.
-	archive *archive.Archive
+	// archivePaths is the backups archive summary.
+	archivePaths ArchivePaths
+	// filename is the path to the archive file.
+	filename string
 	// checksum is the checksum of the archive file.
 	checksum string
 	// filesToBackUp is the paths to every file to include in the archive.
 	filesToBackUp []string
 	// db is the wrapper around the DB dump command and args.
-	db db.Dumper
+	db DBDumper
 	// archiveFile is the backup archive file.
 	archiveFile io.WriteCloser
 	// bundleFile is the inner archive file containing all the juju
@@ -108,8 +108,8 @@ type builder struct {
 // directories which backup uses as its staging area while building the
 // archive.  It also creates the archive
 // (temp root, tarball root, DB dumpdir), along with any error.
-func newBuilder(filesToBackUp []string, db db.Dumper) (_ *builder, err error) {
-	b := builder{
+func newBuilder(filesToBackUp []string, db DBDumper) (b *builder, err error) {
+	b = &builder{
 		filesToBackUp: filesToBackUp,
 		db:            db,
 	}
@@ -126,30 +126,30 @@ func newBuilder(filesToBackUp []string, db db.Dumper) (_ *builder, err error) {
 	if err != nil {
 		return nil, errors.Annotate(err, "while making backups workspace")
 	}
-	filename := filepath.Join(rootDir, tempFilename)
-	b.archive = &archive.Archive{filename, rootDir}
+	b.filename = filepath.Join(rootDir, tempFilename)
+	b.archivePaths = NewUnpackedArchivePaths(rootDir)
 
 	// Create all the direcories we need.  We go with user-only
 	// permissions on principle; the directories are short-lived so in
 	// practice it shouldn't matter much.
-	err = os.MkdirAll(b.archive.DBDumpDir(), 0700)
+	err = os.MkdirAll(b.archivePaths.DBDumpDir, 0700)
 	if err != nil {
 		return nil, errors.Annotate(err, "while creating temp directories")
 	}
 
 	// Create the archive files.  We do so here to fail as early as
 	// possible.
-	b.archiveFile, err = os.Create(filename)
+	b.archiveFile, err = os.Create(b.filename)
 	if err != nil {
 		return nil, errors.Annotate(err, "while creating archive file")
 	}
 
-	b.bundleFile, err = os.Create(b.archive.FilesBundle())
+	b.bundleFile, err = os.Create(b.archivePaths.FilesBundle)
 	if err != nil {
 		return nil, errors.Annotate(err, `while creating bundle file`)
 	}
 
-	return &b, nil
+	return b, nil
 }
 
 func (b *builder) closeArchiveFile() error {
@@ -182,11 +182,11 @@ func (b *builder) closeBundleFile() error {
 
 func (b *builder) removeRootDir() error {
 	// Currently this method isn't thread-safe (doesn't need to be).
-	if b.archive == nil || b.archive.UnpackedRootDir == "" {
+	if b.archivePaths.RootDir == "" {
 		return nil
 	}
 
-	if err := os.RemoveAll(b.archive.UnpackedRootDir); err != nil {
+	if err := os.RemoveAll(b.archivePaths.RootDir); err != nil {
 		return errors.Annotate(err, "while removing backups temp dir")
 	}
 
@@ -232,7 +232,7 @@ func (b *builder) cleanUp() *cleanupErrors {
 }
 
 func (b *builder) injectMetadataFile(file io.Reader) error {
-	metadataFile, err := os.Create(b.archive.MetadataFile())
+	metadataFile, err := os.Create(b.archivePaths.MetadataFile)
 	if err != nil {
 		return errors.Annotate(err, "while creating metadata file")
 	}
@@ -270,7 +270,7 @@ func (b *builder) buildDBDump() error {
 		return nil
 	}
 
-	dumpDir := b.archive.DBDumpDir()
+	dumpDir := b.archivePaths.DBDumpDir
 	if err := b.db.Dump(dumpDir); err != nil {
 		return errors.Annotate(err, "while dumping juju state database")
 	}
@@ -285,8 +285,8 @@ func (b *builder) buildArchive(outFile io.Writer) error {
 	// We add a trailing slash (or whatever) to root so that everything
 	// in the path up to and including that slash is stripped off when
 	// each file is added to the tar file.
-	stripPrefix := b.archive.UnpackedRootDir + string(os.PathSeparator)
-	filenames := []string{b.archive.ContentDir()}
+	stripPrefix := b.archivePaths.RootDir + string(os.PathSeparator)
+	filenames := []string{b.archivePaths.ContentDir}
 	if _, err := tar.TarFiles(filenames, tarball, stripPrefix); err != nil {
 		return errors.Annotate(err, "while bundling final archive")
 	}
@@ -295,7 +295,7 @@ func (b *builder) buildArchive(outFile io.Writer) error {
 }
 
 func (b *builder) buildArchiveAndChecksum() error {
-	logger.Infof("building archive file (%s)", b.archive.Filename)
+	logger.Infof("building archive file %q", b.filename)
 	if b.archiveFile == nil {
 		return errors.New("missing archiveFile")
 	}
@@ -352,7 +352,7 @@ func (b *builder) buildAll() error {
 // the file (hence io.ReadCloser).
 func (b *builder) result() (*createResult, error) {
 	// Open the file in read-only mode.
-	file, err := os.Open(b.archive.Filename)
+	file, err := os.Open(b.filename)
 	if err != nil {
 		return nil, errors.Annotate(err, "while opening archive file")
 	}
@@ -379,4 +379,24 @@ func (b *builder) result() (*createResult, error) {
 		checksum:    checksum,
 	}
 	return &result, nil
+}
+
+// UpdateMetadata sets file info on the metadata and records the current
+// time as when the backup finished.
+func UpdateMetadata(meta *Metadata, size int64, checksum string) error {
+	if size == 0 {
+		return errors.New("missing size")
+	}
+	if checksum == "" {
+		return errors.New("missing checksum")
+	}
+	format := checksumFormat
+	finished := time.Now().UTC()
+
+	if err := meta.SetFileInfo(size, checksum, format); err != nil {
+		return errors.Annotate(err, "unexpected failure")
+	}
+	meta.Finished = &finished
+
+	return nil
 }

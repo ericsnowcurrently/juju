@@ -14,9 +14,6 @@ import (
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/state/backups"
-	"github.com/juju/juju/state/backups/db"
-	"github.com/juju/juju/state/backups/files"
-	"github.com/juju/juju/state/backups/metadata"
 	backupstesting "github.com/juju/juju/state/backups/testing"
 )
 
@@ -49,16 +46,15 @@ func (*fakeDumper) Dump(dumpDir string) error {
 }
 
 func (s *backupsSuite) checkFailure(c *gc.C, expected string) {
-	s.PatchValue(backups.GetDBDumper, func(db.Info) (db.Dumper, error) {
+	s.PatchValue(backups.GetDBDumper, func(*backups.DBInfo) (backups.DBDumper, error) {
 		return &fakeDumper{}, nil
 	})
 
-	paths := files.Paths{DataDir: "/var/lib/juju"}
-	connInfo := db.ConnInfo{"a", "b", "c"}
+	paths := backups.Paths{DataDir: "/var/lib/juju"}
+	connInfo := backups.DBConnInfo{"a", "b", "c"}
 	targets := set.NewStrings("juju", "admin")
-	dbInfo := db.Info{connInfo, targets}
-	origin := metadata.NewOrigin("<env ID>", "<machine ID>", "<hostname>")
-	_, err := s.api.Create(paths, dbInfo, *origin, "some notes")
+	dbInfo := backups.DBInfo{connInfo, targets}
+	err := s.api.Create(s.Meta, paths, &dbInfo)
 
 	c.Check(err, gc.ErrorMatches, expected)
 }
@@ -78,26 +74,30 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 	s.PatchValue(backups.RunCreate, testCreate)
 
 	rootDir := "<was never set>"
-	s.PatchValue(backups.GetFilesToBackUp, func(root string, paths files.Paths) ([]string, error) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths backups.Paths) ([]string, error) {
 		rootDir = root
 		return []string{"<some file>"}, nil
 	})
 
-	var receivedDBInfo *db.Info
-	s.PatchValue(backups.GetDBDumper, func(info db.Info) (db.Dumper, error) {
-		receivedDBInfo = &info
+	var receivedDBInfo *backups.DBInfo
+	s.PatchValue(backups.GetDBDumper, func(info *backups.DBInfo) (backups.DBDumper, error) {
+		receivedDBInfo = info
 		return nil, nil
 	})
 
 	stored := s.setStored("spam")
+	meta := backups.NewMetadata()
+	meta.Origin.Environment = "<env ID>"
+	meta.Origin.Machine = "<machine ID>"
+	meta.Origin.Hostname = "<hostname>"
+	meta.Notes = "some notes"
 
 	// Run the backup.
-	paths := files.Paths{DataDir: "/var/lib/juju"}
-	connInfo := db.ConnInfo{"a", "b", "c"}
+	paths := backups.Paths{DataDir: "/var/lib/juju"}
+	connInfo := backups.DBConnInfo{"a", "b", "c"}
 	targets := set.NewStrings("juju", "admin")
-	dbInfo := db.Info{connInfo, targets}
-	origin := metadata.NewOrigin("<env ID>", "<machine ID>", "<hostname>")
-	meta, err := s.api.Create(paths, dbInfo, *origin, "some notes")
+	dbInfo := backups.DBInfo{connInfo, targets}
+	err := s.api.Create(meta, paths, &dbInfo)
 
 	// Test the call values.
 	s.Storage.CheckCalled(c, "spam", meta, archiveFile, "Add", "Metadata")
@@ -136,7 +136,7 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 }
 
 func (s *backupsSuite) TestCreateFailToListFiles(c *gc.C) {
-	s.PatchValue(backups.GetFilesToBackUp, func(root string, paths files.Paths) ([]string, error) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths backups.Paths) ([]string, error) {
 		return nil, errors.New("failed!")
 	})
 
@@ -144,7 +144,7 @@ func (s *backupsSuite) TestCreateFailToListFiles(c *gc.C) {
 }
 
 func (s *backupsSuite) TestCreateFailToCreate(c *gc.C) {
-	s.PatchValue(backups.GetFilesToBackUp, func(root string, paths files.Paths) ([]string, error) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths backups.Paths) ([]string, error) {
 		return []string{}, nil
 	})
 	s.PatchValue(backups.RunCreate, backups.NewTestCreateFailure("failed!"))
@@ -153,23 +153,23 @@ func (s *backupsSuite) TestCreateFailToCreate(c *gc.C) {
 }
 
 func (s *backupsSuite) TestCreateFailToFinishMeta(c *gc.C) {
-	s.PatchValue(backups.GetFilesToBackUp, func(root string, paths files.Paths) ([]string, error) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths backups.Paths) ([]string, error) {
 		return []string{}, nil
 	})
 	_, testCreate := backups.NewTestCreate(nil)
 	s.PatchValue(backups.RunCreate, testCreate)
-	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher("failed!"))
+	s.PatchValue(backups.UpdateMeta, backups.NewTestMetaFinisher("failed!"))
 
 	s.checkFailure(c, "while updating metadata: failed!")
 }
 
 func (s *backupsSuite) TestCreateFailToStoreArchive(c *gc.C) {
-	s.PatchValue(backups.GetFilesToBackUp, func(root string, paths files.Paths) ([]string, error) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths backups.Paths) ([]string, error) {
 		return []string{}, nil
 	})
 	_, testCreate := backups.NewTestCreate(nil)
 	s.PatchValue(backups.RunCreate, testCreate)
-	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher(""))
+	s.PatchValue(backups.UpdateMeta, backups.NewTestMetaFinisher(""))
 	s.PatchValue(backups.StoreArchiveRef, backups.NewTestArchiveStorer("failed!"))
 
 	s.checkFailure(c, "while storing backup archive: failed!")

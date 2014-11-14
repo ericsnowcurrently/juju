@@ -7,29 +7,91 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"time"
 
 	"github.com/juju/errors"
 	"github.com/juju/utils/filestorage"
 
-	"github.com/juju/juju/state/backups/db"
-	"github.com/juju/juju/state/backups/metadata"
+	"github.com/juju/juju/state"
 )
 
 var (
-	Create = create
+	Create           = create
+	NewMongoConnInfo = newMongoConnInfo
 
-	GetFilesToBackUp = &getFilesToBackUp
-	GetDBDumper      = &getDBDumper
-	RunCreate        = &runCreate
-	FinishMeta       = &finishMeta
-	StoreArchiveRef  = &storeArchive
+	TestGetFilesToBackUp = &getFilesToBackUp
+	GetDBDumper          = &getDBDumper
+	RunCreate            = &runCreate
+	UpdateMeta           = &updateMeta
+	StoreArchiveRef      = &storeArchive
+	GetMongodumpPath     = &getMongodumpPath
+	RunCommand           = &runCommand
 )
 
+var _ filestorage.DocStorage = (*docStorage)(nil)
+var _ filestorage.RawFileStorage = (*blobStorage)(nil)
+
+func newBackupDoc(meta *Metadata) *backupMetaDoc {
+	var doc backupMetaDoc
+	doc.UpdateFromMetadata(meta)
+	return &doc
+}
+
+func getBackupDBWrapper(st *state.State) *dbWrapper {
+	envUUID := st.EnvironTag().Id()
+	db := st.MongoSession().DB(storageDBName)
+	return newDBWrapper(db, storageMetaName, envUUID)
+}
+
+// NewBackupID creates a new backup ID based on the metadata.
+func NewBackupID(meta *Metadata) string {
+	doc := newBackupDoc(meta)
+	return newBackupID(doc)
+}
+
+// GetBackupMetadata pulls the metadata from storage.
+func GetBackupMetadata(st *state.State, id string) (*Metadata, error) {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	doc, err := getBackupMetadata(db, id)
+	if err != nil {
+		return nil, err
+	}
+	return doc.asMetadata(), nil
+}
+
+// AddBackupMetadata pushes the metadata into storage.
+func AddBackupMetadata(st *state.State, meta *Metadata) (string, error) {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	doc := newBackupDoc(meta)
+	return addBackupMetadata(db, doc)
+}
+
+// AddBackupMetadataID pushes the metadata into storage, using the given
+// backup ID.
+func AddBackupMetadataID(st *state.State, meta *Metadata, id string) error {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	doc := newBackupDoc(meta)
+	return addBackupMetadataID(db, doc, id)
+}
+
+// SetBackupStored stores the time of when the identified backup archive
+// file was stored.
+func SetBackupStored(st *state.State, id string, stored time.Time) error {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	return setBackupStored(db, id, stored)
+}
+
+// ExposeCreateResult extracts the values in a create() result.
 func ExposeCreateResult(result *createResult) (io.ReadCloser, int64, string) {
 	return result.archiveFile, result.size, result.checksum
 }
 
-func NewTestCreateArgs(filesToBackUp []string, db db.Dumper, mfile io.Reader) *createArgs {
+// NewTestCreateArgs builds a new args value for create() calls.
+func NewTestCreateArgs(filesToBackUp []string, db DBDumper, mfile io.Reader) *createArgs {
 	args := createArgs{
 		filesToBackUp: filesToBackUp,
 		db:            db,
@@ -38,10 +100,12 @@ func NewTestCreateArgs(filesToBackUp []string, db db.Dumper, mfile io.Reader) *c
 	return &args
 }
 
-func ExposeCreateArgs(args *createArgs) ([]string, db.Dumper) {
+// ExposeCreateResult extracts the values in a create() args value.
+func ExposeCreateArgs(args *createArgs) ([]string, DBDumper) {
 	return args.filesToBackUp, args.db
 }
 
+// NewTestCreateResult builds a new create() result.
 func NewTestCreateResult(file io.ReadCloser, size int64, checksum string) *createResult {
 	result := createResult{
 		archiveFile: file,
@@ -51,6 +115,7 @@ func NewTestCreateResult(file io.ReadCloser, size int64, checksum string) *creat
 	return &result
 }
 
+// NewTestCreate builds a new replacement for create() with the given result.
 func NewTestCreate(result *createResult) (*createArgs, func(*createArgs) (*createResult, error)) {
 	var received createArgs
 
@@ -67,14 +132,17 @@ func NewTestCreate(result *createResult) (*createArgs, func(*createArgs) (*creat
 	return &received, testCreate
 }
 
+// NewTestCreate builds a new replacement for create() with the given failure.
 func NewTestCreateFailure(failure string) func(*createArgs) (*createResult, error) {
 	return func(*createArgs) (*createResult, error) {
 		return nil, errors.New(failure)
 	}
 }
 
-func NewTestMetaFinisher(failure string) func(*metadata.Metadata, *createResult) error {
-	return func(*metadata.Metadata, *createResult) error {
+// NewTestMetaFinisher builds a new replacement for finishMetadata with
+// the given failure.
+func NewTestMetaFinisher(failure string) func(*Metadata, *createResult) error {
+	return func(*Metadata, *createResult) error {
 		if failure == "" {
 			return nil
 		}
@@ -82,8 +150,10 @@ func NewTestMetaFinisher(failure string) func(*metadata.Metadata, *createResult)
 	}
 }
 
-func NewTestArchiveStorer(failure string) func(filestorage.FileStorage, *metadata.Metadata, io.Reader) error {
-	return func(filestorage.FileStorage, *metadata.Metadata, io.Reader) error {
+// NewTestArchiveStorer builds a new replacement for StoreArchive with
+// the given failure.
+func NewTestArchiveStorer(failure string) func(filestorage.FileStorage, *Metadata, io.Reader) error {
+	return func(filestorage.FileStorage, *Metadata, io.Reader) error {
 		if failure == "" {
 			return nil
 		}
