@@ -46,7 +46,7 @@ func (*fakeDumper) Dump(dumpDir string) error {
 }
 
 func (s *backupsSuite) checkFailure(c *gc.C, expected string) {
-	s.PatchValue(backups.GetDBDumper, func(backups.DBInfo) (backups.DBDumper, error) {
+	s.PatchValue(backups.GetDBDumper, func(*backups.DBInfo) (backups.DBDumper, error) {
 		return &fakeDumper{}, nil
 	})
 
@@ -54,8 +54,7 @@ func (s *backupsSuite) checkFailure(c *gc.C, expected string) {
 	connInfo := backups.DBConnInfo{"a", "b", "c"}
 	targets := set.NewStrings("juju", "admin")
 	dbInfo := backups.DBInfo{connInfo, targets}
-	origin := backups.NewOrigin("<env ID>", "<machine ID>", "<hostname>")
-	_, err := s.api.Create(paths, dbInfo, origin, "some notes")
+	err := s.api.Create(s.Meta, paths, &dbInfo)
 
 	c.Check(err, gc.ErrorMatches, expected)
 }
@@ -81,20 +80,24 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 	})
 
 	var receivedDBInfo *backups.DBInfo
-	s.PatchValue(backups.GetDBDumper, func(info backups.DBInfo) (backups.DBDumper, error) {
-		receivedDBInfo = &info
+	s.PatchValue(backups.GetDBDumper, func(info *backups.DBInfo) (backups.DBDumper, error) {
+		receivedDBInfo = info
 		return nil, nil
 	})
 
 	stored := s.setStored("spam")
+	meta := backups.NewMetadata()
+	meta.Origin.Environment = "<env ID>"
+	meta.Origin.Machine = "<machine ID>"
+	meta.Origin.Hostname = "<hostname>"
+	meta.Notes = "some notes"
 
 	// Run the backup.
 	paths := backups.Paths{DataDir: "/var/lib/juju"}
 	connInfo := backups.DBConnInfo{"a", "b", "c"}
 	targets := set.NewStrings("juju", "admin")
 	dbInfo := backups.DBInfo{connInfo, targets}
-	origin := backups.NewOrigin("<env ID>", "<machine ID>", "<hostname>")
-	meta, err := s.api.Create(paths, dbInfo, origin, "some notes")
+	err := s.api.Create(meta, paths, &dbInfo)
 
 	// Test the call values.
 	s.Storage.CheckCalled(c, "spam", meta, archiveFile, "Add", "Metadata")
@@ -155,7 +158,7 @@ func (s *backupsSuite) TestCreateFailToFinishMeta(c *gc.C) {
 	})
 	_, testCreate := backups.NewTestCreate(nil)
 	s.PatchValue(backups.RunCreate, testCreate)
-	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher("failed!"))
+	s.PatchValue(backups.UpdateMeta, backups.NewTestMetaFinisher("failed!"))
 
 	s.checkFailure(c, "while updating metadata: failed!")
 }
@@ -166,7 +169,7 @@ func (s *backupsSuite) TestCreateFailToStoreArchive(c *gc.C) {
 	})
 	_, testCreate := backups.NewTestCreate(nil)
 	s.PatchValue(backups.RunCreate, testCreate)
-	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher(""))
+	s.PatchValue(backups.UpdateMeta, backups.NewTestMetaFinisher(""))
 	s.PatchValue(backups.StoreArchiveRef, backups.NewTestArchiveStorer("failed!"))
 
 	s.checkFailure(c, "while storing backup archive: failed!")

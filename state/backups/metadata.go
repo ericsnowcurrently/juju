@@ -7,11 +7,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
 	"time"
 
 	"github.com/juju/errors"
 	"github.com/juju/utils/filestorage"
 
+	"github.com/juju/juju/state"
 	"github.com/juju/juju/version"
 )
 
@@ -31,19 +33,15 @@ type Origin struct {
 	Version     version.Number
 }
 
-// NewOrigin returns a new backups origin.
-func NewOrigin(env, machine, hostname string) Origin {
+func newOrigin() Origin {
 	return Origin{
-		Environment: env,
-		Machine:     machine,
-		Hostname:    hostname,
-		Version:     version.Current.Number,
+		Version: version.Current.Number,
 	}
 }
 
 // Metadata contains the metadata for a single state backup archive.
 type Metadata struct {
-	filestorage.FileMetadata
+	*filestorage.FileMetadata
 
 	// Started records when the backup was started.
 	Started time.Time
@@ -55,52 +53,46 @@ type Metadata struct {
 	Notes string
 }
 
+// newOrigin returns a snapshot of where backup was run.  That
+// snapshot is a new backup Origin value, for use in a backup's
+// metadata.  Every value except for the machine name is populated
+// either from juju state or some other implicit mechanism.
+func NewMetadataState(st *state.State, machine string) (*Metadata, error) {
+	// hostname could be derived from the environment...
+	hostname, err := os.Hostname()
+	if err != nil {
+		// If os.Hostname() is not working, something is woefully wrong.
+		// Run for the hills.
+		return nil, errors.Annotate(err, "could not get hostname (system unstable?)")
+	}
+
+	meta := NewMetadata()
+
+	meta.Origin.Environment = st.EnvironTag().Id()
+	meta.Origin.Machine = machine
+	meta.Origin.Hostname = hostname
+
+	return meta, nil
+}
+
 // NewMetadata returns a new Metadata for a state backup archive.  The
 // current date/time is used for the timestamp and the default checksum
 // format is used.  ID is not set.  That is left up to the persistence
 // layer.  Stored is set as false.  "notes" may be empty, but
 // everything else should be provided.
-func NewMetadata(origin Origin, notes string, started *time.Time) *Metadata {
-	filemeta := filestorage.NewMetadata()
-	meta := Metadata{
-		FileMetadata: *filemeta,
-		Origin:       origin,
-		Notes:        notes,
+func NewMetadata() *Metadata {
+	return &Metadata{
+		FileMetadata: filestorage.NewMetadata(),
+		Origin:       newOrigin(),
+		Started:      time.Now().UTC(),
 	}
-
-	if started == nil {
-		meta.Started = time.Now().UTC()
-	} else {
-		meta.Started = *started
-	}
-
-	return &meta
-}
-
-// MarkComplete populates the remaining metadata values.
-func (m *Metadata) MarkComplete(size int64, checksum string) error {
-	if size == 0 {
-		return errors.New("missing size")
-	}
-	if checksum == "" {
-		return errors.New("missing checksum")
-	}
-	format := checksumFormat
-	finished := time.Now().UTC()
-
-	if err := m.SetFileInfo(size, checksum, format); err != nil {
-		return errors.Annotate(err, "unexpected failure")
-	}
-	m.Finished = &finished
-
-	return nil
 }
 
 // Copy returns a deep copy of the metadata.
 func (m *Metadata) Copy() filestorage.Document {
 	fileMeta := m.FileMetadata.Copy().(*filestorage.FileMetadata)
 	copied := *m
-	copied.FileMetadata = *fileMeta
+	copied.FileMetadata = fileMeta
 	return &copied
 }
 

@@ -7,16 +7,16 @@ import (
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/apiserver/params"
-	"github.com/juju/juju/state"
+	"github.com/juju/juju/state/backups"
 )
 
 // Create is the API method that requests juju to create a new backup
 // of its state.  It returns the metadata for that backup.
 func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataResult, err error) {
-	backups, closer := newBackups(a.st)
+	creator, closer := newBackups(a.st)
 	defer closer.Close()
 
-	dbInfo, err := state.NewDBBackupInfo(a.st)
+	dbInfo, err := backups.NewDBInfoState(a.st)
 	if err != nil {
 		return p, errors.Trace(err)
 	}
@@ -24,12 +24,13 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	// TODO(ericsnow) #1389362 The machine ID needs to be introspected
 	// from the API server, likely through a Resource.
 	machine := "0"
-	origin, err := state.NewBackupOrigin(a.st, machine)
+	meta, err := backups.NewMetadataState(a.st, machine)
 	if err != nil {
 		return p, errors.Trace(err)
 	}
+	meta.Notes = args.Notes
 
-	meta, err := backups.Create(a.paths, *dbInfo, *origin, args.Notes)
+	err = creator.Create(meta, a.paths, dbInfo)
 	if err != nil {
 		return p, errors.Trace(err)
 	}

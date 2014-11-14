@@ -19,8 +19,8 @@ var (
 	getFilesToBackUp = GetFilesToBackUp
 	getDBDumper      = NewDBDumper
 	runCreate        = create
-	finishMeta       = func(meta *Metadata, result *createResult) error {
-		return meta.MarkComplete(result.size, result.checksum)
+	updateMeta       = func(meta *Metadata, result *createResult) error {
+		return UpdateMetadata(meta, result.size, result.checksum)
 	}
 	storeArchive = StoreArchive
 )
@@ -46,7 +46,7 @@ type Backups interface {
 
 	// Create creates and stores a new juju backup archive and returns
 	// its associated metadata.
-	Create(paths Paths, dbInfo DBInfo, origin Origin, notes string) (*Metadata, error)
+	Create(meta *Metadata, paths Paths, dbInfo *DBInfo) error
 
 	// Get returns the metadata and archive file associated with the ID.
 	Get(id string) (*Metadata, io.ReadCloser, error)
@@ -72,10 +72,8 @@ func NewBackups(stor filestorage.FileStorage) Backups {
 
 // Create creates and stores a new juju backup archive and returns
 // its associated metadata.
-func (b *backups) Create(paths Paths, dbInfo DBInfo, origin Origin, notes string) (*Metadata, error) {
+func (b *backups) Create(meta *Metadata, paths Paths, dbInfo *DBInfo) error {
 
-	// Prep the metadata.
-	meta := NewMetadata(origin, notes, nil)
 	// The metadata file will not contain the ID or the "finished" data.
 	// However, that information is not as critical.  The alternatives
 	// are either adding the metadata file to the archive after the fact
@@ -83,38 +81,38 @@ func (b *backups) Create(paths Paths, dbInfo DBInfo, origin Origin, notes string
 	// them in afterward.  Neither is particularly trivial.
 	metadataFile, err := meta.AsJSONBuffer()
 	if err != nil {
-		return nil, errors.Annotate(err, "while preparing the metadata")
+		return errors.Annotate(err, "while preparing the metadata")
 	}
 
 	// Create the archive.
 	filesToBackUp, err := getFilesToBackUp("", paths)
 	if err != nil {
-		return nil, errors.Annotate(err, "while listing files to back up")
+		return errors.Annotate(err, "while listing files to back up")
 	}
 	dumper, err := getDBDumper(dbInfo)
 	if err != nil {
-		return nil, errors.Annotate(err, "while preparing for DB dump")
+		return errors.Annotate(err, "while preparing for DB dump")
 	}
 	args := createArgs{filesToBackUp, dumper, metadataFile}
 	result, err := runCreate(&args)
 	if err != nil {
-		return nil, errors.Annotate(err, "while creating backup archive")
+		return errors.Annotate(err, "while creating backup archive")
 	}
 	defer result.archiveFile.Close()
 
 	// Finalize the metadata.
-	err = finishMeta(meta, result)
+	err = updateMeta(meta, result)
 	if err != nil {
-		return nil, errors.Annotate(err, "while updating metadata")
+		return errors.Annotate(err, "while updating metadata")
 	}
 
 	// Store the archive.
 	err = storeArchive(b.storage, meta, result.archiveFile)
 	if err != nil {
-		return nil, errors.Annotate(err, "while storing backup archive")
+		return errors.Annotate(err, "while storing backup archive")
 	}
 
-	return meta, nil
+	return nil
 }
 
 // Get pulls the associated metadata and archive file from environment storage.

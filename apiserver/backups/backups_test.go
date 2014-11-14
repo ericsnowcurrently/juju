@@ -25,11 +25,11 @@ type fakeBackups struct {
 	err     error
 }
 
-func (i *fakeBackups) Create(backups.Paths, backups.DBInfo, backups.Origin, string) (*backups.Metadata, error) {
-	if i.err != nil {
-		return nil, errors.Trace(i.err)
+func (i *fakeBackups) Create(meta *backups.Metadata, paths backups.Paths, dbInfo *backups.DBInfo) error {
+	if i.meta != nil {
+		*meta = *i.meta
 	}
-	return i.meta, nil
+	return errors.Trace(i.err)
 }
 
 func (i *fakeBackups) Get(string) (*backups.Metadata, io.ReadCloser, error) {
@@ -76,8 +76,12 @@ func (s *backupsSuite) SetUpTest(c *gc.C) {
 }
 
 func (s *backupsSuite) newMeta(notes string) *backups.Metadata {
-	origin := backups.NewOrigin("<env ID>", "<machine ID>", "<hostname>")
-	return backups.NewMetadata(origin, notes, nil)
+	meta := backups.NewMetadata()
+	meta.Origin.Environment = "<env ID>"
+	meta.Origin.Machine = "<machine ID>"
+	meta.Origin.Hostname = "<hostname>"
+	meta.Notes = notes
+	return meta
 }
 
 func (s *backupsSuite) setBackups(c *gc.C, meta *backups.Metadata, err string) *fakeBackups {

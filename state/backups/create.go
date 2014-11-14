@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
@@ -378,4 +379,24 @@ func (b *builder) result() (*createResult, error) {
 		checksum:    checksum,
 	}
 	return &result, nil
+}
+
+// UpdateMetadata sets file info on the metadata and records the current
+// time as when the backup finished.
+func UpdateMetadata(meta *Metadata, size int64, checksum string) error {
+	if size == 0 {
+		return errors.New("missing size")
+	}
+	if checksum == "" {
+		return errors.New("missing checksum")
+	}
+	format := checksumFormat
+	finished := time.Now().UTC()
+
+	if err := meta.SetFileInfo(size, checksum, format); err != nil {
+		return errors.Annotate(err, "unexpected failure")
+	}
+	meta.Finished = &finished
+
+	return nil
 }

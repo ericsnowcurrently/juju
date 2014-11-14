@@ -7,22 +7,83 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"time"
 
 	"github.com/juju/errors"
 	"github.com/juju/utils/filestorage"
+
+	"github.com/juju/juju/state"
 )
 
 var (
-	Create = create
+	Create           = create
+	NewMongoConnInfo = newMongoConnInfo
 
 	TestGetFilesToBackUp = &getFilesToBackUp
 	GetDBDumper          = &getDBDumper
 	RunCreate            = &runCreate
-	FinishMeta           = &finishMeta
+	UpdateMeta           = &updateMeta
 	StoreArchiveRef      = &storeArchive
 	GetMongodumpPath     = &getMongodumpPath
 	RunCommand           = &runCommand
 )
+
+var _ filestorage.DocStorage = (*docStorage)(nil)
+var _ filestorage.RawFileStorage = (*blobStorage)(nil)
+
+func newBackupDoc(meta *Metadata) *backupMetaDoc {
+	var doc backupMetaDoc
+	doc.UpdateFromMetadata(meta)
+	return &doc
+}
+
+func getBackupDBWrapper(st *state.State) *dbWrapper {
+	envUUID := st.EnvironTag().Id()
+	db := st.MongoSession().DB(storageDBName)
+	return newDBWrapper(db, storageMetaName, envUUID)
+}
+
+// NewBackupID creates a new backup ID based on the metadata.
+func NewBackupID(meta *Metadata) string {
+	doc := newBackupDoc(meta)
+	return newBackupID(doc)
+}
+
+// GetBackupMetadata pulls the metadata from storage.
+func GetBackupMetadata(st *state.State, id string) (*Metadata, error) {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	doc, err := getBackupMetadata(db, id)
+	if err != nil {
+		return nil, err
+	}
+	return doc.asMetadata(), nil
+}
+
+// AddBackupMetadata pushes the metadata into storage.
+func AddBackupMetadata(st *state.State, meta *Metadata) (string, error) {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	doc := newBackupDoc(meta)
+	return addBackupMetadata(db, doc)
+}
+
+// AddBackupMetadataID pushes the metadata into storage, using the given
+// backup ID.
+func AddBackupMetadataID(st *state.State, meta *Metadata, id string) error {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	doc := newBackupDoc(meta)
+	return addBackupMetadataID(db, doc, id)
+}
+
+// SetBackupStored stores the time of when the identified backup archive
+// file was stored.
+func SetBackupStored(st *state.State, id string, stored time.Time) error {
+	db := getBackupDBWrapper(st)
+	defer db.Close()
+	return setBackupStored(db, id, stored)
+}
 
 // ExposeCreateResult extracts the values in a create() result.
 func ExposeCreateResult(result *createResult) (io.ReadCloser, int64, string) {

@@ -64,7 +64,7 @@ func NewAPI(st *state.State, resources *common.Resources, authorizer common.Auth
 }
 
 var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
-	stor := NewBackupStorage(st)
+	stor := backups.NewStorageState(st)
 	backups := backups.NewBackups(stor)
 	return backups, stor
 }

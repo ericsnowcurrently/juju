@@ -13,6 +13,7 @@ import (
 	"github.com/juju/utils/set"
 
 	"github.com/juju/juju/mongo"
+	"github.com/juju/juju/state"
 	coreutils "github.com/juju/juju/utils"
 )
 
@@ -23,6 +24,13 @@ import (
 // for a future DB layer abstraction, the db package does not expose any
 // low-level details publicly.  Thus the backups implementation remains
 // oblivious to the underlying DB implementation.
+
+// ignoredDatabases is the list of databases that should not be
+// backed up.
+var ignoredDatabases = set.NewStrings(
+	storageDBName,
+	"presence",
+)
 
 var runCommand = coreutils.RunCommand
 
@@ -97,14 +105,14 @@ var getMongodumpPath = func() (string, error) {
 }
 
 type mongoDumper struct {
-	DBInfo
+	*DBInfo
 	// binPath is the path to the dump executable.
 	binPath string
 }
 
 // NewDBDumper returns a new value with a Dump method for dumping the
 // juju state database.
-func NewDBDumper(info DBInfo) (DBDumper, error) {
+func NewDBDumper(info *DBInfo) (DBDumper, error) {
 	err := info.Validate()
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -200,4 +208,44 @@ func listDatabases(dumpDir string) (set.Strings, error) {
 		databases.Add(info.Name())
 	}
 	return databases, nil
+}
+
+// NewDBInfoState returns the information needed by backups to dump
+// the database.
+func NewDBInfoState(st *state.State) (*DBInfo, error) {
+	connInfo := newMongoConnInfo(st.MongoConnectionInfo())
+	targets, err := getBackupTargetDatabases(st)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	info := DBInfo{
+		DBConnInfo: *connInfo,
+		Targets:    targets,
+	}
+	return &info, nil
+}
+
+func newMongoConnInfo(mgoInfo *mongo.MongoInfo) *DBConnInfo {
+	info := DBConnInfo{
+		Address:  mgoInfo.Addrs[0],
+		Password: mgoInfo.Password,
+	}
+
+	// TODO(dfc) Backup should take a Tag.
+	if mgoInfo.Tag != nil {
+		info.Username = mgoInfo.Tag.String()
+	}
+
+	return &info
+}
+
+func getBackupTargetDatabases(st *state.State) (set.Strings, error) {
+	dbNames, err := st.MongoSession().DatabaseNames()
+	if err != nil {
+		return set.Strings{}, errors.Annotate(err, "unable to get DB names")
+	}
+
+	targets := set.NewStrings(dbNames...).Difference(ignoredDatabases)
+	return targets, nil
 }

@@ -29,29 +29,32 @@ type FakeBackups struct {
 
 	// IDArg holds the ID that was passed in.
 	IDArg string
+	// MetaArg holds the Metadata that was passed in.
+	MetaArg *backups.Metadata
 	// PathsArg holds the Paths that was passed in.
 	PathsArg *backups.Paths
 	// DBInfoArg holds the ConnInfo that was passed in.
 	DBInfoArg *backups.DBInfo
 	// OriginArg holds the Origin that was passed in.
 	OriginArg *backups.Origin
-	// NotesArg holds the notes string that was passed in.
-	NotesArg string
 }
 
 var _ backups.Backups = (*FakeBackups)(nil)
 
 // Create creates and stores a new juju backup archive and returns
 // its associated metadata.
-func (b *FakeBackups) Create(paths backups.Paths, dbInfo backups.DBInfo, origin backups.Origin, notes string) (*backups.Metadata, error) {
+func (b *FakeBackups) Create(meta *backups.Metadata, paths backups.Paths, dbInfo *backups.DBInfo) error {
 	b.Calls = append(b.Calls, "Create")
 
+	b.MetaArg = meta
 	b.PathsArg = &paths
-	b.DBInfoArg = &dbInfo
-	b.OriginArg = &origin
-	b.NotesArg = notes
+	b.DBInfoArg = dbInfo
 
-	return b.Meta, b.Error
+	if b.Meta != nil {
+		*meta = *b.Meta
+	}
+
+	return b.Error
 }
 
 // Get returns the metadata and archive file associated with the ID.

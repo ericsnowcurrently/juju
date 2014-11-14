@@ -27,8 +27,12 @@ func (d *TestDBDumper) Dump(dumpDir string) error {
 }
 
 func (s *createSuite) metadata(notes string) *backups.Metadata {
-	origin := backups.NewOrigin("<env ID>", "<machine ID>", "<hostname>")
-	return backups.NewMetadata(origin, notes, nil)
+	meta := backups.NewMetadata()
+	meta.Origin.Environment = "<env ID>"
+	meta.Origin.Machine = "<machine ID>"
+	meta.Origin.Hostname = "<hostname>"
+	meta.Notes = notes
+	return meta
 }
 
 func (s *createSuite) TestLegacy(c *gc.C) {
