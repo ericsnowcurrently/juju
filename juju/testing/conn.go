@@ -83,7 +83,10 @@ type JujuConnSuite struct {
 	Factory      *factory.Factory
 }
 
-const AdminSecret = "dummy-secret"
+const (
+	adminUsername = "dummy-admin"
+	AdminSecret   = "dummy-secret"
+)
 
 func (s *JujuConnSuite) SetUpSuite(c *gc.C) {
 	s.FakeJujuHomeSuite.SetUpSuite(c)
@@ -257,7 +260,9 @@ func (s *JujuConnSuite) setUpConn(c *gc.C) {
 
 	s.BackingState = environ.(GetStater).GetStateInAPIServer()
 
-	s.State, err = newState(environ, s.BackingState.MongoConnectionInfo())
+	mongoInfo := s.BackingState.MongoConnectionInfo()
+	mongoInfo.Tag = names.NewLocalUserTag(adminUsername)
+	s.State, err = newState(environ, mongoInfo)
 	c.Assert(err, jc.ErrorIsNil)
 
 	s.APIState, err = juju.NewAPIState(s.AdminUserTag(c), environ, api.DialOpts{})
