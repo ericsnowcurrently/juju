@@ -50,7 +50,11 @@ func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		logger.Infof("handling backups download request")
 		id, err := h.download(backups, resp, req)
 		if err != nil {
-			h.sendError(resp, http.StatusInternalServerError, err.Error())
+			var code string
+			if errors.IsNotFound(err) {
+				code = params.CodeNotFound
+			}
+			h.sendErrorCode(resp, http.StatusInternalServerError, err.Error(), code)
 			return
 		}
 		logger.Infof("backups download request successful for %q", id)
@@ -58,7 +62,11 @@ func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		logger.Infof("handling backups upload request")
 		id, err := h.upload(backups, resp, req)
 		if err != nil {
-			h.sendError(resp, http.StatusInternalServerError, err.Error())
+			var code string
+			if errors.IsNotFound(err) {
+				code = params.CodeNotFound
+			}
+			h.sendErrorCode(resp, http.StatusInternalServerError, err.Error(), code)
 			return
 		}
 		logger.Infof("backups upload request successful for %q", id)
@@ -177,9 +185,15 @@ func (h *backupHandler) sendJSON(w http.ResponseWriter, statusCode int, result i
 
 // sendError sends a JSON-encoded error response.
 func (h *backupHandler) sendError(w http.ResponseWriter, statusCode int, message string) {
+	// Leave Code empty.
+	h.sendErrorCode(w, statusCode, message, "")
+
+}
+
+func (h *backupHandler) sendErrorCode(w http.ResponseWriter, statusCode int, message, code string) {
 	failure := params.Error{
 		Message: message,
-		// Leave Code empty.
+		Code:    code,
 	}
 
 	h.sendJSON(w, statusCode, &failure)
