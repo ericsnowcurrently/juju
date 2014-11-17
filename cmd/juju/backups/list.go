@@ -59,7 +59,7 @@ func (c *ListCommand) Run(ctx *cmd.Context) error {
 	}
 
 	if len(result.List) == 0 {
-		fmt.Fprintln(ctx.Stdout, "(no backups found)")
+		logger.Infof("(no backups found)")
 		return nil
 	}
 

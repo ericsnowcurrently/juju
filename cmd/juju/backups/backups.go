@@ -9,11 +9,14 @@ import (
 
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 
 	"github.com/juju/juju/api/backups"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/cmd/envcmd"
 )
+
+var logger = loggo.GetLogger("juju.cmd.backups")
 
 var backupsDoc = `
 "juju backups" is used to manage backups of the state of a juju environment.
