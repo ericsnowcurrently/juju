@@ -12,6 +12,7 @@ import (
 	"github.com/juju/errors"
 	"launchpad.net/gnuflag"
 
+	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/state/backups"
 )
 
@@ -69,6 +70,9 @@ func (c *DownloadCommand) Run(ctx *cmd.Context) error {
 
 	// Download the archive.
 	resultArchive, err := client.Download(c.ID)
+	if params.IsCodeNotFound(errors.Cause(err)) {
+		return &errNotFound{id: c.ID}
+	}
 	if err != nil {
 		return errors.Trace(err)
 	}

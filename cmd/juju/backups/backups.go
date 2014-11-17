@@ -103,3 +103,13 @@ func (c *CommandBase) dumpMetadata(ctx *cmd.Context, result *params.BackupsMetad
 	fmt.Fprintf(ctx.Stdout, "created on host: %q\n", result.Hostname)
 	fmt.Fprintf(ctx.Stdout, "juju version:    %v\n", result.Version)
 }
+
+type errNotFound struct {
+	cmd.RcPassthroughError
+	id string
+}
+
+// Error generates the error message.
+func (e *errNotFound) Error() string {
+	return fmt.Sprintf("Backup %q not found\n", e.id)
+}

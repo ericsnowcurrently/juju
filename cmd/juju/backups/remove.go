@@ -8,6 +8,8 @@ import (
 
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
+
+	"github.com/juju/juju/apiserver/params"
 )
 
 const removeDoc = `
@@ -53,6 +55,9 @@ func (c *RemoveCommand) Run(ctx *cmd.Context) error {
 	defer client.Close()
 
 	err = client.Remove(c.ID)
+	if params.IsCodeNotFound(errors.Cause(err)) {
+		return &errNotFound{id: c.ID}
+	}
 	if err != nil {
 		return errors.Trace(err)
 	}
