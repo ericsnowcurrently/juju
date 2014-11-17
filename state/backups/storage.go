@@ -229,6 +229,9 @@ func (b *storageDBWrapper) allMetadata(docs interface{}) error {
 // removeMetadataID removes the identified metadata from storage.
 func (b *storageDBWrapper) removeMetadataID(id string) error {
 	err := b.metaColl.RemoveId(id)
+	if err == mgo.ErrNotFound {
+		return errors.NotFoundf("backup metadata %q", id)
+	}
 	return errors.Trace(err)
 }
 
