@@ -12,15 +12,8 @@ import (
 )
 
 // TODO(ericsnow) lp-1392876
-// Pull these from authoritative sources (see
-// github.com/juju/juju/juju/paths, etc.):
+// Pull these from authoritative sources (see juju/paths, etc.).
 const (
-	dataDir        = "/var/lib/juju"
-	startupDir     = "/etc/init"
-	loggingConfDir = "/etc/rsyslog.d"
-	logsDir        = "/var/log/juju"
-	sshDir         = "/home/ubuntu/.ssh"
-
 	machinesConfs = "jujud-machine-*.conf"
 	agentsDir     = "agents"
 	agentsConfs   = "machine-*"
@@ -41,8 +34,11 @@ const (
 
 // Paths holds the paths that backups needs.
 type Paths struct {
-	DataDir string
-	LogsDir string
+	DataDir        string // /var/lib/juju
+	InitDir        string // /etc/init
+	LoggingConfDir string // /etc/rsyslog.d
+	LogsDir        string // /var/log/juju
+	SSHDir         string // /home/ubuntu/.ssh
 }
 
 // GetFilesToBackUp returns the paths that should be included in the
@@ -50,13 +46,13 @@ type Paths struct {
 func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string, error) {
 	var glob string
 
-	glob = filepath.Join(rootDir, startupDir, machinesConfs)
+	glob = filepath.Join(rootDir, paths.InitDir, machinesConfs)
 	initMachineConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch machine init files")
 	}
 
-	glob = filepath.Join(rootDir, startupDir, jujuInitConfs)
+	glob = filepath.Join(rootDir, paths.InitDir, jujuInitConfs)
 	initConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch startup conf files")
@@ -68,7 +64,7 @@ func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string
 		return nil, errors.Annotate(err, "failed to fetch agent config files")
 	}
 
-	glob = filepath.Join(rootDir, loggingConfDir, loggingConfs)
+	glob = filepath.Join(rootDir, paths.LoggingConfDir, loggingConfs)
 	jujuLogConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch juju log conf files")
@@ -121,7 +117,7 @@ func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string
 	}
 
 	// Handle user SSH files (might not exist).
-	SSHDir := filepath.Join(rootDir, sshDir)
+	SSHDir := filepath.Join(rootDir, paths.SSHDir)
 	if _, err := os.Stat(SSHDir); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, errors.Trace(err)

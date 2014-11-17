@@ -45,9 +45,14 @@ func NewAPI(st *state.State, resources *common.Resources, authorizer common.Auth
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	// TODO(ericsnow) lp-1392876
+	// Pull all these from authoritative sources.
 	paths := backups.Paths{
-		DataDir: dataDir,
-		LogsDir: logsDir,
+		DataDir:        dataDir,
+		InitDir:        "/etc/init",
+		LoggingConfDir: "/etc/rsyslog.d",
+		LogsDir:        logsDir,
+		SSHDir:         "/home/ubuntu/.ssh",
 	}
 
 	// Build the API.
