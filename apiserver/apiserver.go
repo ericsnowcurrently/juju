@@ -205,56 +205,25 @@ func (srv *Server) run(lis net.Listener) {
 	// registered, first match wins. So more specific ones have to be
 	// registered first.
 	mux := pat.New()
-	// For backwards compatibility we register all the old paths
-	handleAll(mux, "/environment/:envuuid/log",
-		&debugLogHandler{
-			httpHandler: httpHandler{state: srv.state},
-			logDir:      srv.logDir},
-	)
-	handleAll(mux, "/environment/:envuuid/charms",
-		&charmsHandler{
-			httpHandler: httpHandler{state: srv.state},
-			dataDir:     srv.dataDir},
-	)
-	// TODO: We can switch from handleAll to mux.Post/Get/etc for entries
-	// where we only want to support specific request methods. However, our
-	// tests currently assert that errors come back as application/json and
-	// pat only does "text/plain" responses.
-	handleAll(mux, "/environment/:envuuid/tools",
-		&toolsUploadHandler{toolsHandler{
-			httpHandler{state: srv.state},
-		}},
-	)
-	handleAll(mux, "/environment/:envuuid/tools/:version",
-		&toolsDownloadHandler{toolsHandler{
-			httpHandler{state: srv.state},
-		}},
-	)
-	handleAll(mux, "/environment/:envuuid/backups",
-		&backupHandler{httpHandler{state: srv.state}},
-	)
+	base := HTTPHandler{
+		State:   srv.state,
+		DataDir: srv.dataDir,
+		LogDir:  srv.logDir,
+	}
+	for pattern, newHandler := range httpHandlers {
+		pattern = "/environment/:envuuid" + pattern
+		// TODO: We can switch from handleAll to mux.Post/Get/etc for entries
+		// where we only want to support specific request methods. However, our
+		// tests currently assert that errors come back as application/json and
+		// pat only does "text/plain" responses.
+		handleAll(mux, pattern, newHandler(base))
+	}
+	// Try the RPC-based API.
 	handleAll(mux, "/environment/:envuuid/api", http.HandlerFunc(srv.apiHandler))
 	// For backwards compatibility we register all the old paths
-	handleAll(mux, "/log",
-		&debugLogHandler{
-			httpHandler: httpHandler{state: srv.state},
-			logDir:      srv.logDir},
-	)
-	handleAll(mux, "/charms",
-		&charmsHandler{
-			httpHandler: httpHandler{state: srv.state},
-			dataDir:     srv.dataDir},
-	)
-	handleAll(mux, "/tools",
-		&toolsUploadHandler{toolsHandler{
-			httpHandler{state: srv.state},
-		}},
-	)
-	handleAll(mux, "/tools/:version",
-		&toolsDownloadHandler{toolsHandler{
-			httpHandler{state: srv.state},
-		}},
-	)
+	for pattern, newHandler := range httpHandlersLegacy {
+		handleAll(mux, pattern, newHandler(base))
+	}
 	handleAll(mux, "/", http.HandlerFunc(srv.apiHandler))
 	// The error from http.Serve is not interesting.
 	http.Serve(lis, mux)

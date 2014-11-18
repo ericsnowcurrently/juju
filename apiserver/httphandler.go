@@ -16,19 +16,37 @@ import (
 	"github.com/juju/juju/state"
 )
 
-// errorSender implementations send errors back to the caller.
-type errorSender interface {
-	sendError(w http.ResponseWriter, statusCode int, message string)
+type newHandlerFunc func(HTTPHandler) http.Handler
+
+var httpHandlers = make(map[string]newHandlerFunc)
+
+// RegisterHTTPHandler adds an HTTP handler that will be handled by the
+// API server.
+func RegisterHTTPHandler(pattern string, newHandler newHandlerFunc) {
+	httpHandlers[pattern] = newHandler
 }
 
-// httpHandler handles http requests through HTTPS in the API server.
-type httpHandler struct {
-	state *state.State
+var httpHandlersLegacy = make(map[string]newHandlerFunc)
+
+// RegisterHTTPHandler adds an HTTP handler that will be handled by the
+// API server.
+func RegisterLegacyHTTPHandler(pattern string, newHandler newHandlerFunc) {
+	httpHandlersLegacy[pattern] = newHandler
 }
 
-// authenticate parses HTTP basic authentication and authorizes the
+// HTTPHandler handles http requests through HTTPS in the API server.
+type HTTPHandler struct {
+	// State is the juju state used for the handled request.
+	State *state.State
+	// DataDir is where juju data files are located.
+	DataDir string
+	// LogDir is where juju log files are located.
+	LogDir string
+}
+
+// Authenticate parses HTTP basic authentication and authorizes the
 // request by looking up the provided tag and password against state.
-func (h *httpHandler) authenticate(r *http.Request) error {
+func (h *HTTPHandler) Authenticate(r *http.Request) error {
 	parts := strings.Fields(r.Header.Get("Authorization"))
 	if len(parts) != 2 || parts[0] != "Basic" {
 		// Invalid header format or no header provided.
@@ -49,18 +67,20 @@ func (h *httpHandler) authenticate(r *http.Request) error {
 		return common.ErrBadCreds
 	}
 	// Ensure the credentials are correct.
-	_, err = checkCreds(h.state, params.LoginRequest{
+	_, err = checkCreds(h.State, params.LoginRequest{
 		AuthTag:     tagPass[0],
 		Credentials: tagPass[1],
 	})
 	return err
 }
 
-func (h *httpHandler) getEnvironUUID(r *http.Request) string {
+func (h *HTTPHandler) getEnvironUUID(r *http.Request) string {
 	return r.URL.Query().Get(":envuuid")
 }
 
-func (h *httpHandler) validateEnvironUUID(r *http.Request) error {
+// ValidateEnvironUUID validates that the requested environment UUID
+// matches the current environment.
+func (h *HTTPHandler) ValidateEnvironUUID(r *http.Request) error {
 	// Note: this is only true until we have support for multiple
 	// environments. For now, there is only one, so we make sure that is
 	// the one being addressed.
@@ -69,7 +89,7 @@ func (h *httpHandler) validateEnvironUUID(r *http.Request) error {
 	if envUUID == "" {
 		return nil
 	}
-	env, err := h.state.Environment()
+	env, err := h.State.Environment()
 	if err != nil {
 		logger.Infof("error looking up environment: %v", err)
 		return err
@@ -82,8 +102,14 @@ func (h *httpHandler) validateEnvironUUID(r *http.Request) error {
 	return nil
 }
 
-// authError sends an unauthorized error.
-func (h *httpHandler) authError(w http.ResponseWriter, sender errorSender) {
+// errorSender implementations send errors back to the caller.
+type errorSender interface {
+	// SendError sends the error message as an HTTP response.
+	sendError(w http.ResponseWriter, statusCode int, message string)
+}
+
+// AuthError sends an unauthorized error.
+func (h *HTTPHandler) authError(w http.ResponseWriter, sender errorSender) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="juju"`)
 	sender.sendError(w, http.StatusUnauthorized, "unauthorized")
 }

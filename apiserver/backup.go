@@ -18,6 +18,13 @@ import (
 	"github.com/juju/juju/state/backups"
 )
 
+func init() {
+	newHandler := func(base HTTPHandler) http.Handler {
+		return &backupHandler{base}
+	}
+	RegisterHTTPHandler("/backups", newHandler)
+}
+
 // TODO(ericsnow) This file should be in the apiserver/backups package.
 
 var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
@@ -27,21 +34,21 @@ var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
 
 // backupHandler handles backup requests.
 type backupHandler struct {
-	httpHandler
+	HTTPHandler
 }
 
 func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	if err := h.validateEnvironUUID(req); err != nil {
+	if err := h.ValidateEnvironUUID(req); err != nil {
 		h.sendError(resp, http.StatusNotFound, err.Error())
 		return
 	}
 
-	if err := h.authenticate(req); err != nil {
+	if err := h.Authenticate(req); err != nil {
 		h.authError(resp, h)
 		return
 	}
 
-	backups, closer := newBackups(h.state)
+	backups, closer := newBackups(h.State)
 	defer closer.Close()
 
 	switch req.Method {

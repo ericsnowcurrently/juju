@@ -24,10 +24,17 @@ import (
 	"github.com/juju/juju/apiserver/params"
 )
 
+func init() {
+	newHandler := func(base HTTPHandler) http.Handler {
+		return &debugLogHandler{base}
+	}
+	RegisterHTTPHandler("/log", newHandler)
+	RegisterLegacyHTTPHandler("/log", newHandler)
+}
+
 // debugLogHandler takes requests to watch the debug log.
 type debugLogHandler struct {
-	httpHandler
-	logDir string
+	HTTPHandler
 }
 
 var maxLinesReached = fmt.Errorf("max lines reached")
@@ -52,12 +59,12 @@ func (h *debugLogHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	server := websocket.Server{
 		Handler: func(socket *websocket.Conn) {
 			logger.Infof("debug log handler starting")
-			if err := h.authenticate(req); err != nil {
+			if err := h.Authenticate(req); err != nil {
 				h.sendError(socket, fmt.Errorf("auth failed: %v", err))
 				socket.Close()
 				return
 			}
-			if err := h.validateEnvironUUID(req); err != nil {
+			if err := h.ValidateEnvironUUID(req); err != nil {
 				h.sendError(socket, err)
 				socket.Close()
 				return
@@ -69,7 +76,7 @@ func (h *debugLogHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 			// Open log file.
-			logLocation := filepath.Join(h.logDir, "all-machines.log")
+			logLocation := filepath.Join(h.LogDir, "all-machines.log")
 			logFile, err := os.Open(logLocation)
 			if err != nil {
 				h.sendError(socket, fmt.Errorf("cannot open log file: %v", err))

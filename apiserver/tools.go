@@ -26,10 +26,24 @@ import (
 	"github.com/juju/juju/version"
 )
 
+func init() {
+	newHandler := func(base HTTPHandler) http.Handler {
+		return &toolsUploadHandler{toolsHandler{base}}
+	}
+	RegisterHTTPHandler("/tools", newHandler)
+	RegisterLegacyHTTPHandler("/tools", newHandler)
+
+	newHandler = func(base HTTPHandler) http.Handler {
+		return &toolsDownloadHandler{toolsHandler{base}}
+	}
+	RegisterHTTPHandler("/tools/:version", newHandler)
+	RegisterLegacyHTTPHandler("/tools/:version", newHandler)
+}
+
 // toolsHandler is the base type for uploading and downloading
 // tools over HTTPS via the API server.
 type toolsHandler struct {
-	httpHandler
+	HTTPHandler
 }
 
 // toolsHandler handles tool upload through HTTPS in the API server.
@@ -43,7 +57,7 @@ type toolsDownloadHandler struct {
 }
 
 func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := h.validateEnvironUUID(r); err != nil {
+	if err := h.ValidateEnvironUUID(r); err != nil {
 		h.sendError(w, http.StatusNotFound, err.Error())
 		return
 	}
@@ -63,12 +77,12 @@ func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := h.authenticate(r); err != nil {
+	if err := h.Authenticate(r); err != nil {
 		h.authError(w, h)
 		return
 	}
 
-	if err := h.validateEnvironUUID(r); err != nil {
+	if err := h.ValidateEnvironUUID(r); err != nil {
 		h.sendError(w, http.StatusNotFound, err.Error())
 		return
 	}
@@ -114,7 +128,7 @@ func (h *toolsDownloadHandler) processGet(r *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Annotate(err, "error parsing version")
 	}
-	storage, err := h.state.ToolsStorage()
+	storage, err := h.State.ToolsStorage()
 	if err != nil {
 		return nil, errors.Annotate(err, "error getting tools storage")
 	}
@@ -145,7 +159,7 @@ func (h *toolsDownloadHandler) processGet(r *http.Request) ([]byte, error) {
 // in simplestreams and GETting it, caching the result in toolstorage before returning
 // to the caller.
 func (h *toolsDownloadHandler) fetchAndCacheTools(v version.Binary, stor toolstorage.Storage) (io.ReadCloser, error) {
-	envcfg, err := h.state.EnvironConfig()
+	envcfg, err := h.State.EnvironConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +264,7 @@ func (h *toolsUploadHandler) processPost(r *http.Request) (*tools.Tools, error) 
 func (h *toolsUploadHandler) getServerRoot(r *http.Request, query url.Values) (string, error) {
 	uuid := query.Get(":envuuid")
 	if uuid == "" {
-		env, err := h.state.Environment()
+		env, err := h.State.Environment()
 		if err != nil {
 			return "", err
 		}
@@ -261,7 +275,7 @@ func (h *toolsUploadHandler) getServerRoot(r *http.Request, query url.Values) (s
 
 // handleUpload uploads the tools data from the reader to env storage as the specified version.
 func (h *toolsUploadHandler) handleUpload(r io.Reader, toolsVersions []version.Binary, serverRoot string) (*tools.Tools, error) {
-	storage, err := h.state.ToolsStorage()
+	storage, err := h.State.ToolsStorage()
 	if err != nil {
 		return nil, err
 	}
