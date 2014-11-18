@@ -7,23 +7,27 @@
 package slowtests_test
 
 import (
+	"os/user"
 	"path/filepath"
 
 	"github.com/juju/cmd"
 	"github.com/juju/loggo"
 	jc "github.com/juju/testing/checkers"
+	"github.com/juju/utils/tar"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/apiserver/params"
-	"github.com/juju/juju/cmd/juju/backups"
+	apibackups "github.com/juju/juju/cmd/juju/backups"
 	"github.com/juju/juju/juju/testing"
+	"github.com/juju/juju/state/backups"
+	backupstesting "github.com/juju/juju/state/backups/testing"
 	coretesting "github.com/juju/juju/testing"
 )
 
 type functionalSuite struct {
 	testing.JujuConnSuite
 
-	command *backups.Command
+	command *apibackups.Command
 }
 
 var _ = gc.Suite(&functionalSuite{})
@@ -31,7 +35,24 @@ var _ = gc.Suite(&functionalSuite{})
 func (s *functionalSuite) SetUpTest(c *gc.C) {
 	s.JujuConnSuite.SetUpTest(c)
 
-	s.command = backups.NewCommand().(*backups.Command)
+	s.command = apibackups.NewCommand().(*apibackups.Command)
+}
+
+func (s *functionalSuite) prepFiles(c *gc.C) {
+	paths := &backups.Paths{
+		DataDir:        s.DataDir(),
+		InitDir:        "",
+		LoggingConfDir: "",
+		LogsDir:        s.LogDir,
+		SSHDir:         "",
+	}
+	u, err := user.Current()
+	c.Assert(err, gc.IsNil)
+	username := u.Username
+	buf, err := backupstesting.NewFilesBundle(paths, username)
+	c.Assert(err, gc.IsNil)
+	err = tar.UntarFiles(buf, string(filepath.Separator))
+	c.Assert(err, gc.IsNil)
 }
 
 func (s *functionalSuite) run(c *gc.C, subcmd string, opts ...string) (string, []loggo.TestLogValues, error) {
