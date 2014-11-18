@@ -9,12 +9,38 @@ import (
 	"compress/gzip"
 	"io"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/juju/errors"
 	"github.com/juju/utils/set"
 
 	"github.com/juju/juju/state/backups"
+)
+
+var (
+	expectedDataFiles = map[string]string{
+		"tools/...":                   "<tools tarball>",
+		"agents/machine-0/agent.conf": "<state server conf>",
+		"system-identity":             "<ssh private key>",
+		"server.pem":                  "<mongo public cert>",
+		"shared-secret":               "<mongo private key>",
+		"nonce.txt":                   "<nonce data>",
+	}
+	expectedInitFiles = map[string]string{
+		"juju-agent-<USER>-local.conf": "<jujud init conf>",
+		"juju-db-<USER>-local.conf":    "<mongo init conf>",
+	}
+	expectedLoggingConfFiles = map[string]string{
+		"25-juju-<USER>-local.conf": "<logging conf>",
+	}
+	expectedLogFiles = map[string]string{
+		"all-machines.log": "<log data>",
+		"machine-0.log":    "<log data>",
+	}
+	expectedSSHFiles = map[string]string{
+		"authorized_keys": "<SSH public keys>",
+	}
 )
 
 // File represents a file during testing.
@@ -25,6 +51,14 @@ type File struct {
 	Content string
 	// IsDir determines if the file is a regular file or a directory.
 	IsDir bool
+}
+
+func newFileString(filename, content, username string) File {
+	return File{
+		Name:    strings.Replace(filename, "<USER>", username, -1),
+		Content: content,
+		IsDir:   false,
+	}
 }
 
 // AddToArchive adds the file to the tar archive.
@@ -53,8 +87,31 @@ func (f *File) AddToArchive(archive *tar.Writer) error {
 	return nil
 }
 
-// NewArchive returns a new archive file containing the files.
-func NewArchive(meta *backups.Metadata, files, dump []File) (*bytes.Buffer, error) {
+// newFilesBundle populates a new Buffer with the contents of a tar
+// archive containing the specified files.
+func NewFilesBundle(paths *backups.Paths, username string) (*bytes.Buffer, error) {
+	files := expectedFiles(paths, username)
+	return newFilesBundle(files)
+}
+
+func expectedFiles(paths *backups.Paths, username string) []File {
+	var files []File
+	for basedir, expected := range map[string]map[string]string{
+		paths.DataDir:        expectedDataFiles,
+		paths.InitDir:        expectedInitFiles,
+		paths.LoggingConfDir: expectedLoggingConfFiles,
+		paths.LogsDir:        expectedLogFiles,
+		paths.SSHDir:         expectedSSHFiles,
+	} {
+		for filename, content := range expected {
+			filename = filepath.Join(basedir, filename)
+			files = append(files, newFileString(filename, content, username))
+		}
+	}
+	return files
+}
+
+func newFilesBundle(files []File) (*bytes.Buffer, error) {
 	dirs := set.NewStrings()
 	var sysFiles []File
 	for _, file := range files {
@@ -85,6 +142,15 @@ func NewArchive(meta *backups.Metadata, files, dump []File) (*bytes.Buffer, erro
 
 	var rootFile bytes.Buffer
 	if err := writeToTar(&rootFile, sysFiles); err != nil {
+		return nil, errors.Trace(err)
+	}
+	return &rootFile, nil
+}
+
+// NewArchive returns a new archive file containing the files.
+func NewArchive(meta *backups.Metadata, files, dump []File) (*bytes.Buffer, error) {
+	rootFile, err := newFilesBundle(files)
+	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
