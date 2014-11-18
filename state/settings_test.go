@@ -12,6 +12,7 @@ import (
 	"gopkg.in/mgo.v2/txn"
 
 	"github.com/juju/juju/mongo"
+	statetesting "github.com/juju/juju/state/testing"
 	"github.com/juju/juju/testing"
 )
 
@@ -23,32 +24,6 @@ type SettingsSuite struct {
 }
 
 var _ = gc.Suite(&SettingsSuite{})
-
-// TODO(ericsnow) The following 2 functions (TestingMongoInfo and
-// TestingDialOpts) have been replaced with corresponding ones in
-// state/testing/conn.go. The old functions are kept around because of
-// import cycles with *_test.go that are in the state package rather
-// than state_test.  The functions may be removed as soon as all
-// such test files that use them are switched to the state_test package.
-
-// TestingMongoInfo returns information suitable for
-// connecting to the testing state server's mongo database.
-func TestingMongoInfo() *mongo.MongoInfo {
-	return &mongo.MongoInfo{
-		Info: mongo.Info{
-			Addrs:  []string{gitjujutesting.MgoServer.Addr()},
-			CACert: testing.CACert,
-		},
-	}
-}
-
-// TestingDialOpts returns configuration parameters for
-// connecting to the testing state server.
-func TestingDialOpts() mongo.DialOpts {
-	return mongo.DialOpts{
-		Timeout: testing.LongWait,
-	}
-}
 
 func (s *SettingsSuite) SetUpSuite(c *gc.C) {
 	s.MgoSuite.SetUpSuite(c)
@@ -66,7 +41,7 @@ func (s *SettingsSuite) SetUpTest(c *gc.C) {
 	// TODO(dfc) this logic is duplicated with the metawatcher_test.
 	cfg := testing.EnvironConfig(c)
 	owner := names.NewLocalUserTag("settings-admin")
-	state, err := Initialize(owner, TestingMongoInfo(), cfg, TestingDialOpts(), Policy(nil))
+	state, err := statetesting.Initialize(owner, cfg, Policy(nil))
 	c.Assert(err, gc.IsNil)
 	s.AddCleanup(func(*gc.C) { state.Close() })
 	s.state = state

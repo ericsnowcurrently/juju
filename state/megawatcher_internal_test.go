@@ -21,6 +21,7 @@ import (
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state/multiwatcher"
+	statetesting "github.com/juju/juju/state/testing"
 	"github.com/juju/juju/state/watcher"
 	"github.com/juju/juju/testing"
 )
@@ -63,9 +64,7 @@ func (s *storeManagerStateSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.MgoSuite.SetUpTest(c)
 	s.owner = names.NewLocalUserTag("test-admin")
-	st, err := Initialize(s.owner, TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), nil)
-	c.Assert(err, gc.IsNil)
-	s.State = st
+	s.State, s.owner = statetesting.NewStateWithoutPolicy(c)
 }
 
 func (s *storeManagerStateSuite) TearDownTest(c *gc.C) {

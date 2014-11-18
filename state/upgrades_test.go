@@ -19,6 +19,7 @@ import (
 
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
+	statetesting "github.com/juju/juju/state/testing"
 	"github.com/juju/juju/testcharms"
 	"github.com/juju/juju/testing"
 )
@@ -44,8 +45,11 @@ func (s *upgradesSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.MgoSuite.SetUpTest(c)
 	var err error
+	mgoInfo := statetesting.NewMongoInfo()
+	dialOpts := statetesting.NewDialOpts()
+	cfg := testing.EnvironConfig(c)
 	s.owner = names.NewLocalUserTag("upgrade-admin")
-	s.state, err = Initialize(s.owner, TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), Policy(nil))
+	s.state, err = Initialize(s.owner, mgoInfo, cfg, dialOpts, Policy(nil))
 	c.Assert(err, gc.IsNil)
 }
 

@@ -10,6 +10,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/mgo.v2/txn"
 
+	statetesting "github.com/juju/juju/state/testing"
 	"github.com/juju/juju/testcharms"
 	"github.com/juju/juju/testing"
 )
@@ -39,10 +40,7 @@ func (s *compatSuite) TearDownSuite(c *gc.C) {
 func (s *compatSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.MgoSuite.SetUpTest(c)
-	owner := names.NewLocalUserTag("test-admin")
-	st, err := Initialize(owner, TestingMongoInfo(), testing.EnvironConfig(c), TestingDialOpts(), nil)
-	c.Assert(err, gc.IsNil)
-	s.state = st
+	s.state, _ = statetesting.NewStateWithoutPolicy()
 	env, err := s.state.Environment()
 	c.Assert(err, gc.IsNil)
 	s.env = env
