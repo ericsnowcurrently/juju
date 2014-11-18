@@ -105,11 +105,11 @@ func (h *HTTPHandler) ValidateEnvironUUID(r *http.Request) error {
 // errorSender implementations send errors back to the caller.
 type errorSender interface {
 	// SendError sends the error message as an HTTP response.
-	sendError(w http.ResponseWriter, statusCode int, message string)
+	SendError(w http.ResponseWriter, statusCode int, message string)
 }
 
 // AuthError sends an unauthorized error.
 func (h *HTTPHandler) AuthError(w http.ResponseWriter, sender errorSender) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="juju"`)
-	sender.sendError(w, http.StatusUnauthorized, "unauthorized")
+	sender.SendError(w, http.StatusUnauthorized, "unauthorized")
 }

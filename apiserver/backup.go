@@ -39,7 +39,7 @@ type backupHandler struct {
 
 func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	if err := h.ValidateEnvironUUID(req); err != nil {
-		h.sendError(resp, http.StatusNotFound, err.Error())
+		h.SendError(resp, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -55,24 +55,24 @@ func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	case "GET":
 		args, err := h.parseGETArgs(req)
 		if err != nil {
-			h.sendError(resp, http.StatusInternalServerError, err.Error())
+			h.SendError(resp, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		meta, archive, err := backups.Get(args.ID)
 		if err != nil {
-			h.sendError(resp, http.StatusInternalServerError, err.Error())
+			h.SendError(resp, http.StatusInternalServerError, err.Error())
 			return
 		}
 		defer archive.Close()
 
 		err = h.sendFile(archive, meta.Checksum(), apihttp.DIGEST_SHA, resp)
 		if err != nil {
-			h.sendError(resp, http.StatusInternalServerError, err.Error())
+			h.SendError(resp, http.StatusInternalServerError, err.Error())
 			return
 		}
 	default:
-		h.sendError(resp, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", req.Method))
+		h.SendError(resp, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", req.Method))
 	}
 }
 
@@ -117,8 +117,8 @@ func (h *backupHandler) sendFile(file io.Reader, checksum string, algorithm apih
 	return nil
 }
 
-// sendError sends a JSON-encoded error response.
-func (h *backupHandler) sendError(w http.ResponseWriter, statusCode int, message string) {
+// SendError sends a JSON-encoded error response.
+func (h *backupHandler) SendError(w http.ResponseWriter, statusCode int, message string) {
 	failure := params.Error{
 		Message: message,
 		// Leave Code empty.

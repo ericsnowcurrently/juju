@@ -48,7 +48,7 @@ type bundleContentSenderFunc func(w http.ResponseWriter, r *http.Request, bundle
 
 func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.ValidateEnvironUUID(r); err != nil {
-		h.sendError(w, http.StatusNotFound, err.Error())
+		h.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Requires a "series" query specifying the series to use for the charm.
 		charmURL, err := h.processPost(r)
 		if err != nil {
-			h.sendError(w, http.StatusBadRequest, err.Error())
+			h.SendError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		h.sendJSON(w, http.StatusOK, &params.CharmsResponse{CharmURL: charmURL.String()})
@@ -73,9 +73,9 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if charmArchivePath, filePath, err := h.processGet(r); err != nil {
 			// An error occurred retrieving the charm bundle.
 			if errors.IsNotFound(err) {
-				h.sendError(w, http.StatusNotFound, err.Error())
+				h.SendError(w, http.StatusNotFound, err.Error())
 			} else {
-				h.sendError(w, http.StatusBadRequest, err.Error())
+				h.SendError(w, http.StatusBadRequest, err.Error())
 			}
 		} else if filePath == "" {
 			// The client requested the list of charm files.
@@ -88,7 +88,7 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sendBundleContent(w, r, charmArchivePath, h.archiveEntrySender(filePath))
 		}
 	default:
-		h.sendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
+		h.SendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
 	}
 }
 
@@ -185,8 +185,8 @@ func (h *charmsHandler) archiveSender(w http.ResponseWriter, r *http.Request, bu
 	http.ServeFile(w, r, bundle.Path)
 }
 
-// sendError sends a JSON-encoded error response.
-func (h *charmsHandler) sendError(w http.ResponseWriter, statusCode int, message string) {
+// SendError sends a JSON-encoded error response.
+func (h *charmsHandler) SendError(w http.ResponseWriter, statusCode int, message string) {
 	if err := h.sendJSON(w, statusCode, &params.CharmsResponse{Error: message}); err != nil {
 		logger.Errorf("failed to send error: %v", err)
 	}

@@ -58,7 +58,7 @@ type toolsDownloadHandler struct {
 
 func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.ValidateEnvironUUID(r); err != nil {
-		h.sendError(w, http.StatusNotFound, err.Error())
+		h.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -67,12 +67,12 @@ func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		tarball, err := h.processGet(r)
 		if err != nil {
 			logger.Errorf("GET(%s) failed: %v", r.URL, err)
-			h.sendError(w, http.StatusBadRequest, err.Error())
+			h.SendError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		h.sendTools(w, http.StatusOK, tarball)
 	default:
-		h.sendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
+		h.SendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
 	}
 }
 
@@ -83,7 +83,7 @@ func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.ValidateEnvironUUID(r); err != nil {
-		h.sendError(w, http.StatusNotFound, err.Error())
+		h.SendError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
@@ -92,12 +92,12 @@ func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Add tools to storage.
 		agentTools, err := h.processPost(r)
 		if err != nil {
-			h.sendError(w, http.StatusBadRequest, err.Error())
+			h.SendError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		h.sendJSON(w, http.StatusOK, &params.ToolsResult{Tools: agentTools})
 	default:
-		h.sendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
+		h.SendError(w, http.StatusMethodNotAllowed, fmt.Sprintf("unsupported method: %q", r.Method))
 	}
 }
 
@@ -113,8 +113,8 @@ func (h *toolsHandler) sendJSON(w http.ResponseWriter, statusCode int, response 
 	return nil
 }
 
-// sendError sends a JSON-encoded error response.
-func (h *toolsHandler) sendError(w http.ResponseWriter, statusCode int, message string) {
+// SendError sends a JSON-encoded error response.
+func (h *toolsHandler) SendError(w http.ResponseWriter, statusCode int, message string) {
 	logger.Debugf("sending error: %v %v", statusCode, message)
 	err := common.ServerError(errors.New(message))
 	if err := h.sendJSON(w, statusCode, &params.ToolsResult{Error: err}); err != nil {
@@ -215,7 +215,7 @@ func (h *toolsDownloadHandler) sendTools(w http.ResponseWriter, statusCode int, 
 	w.Header().Set("Content-Length", fmt.Sprint(len(tarball)))
 	w.WriteHeader(statusCode)
 	if _, err := w.Write(tarball); err != nil {
-		h.sendError(w, http.StatusBadRequest, fmt.Sprintf("failed to write tools: %v", err))
+		h.SendError(w, http.StatusBadRequest, fmt.Sprintf("failed to write tools: %v", err))
 		return
 	}
 }
