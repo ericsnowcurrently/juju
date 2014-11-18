@@ -18,6 +18,7 @@ import (
 
 	"github.com/juju/juju/apiserver"
 	apihttp "github.com/juju/juju/apiserver/http"
+	apihttptesting "github.com/juju/juju/apiserver/http/testing"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/backups"
@@ -25,13 +26,14 @@ import (
 )
 
 type baseBackupsSuite struct {
-	authHttpSuite
+	apihttptesting.BaseSuite
 	fake *backupstesting.FakeBackups
 }
 
 func (s *baseBackupsSuite) SetUpTest(c *gc.C) {
-	s.authHttpSuite.SetUpTest(c)
+	s.BaseSuite.SetUpTest(c)
 
+	s.Binding = "backups"
 	s.fake = &backupstesting.FakeBackups{}
 	s.PatchValue(apiserver.NewBackups,
 		func(st *state.State) (backups.Backups, io.Closer) {
@@ -68,7 +70,7 @@ type backupsSuite struct {
 var _ = gc.Suite(&backupsSuite{})
 
 func (s *backupsSuite) TestRequiresAuth(c *gc.C) {
-	resp, err := s.sendRequest(c, "", "", "GET", s.backupURL(c), "", nil)
+	resp, err := s.SendRequest(c, "", "", "GET", "", s.URL(c), nil)
 	c.Assert(err, gc.IsNil)
 	s.checkErrorResponse(c, resp, http.StatusUnauthorized, "unauthorized")
 }
