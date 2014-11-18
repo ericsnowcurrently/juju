@@ -441,8 +441,9 @@ func (s *MachineSuite) TestTag(c *gc.C) {
 }
 
 func (s *MachineSuite) TestSetMongoPassword(c *gc.C) {
-	info := state.TestingMongoInfo()
-	st, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	info := statetesting.NewMongoInfo()
+	dialOpts := statetesting.NewDialOpts()
+	st, err := state.Open(info, dialOpts, state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st.Close()
 	// Turn on fully-authenticated mode.
@@ -465,7 +466,8 @@ func (s *MachineSuite) TestSetMongoPassword(c *gc.C) {
 
 	// Check that we can log in with the correct password.
 	info.Password = "foo"
-	st1, err := state.Open(info, state.TestingDialOpts(), state.Policy(nil))
+	dialOpts := statetesting.NewDialOpts()
+	st1, err := state.Open(info, dialOpts, state.Policy(nil))
 	c.Assert(err, gc.IsNil)
 	defer st1.Close()
 

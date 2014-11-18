@@ -48,11 +48,21 @@ func Initialize(c *gc.C, owner names.UserTag, cfg *config.Config, policy state.P
 	return st
 }
 
-// NewState initializes a new state with default values for testing and
-// returns it.
-func NewState(c *gc.C) *state.State {
+func newState(c *gc.C, policy state.Policy) (*state.State, names.UserTag) {
 	owner := names.NewLocalUserTag("test-admin")
 	cfg := testing.EnvironConfig(c)
+	return Initialize(c, owner, cfg, policy), owner
+}
+
+// NewState initializes a new state with default values for testing and
+// returns it.
+func NewState(c *gc.C) (*state.State, names.UserTag) {
 	policy := MockPolicy{}
-	return Initialize(c, owner, cfg, &policy)
+	return newState(c, &policy)
+}
+
+// NewStateWithoutPolicy initializes a new state with default values for
+// testing and returns it.  The policy is set to nil.
+func NewStateWithoutPolicy(c *gc.C) (*state.State, names.UserTag) {
+	return newState(c, nil)
 }
