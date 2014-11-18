@@ -109,7 +109,7 @@ type errorSender interface {
 }
 
 // AuthError sends an unauthorized error.
-func (h *HTTPHandler) authError(w http.ResponseWriter, sender errorSender) {
+func (h *HTTPHandler) AuthError(w http.ResponseWriter, sender errorSender) {
 	w.Header().Set("WWW-Authenticate", `Basic realm="juju"`)
 	sender.sendError(w, http.StatusUnauthorized, "unauthorized")
 }

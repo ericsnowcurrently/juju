@@ -44,7 +44,7 @@ func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	if err := h.Authenticate(req); err != nil {
-		h.authError(resp, h)
+		h.AuthError(resp, h)
 		return
 	}
 

@@ -55,7 +55,7 @@ func (h *charmsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
 		if err := h.Authenticate(r); err != nil {
-			h.authError(w, h)
+			h.AuthError(w, h)
 			return
 		}
 		// Add a local charm to the store provider.

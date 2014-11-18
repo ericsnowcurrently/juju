@@ -78,7 +78,7 @@ func (h *toolsDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 func (h *toolsUploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.Authenticate(r); err != nil {
-		h.authError(w, h)
+		h.AuthError(w, h)
 		return
 	}
 
