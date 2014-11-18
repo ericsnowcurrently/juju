@@ -1,7 +1,7 @@
 // Copyright 2013 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package apiserver
+package http
 
 import (
 	"encoding/base64"
@@ -9,35 +9,39 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/juju/errors"
 	"github.com/juju/names"
 
-	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/state"
 )
 
 type newHandlerFunc func(HTTPHandler) http.Handler
 
-var httpHandlers = make(map[string]newHandlerFunc)
+// HTTPHandlers is the registry of HTTP handler factory functions.
+var HTTPHandlers = make(map[string]newHandlerFunc)
 
 // RegisterHTTPHandler adds an HTTP handler that will be handled by the
 // API server.
 func RegisterHTTPHandler(pattern string, newHandler newHandlerFunc) {
-	httpHandlers[pattern] = newHandler
+	HTTPHandlers[pattern] = newHandler
 }
 
-var httpHandlersLegacy = make(map[string]newHandlerFunc)
+// HTTPHandlersLegacy is the registry of legacy HTTP handler factory functions.
+var HTTPHandlersLegacy = make(map[string]newHandlerFunc)
 
 // RegisterHTTPHandler adds an HTTP handler that will be handled by the
 // API server.
 func RegisterLegacyHTTPHandler(pattern string, newHandler newHandlerFunc) {
-	httpHandlersLegacy[pattern] = newHandler
+	HTTPHandlersLegacy[pattern] = newHandler
 }
 
 // HTTPHandler handles http requests through HTTPS in the API server.
 type HTTPHandler struct {
 	// State is the juju state used for the handled request.
 	State *state.State
+	// CheckAuth is used to authenticate HTTP requests.
+	CheckAuth func(params.LoginRequest) error
 	// DataDir is where juju data files are located.
 	DataDir string
 	// LogDir is where juju log files are located.
@@ -64,10 +68,10 @@ func (h *HTTPHandler) Authenticate(r *http.Request) error {
 	}
 	// Only allow users, not agents.
 	if _, err := names.ParseUserTag(tagPass[0]); err != nil {
-		return common.ErrBadCreds
+		return errors.Errorf("invalid tag: %v", tagPass[0])
 	}
 	// Ensure the credentials are correct.
-	_, err = checkCreds(h.State, params.LoginRequest{
+	err = h.CheckAuth(params.LoginRequest{
 		AuthTag:     tagPass[0],
 		Credentials: tagPass[1],
 	})
@@ -95,9 +99,8 @@ func (h *HTTPHandler) ValidateEnvironUUID(r *http.Request) error {
 		return err
 	}
 	if env.UUID() != envUUID {
-		logger.Infof("environment uuid mismatch: %v != %v",
-			envUUID, env.UUID())
-		return common.UnknownEnvironmentError(envUUID)
+		logger.Infof("environment uuid mismatch: %v != %v", envUUID, env.UUID())
+		return errors.Errorf("unknown environment: %q", envUUID)
 	}
 	return nil
 }

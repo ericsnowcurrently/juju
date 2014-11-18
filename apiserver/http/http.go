@@ -3,6 +3,12 @@
 
 package http
 
+import (
+	"github.com/juju/loggo"
+)
+
+var logger = loggo.GetLogger("juju.apiserver.http")
+
 // DigestAlgorithm is one of the values in the IANA registry. See
 // RFC 3230 and 5843.
 type DigestAlgorithm string

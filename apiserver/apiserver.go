@@ -19,6 +19,7 @@ import (
 	"launchpad.net/tomb"
 
 	"github.com/juju/juju/apiserver/common"
+	apihttp "github.com/juju/juju/apiserver/http"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/rpc"
 	"github.com/juju/juju/rpc/jsoncodec"
@@ -205,12 +206,16 @@ func (srv *Server) run(lis net.Listener) {
 	// registered, first match wins. So more specific ones have to be
 	// registered first.
 	mux := pat.New()
-	base := HTTPHandler{
-		State:   srv.state,
+	base := apihttp.HTTPHandler{
+		State: srv.state,
+		CheckAuth: func(req params.LoginRequest) error {
+			_, err := checkCreds(srv.state, req)
+			return err
+		},
 		DataDir: srv.dataDir,
 		LogDir:  srv.logDir,
 	}
-	for pattern, newHandler := range httpHandlers {
+	for pattern, newHandler := range apihttp.HTTPHandlers {
 		pattern = "/environment/:envuuid" + pattern
 		// TODO: We can switch from handleAll to mux.Post/Get/etc for entries
 		// where we only want to support specific request methods. However, our
@@ -221,7 +226,7 @@ func (srv *Server) run(lis net.Listener) {
 	// Try the RPC-based API.
 	handleAll(mux, "/environment/:envuuid/api", http.HandlerFunc(srv.apiHandler))
 	// For backwards compatibility we register all the old paths
-	for pattern, newHandler := range httpHandlersLegacy {
+	for pattern, newHandler := range apihttp.HTTPHandlersLegacy {
 		handleAll(mux, pattern, newHandler(base))
 	}
 	handleAll(mux, "/", http.HandlerFunc(srv.apiHandler))

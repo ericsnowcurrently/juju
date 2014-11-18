@@ -19,10 +19,10 @@ import (
 )
 
 func init() {
-	newHandler := func(base HTTPHandler) http.Handler {
+	newHandler := func(base apihttp.HTTPHandler) http.Handler {
 		return &backupHandler{base}
 	}
-	RegisterHTTPHandler("/backups", newHandler)
+	apihttp.RegisterHTTPHandler("/backups", newHandler)
 }
 
 // TODO(ericsnow) This file should be in the apiserver/backups package.
@@ -34,7 +34,7 @@ var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
 
 // backupHandler handles backup requests.
 type backupHandler struct {
-	HTTPHandler
+	apihttp.HTTPHandler
 }
 
 func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {

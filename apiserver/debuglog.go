@@ -21,20 +21,21 @@ import (
 	"github.com/juju/utils/tailer"
 	"launchpad.net/tomb"
 
+	apihttp "github.com/juju/juju/apiserver/http"
 	"github.com/juju/juju/apiserver/params"
 )
 
 func init() {
-	newHandler := func(base HTTPHandler) http.Handler {
+	newHandler := func(base apihttp.HTTPHandler) http.Handler {
 		return &debugLogHandler{base}
 	}
-	RegisterHTTPHandler("/log", newHandler)
-	RegisterLegacyHTTPHandler("/log", newHandler)
+	apihttp.RegisterHTTPHandler("/log", newHandler)
+	apihttp.RegisterLegacyHTTPHandler("/log", newHandler)
 }
 
 // debugLogHandler takes requests to watch the debug log.
 type debugLogHandler struct {
-	HTTPHandler
+	apihttp.HTTPHandler
 }
 
 var maxLinesReached = fmt.Errorf("max lines reached")

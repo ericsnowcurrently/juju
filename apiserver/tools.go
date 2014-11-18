@@ -18,6 +18,7 @@ import (
 	"github.com/juju/utils"
 
 	"github.com/juju/juju/apiserver/common"
+	apihttp "github.com/juju/juju/apiserver/http"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/environs"
 	envtools "github.com/juju/juju/environs/tools"
@@ -27,23 +28,23 @@ import (
 )
 
 func init() {
-	newHandler := func(base HTTPHandler) http.Handler {
+	newHandler := func(base apihttp.HTTPHandler) http.Handler {
 		return &toolsUploadHandler{toolsHandler{base}}
 	}
-	RegisterHTTPHandler("/tools", newHandler)
-	RegisterLegacyHTTPHandler("/tools", newHandler)
+	apihttp.RegisterHTTPHandler("/tools", newHandler)
+	apihttp.RegisterLegacyHTTPHandler("/tools", newHandler)
 
-	newHandler = func(base HTTPHandler) http.Handler {
+	newHandler = func(base apihttp.HTTPHandler) http.Handler {
 		return &toolsDownloadHandler{toolsHandler{base}}
 	}
-	RegisterHTTPHandler("/tools/:version", newHandler)
-	RegisterLegacyHTTPHandler("/tools/:version", newHandler)
+	apihttp.RegisterHTTPHandler("/tools/:version", newHandler)
+	apihttp.RegisterLegacyHTTPHandler("/tools/:version", newHandler)
 }
 
 // toolsHandler is the base type for uploading and downloading
 // tools over HTTPS via the API server.
 type toolsHandler struct {
-	HTTPHandler
+	apihttp.HTTPHandler
 }
 
 // toolsHandler handles tool upload through HTTPS in the API server.

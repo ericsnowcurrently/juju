@@ -26,20 +26,21 @@ import (
 	"gopkg.in/juju/charm.v4"
 
 	"github.com/juju/juju/apiserver/client"
+	apihttp "github.com/juju/juju/apiserver/http"
 	"github.com/juju/juju/apiserver/params"
 )
 
 func init() {
-	newHandler := func(base HTTPHandler) http.Handler {
+	newHandler := func(base apihttp.HTTPHandler) http.Handler {
 		return &charmsHandler{base}
 	}
-	RegisterHTTPHandler("/charms", newHandler)
-	RegisterLegacyHTTPHandler("/charms", newHandler)
+	apihttp.RegisterHTTPHandler("/charms", newHandler)
+	apihttp.RegisterLegacyHTTPHandler("/charms", newHandler)
 }
 
 // charmsHandler handles charm upload through HTTPS in the API server.
 type charmsHandler struct {
-	HTTPHandler
+	apihttp.HTTPHandler
 }
 
 // bundleContentSenderFunc functions are responsible for sending a
