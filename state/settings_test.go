@@ -24,6 +24,13 @@ type SettingsSuite struct {
 
 var _ = gc.Suite(&SettingsSuite{})
 
+// TODO(ericsnow) The following 2 functions (TestingMongoInfo and
+// TestingDialOpts) have been replaced with corresponding ones in
+// state/testing/conn.go. The old functions are kept around because of
+// import cycles with *_test.go that are in the state package rather
+// than state_test.  The functions may be removed as soon as all
+// such test files that use them are switched to the state_test package.
+
 // TestingMongoInfo returns information suitable for
 // connecting to the testing state server's mongo database.
 func TestingMongoInfo() *mongo.MongoInfo {
