@@ -40,47 +40,62 @@ const (
 )
 
 // Paths holds the paths that backups needs.
-type Paths struct {
-	DataDir string
-	LogsDir string
+type Paths interface {
+	// FilesToBackUp returns the paths that should be included in the
+	// backup archive.
+	FilesToBackUp() ([]string, error)
 }
 
-// GetFilesToBackUp returns the paths that should be included in the
+type LegacyPaths struct {
+	RootDir    string
+	DataDir    string
+	LogsDir    string
+	OldMachine string
+}
+
+func NewPaths(rootDir, oldMachine string) *LegacyPaths {
+}
+
+func (p *LegacyPaths) resolve(parts ...string) string {
+	return filepath.Join(p.RootDir, parts...)
+}
+
+// FilesToBackUp returns the paths that should be included in the
 // backup archive.
-func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string, error) {
+func (p *LegacyPaths) FilesToBackUp() ([]string, error) {
 	var glob string
 
-	glob = filepath.Join(rootDir, startupDir, machinesConfs)
+	glob = p.resolve(startupDir, machinesConfs)
 	initMachineConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch machine init files")
 	}
 
-	glob = filepath.Join(rootDir, startupDir, jujuInitConfs)
+	glob = p.resolve(startupDir, jujuInitConfs)
 	initConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch startup conf files")
 	}
 
-	glob = filepath.Join(rootDir, paths.DataDir, agentsDir, agentsConfs)
+	glob = p.resolve(paths.DataDir, agentsDir, agentsConfs)
 	agentConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch agent config files")
 	}
 
-	glob = filepath.Join(rootDir, loggingConfDir, loggingConfs)
+	glob = p.resolve(loggingConfDir, loggingConfs)
 	jujuLogConfs, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, errors.Annotate(err, "failed to fetch juju log conf files")
 	}
 
 	backupFiles := []string{
-		filepath.Join(rootDir, paths.DataDir, toolsDir),
+		p.resolve(paths.DataDir, toolsDir),
 
-		filepath.Join(rootDir, paths.DataDir, sshIdentFile),
+		p.resolve(paths.DataDir, sshIdentFile),
 
-		filepath.Join(rootDir, paths.DataDir, dbPEM),
-		filepath.Join(rootDir, paths.DataDir, dbSecret),
+		p.resolve(paths.DataDir, dbPEM),
+		p.resolve(paths.DataDir, dbSecret),
 	}
 	backupFiles = append(backupFiles, initMachineConfs...)
 	backupFiles = append(backupFiles, agentConfs...)
@@ -89,7 +104,7 @@ func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string
 
 	// Handle logs (might not exist).
 	// TODO(ericsnow) We should consider dropping these entirely.
-	allmachines := filepath.Join(rootDir, paths.LogsDir, allMachinesLog)
+	allmachines := p.resolve(paths.LogsDir, allMachinesLog)
 	if _, err := os.Stat(allmachines); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, errors.Trace(err)
@@ -98,8 +113,7 @@ func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string
 	} else {
 		backupFiles = append(backupFiles, allmachines)
 	}
-	// TODO(ericsnow) It might not be machine 0...
-	machinelog := filepath.Join(rootDir, paths.LogsDir, fmt.Sprintf(machineLog, oldmachine))
+	machinelog := p.resolve(paths.LogsDir, fmt.Sprintf(machineLog, p.OldMachine))
 	if _, err := os.Stat(machinelog); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, errors.Trace(err)
@@ -110,7 +124,7 @@ func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string
 	}
 
 	// Handle nonce.txt (might not exist).
-	nonce := filepath.Join(rootDir, paths.DataDir, nonceFile)
+	nonce := p.resolve(paths.DataDir, nonceFile)
 	if _, err := os.Stat(nonce); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, errors.Trace(err)
@@ -121,7 +135,7 @@ func GetFilesToBackUp(rootDir string, paths *Paths, oldmachine string) ([]string
 	}
 
 	// Handle user SSH files (might not exist).
-	SSHDir := filepath.Join(rootDir, sshDir)
+	SSHDir := p.resolve(sshDir)
 	if _, err := os.Stat(SSHDir); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, errors.Trace(err)
