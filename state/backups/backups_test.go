@@ -54,9 +54,10 @@ func (s *backupsSuite) checkFailure(c *gc.C, expected string) {
 	paths := backups.Paths{DataDir: "/var/lib/juju"}
 	targets := set.NewStrings("juju", "admin")
 	dbInfo := backups.DBInfo{"a", "b", "c", targets}
+	creator := backups.NewCreator(&paths, &dbInfo)
 	meta := backupstesting.NewMetadataStarted()
 	meta.Notes = "some notes"
-	err := s.api.Create(meta, &paths, &dbInfo)
+	err := s.api.Create(meta, creator)
 
 	c.Check(err, gc.ErrorMatches, expected)
 }
@@ -93,10 +94,11 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 	paths := backups.Paths{DataDir: "/var/lib/juju"}
 	targets := set.NewStrings("juju", "admin")
 	dbInfo := backups.DBInfo{"a", "b", "c", targets}
+	creator := backups.NewCreator(&paths, &dbInfo)
 	meta := backupstesting.NewMetadataStarted()
 	backupstesting.SetOrigin(meta, "<env ID>", "<machine ID>", "<hostname>")
 	meta.Notes = "some notes"
-	err := s.api.Create(meta, &paths, &dbInfo)
+	err := s.api.Create(meta, creator)
 
 	// Test the call values.
 	s.Storage.CheckCalled(c, "spam", meta, archiveFile, "Add", "Metadata")
@@ -132,44 +134,33 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 	c.Check(string(data), gc.Equals, "<compressed tarball>")
 }
 
-func (s *backupsSuite) TestCreateFailToListFiles(c *gc.C) {
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths) ([]string, error) {
-		return nil, errors.New("failed!")
-	})
+func (s *backupsSuite) TestCreatorFails(c *gc.C) {
+	meta := backupstesting.NewMetadataStarted()
+	creator := &backupstesting.FakeCreator{Error: errors.New("failed!")}
+	err := s.api.Create(meta, creator)
 
-	s.checkFailure(c, "while listing files to back up: failed!")
-}
-
-func (s *backupsSuite) TestCreateFailToCreate(c *gc.C) {
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths) ([]string, error) {
-		return []string{}, nil
-	})
-	s.PatchValue(backups.RunCreate, backups.NewTestCreateFailure("failed!"))
-
-	s.checkFailure(c, "while creating backup archive: failed!")
+	c.Check(err, gc.ErrorMatches, "failed!")
 }
 
 func (s *backupsSuite) TestCreateFailToFinishMeta(c *gc.C) {
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths) ([]string, error) {
-		return []string{}, nil
-	})
-	_, testCreate := backups.NewTestCreate(nil)
-	s.PatchValue(backups.RunCreate, testCreate)
 	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher("failed!"))
 
-	s.checkFailure(c, "while updating metadata: failed!")
+	meta := backupstesting.NewMetadataStarted()
+	creator := &backupstesting.FakeCreator{Archive: ioutil.NopCloser(nil)}
+	err := s.api.Create(meta, creator)
+
+	c.Check(err, gc.ErrorMatches, "while updating metadata: failed!")
 }
 
 func (s *backupsSuite) TestCreateFailToStoreArchive(c *gc.C) {
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths) ([]string, error) {
-		return []string{}, nil
-	})
-	_, testCreate := backups.NewTestCreate(nil)
-	s.PatchValue(backups.RunCreate, testCreate)
 	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher(""))
 	s.PatchValue(backups.StoreArchiveRef, backups.NewTestArchiveStorer("failed!"))
 
-	s.checkFailure(c, "while storing backup archive: failed!")
+	meta := backupstesting.NewMetadataStarted()
+	creator := &backupstesting.FakeCreator{Archive: ioutil.NopCloser(nil)}
+	err := s.api.Create(meta, creator)
+
+	c.Check(err, gc.ErrorMatches, "while storing backup archive: failed!")
 }
 
 func (s *backupsSuite) TestStoreArchive(c *gc.C) {

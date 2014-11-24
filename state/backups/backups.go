@@ -102,7 +102,7 @@ type Backups interface {
 
 	// Create creates and stores a new juju backup archive. It updates
 	// the provided metadata.
-	Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error
+	Create(meta *Metadata, creator Creator) error
 
 	// Get returns the metadata and archive file associated with the ID.
 	Get(id string) (*Metadata, io.ReadCloser, error)
@@ -128,32 +128,12 @@ func NewBackups(stor filestorage.FileStorage) Backups {
 
 // Create creates and stores a new juju backup archive and updates the
 // provided metadata.
-func (b *backups) Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error {
+func (b *backups) Create(meta *Metadata, creator Creator) error {
 	meta.Started = time.Now().UTC()
 
-	// The metadata file will not contain the ID or the "finished" data.
-	// However, that information is not as critical. The alternatives
-	// are either adding the metadata file to the archive after the fact
-	// or adding placeholders here for the finished data and filling
-	// them in afterward.  Neither is particularly trivial.
-	metadataFile, err := meta.AsJSONBuffer()
+	result, err := creator.Create(meta)
 	if err != nil {
-		return errors.Annotate(err, "while preparing the metadata")
-	}
-
-	// Create the archive.
-	filesToBackUp, err := getFilesToBackUp("", paths)
-	if err != nil {
-		return errors.Annotate(err, "while listing files to back up")
-	}
-	dumper, err := getDBDumper(dbInfo)
-	if err != nil {
-		return errors.Annotate(err, "while preparing for DB dump")
-	}
-	args := createArgs{filesToBackUp, dumper, metadataFile}
-	result, err := runCreate(&args)
-	if err != nil {
-		return errors.Annotate(err, "while creating backup archive")
+		return errors.Trace(err)
 	}
 	defer result.Archive.Close()
 

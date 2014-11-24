@@ -21,6 +21,7 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	if err != nil {
 		return p, errors.Trace(err)
 	}
+	creator := backups.NewCreator(a.paths, dbInfo)
 
 	// TODO(ericsnow) lp-1389362
 	// The machine ID needs to be introspected from the API server, likely
@@ -33,7 +34,7 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	}
 	meta.Notes = args.Notes
 
-	err = backupsMethods.Create(meta, a.paths, dbInfo)
+	err = backupsMethods.Create(meta, creator)
 	if err != nil {
 		return p, errors.Trace(err)
 	}
