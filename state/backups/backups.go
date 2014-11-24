@@ -68,6 +68,22 @@ var (
 	storeArchive = StoreArchive
 )
 
+// CreateResult holds the result of creating a new backup archive.
+type CreateResult struct {
+	// Archive is the new backup archive.
+	Archive io.ReadCloser
+	// Size is the size of the backup archive.
+	Size int64
+	// Checksum is the checksum of the archive.
+	Checksum string
+}
+
+// Creator is used to create a new backup archive.
+type Creator interface {
+	// Create creates a new backup archive.
+	Create(meta *Metadata) (*CreateResult, error)
+}
+
 // StoreArchive sends the backup archive and its metadata to storage.
 // It also sets the metadata's ID and Stored values.
 func StoreArchive(stor filestorage.FileStorage, meta *Metadata, file io.Reader) error {
