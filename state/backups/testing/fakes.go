@@ -154,12 +154,8 @@ type FakeCreator struct {
 	// Calls contains the order in which methods were called.
 	Calls []string
 
-	// Archive holds the CreateResult archive.
-	Archive io.ReadCloser
-	// Size holds the CreateResult size.
-	Size int64
-	// Checksum holds the CreateResult checksum.
-	Checksum string
+	// Result holds the result to return.
+	Result *backups.CreateResult
 	// Error holds the error to return.
 	Error error
 
@@ -172,13 +168,6 @@ var _ backups.Creator = (*FakeCreator)(nil)
 // Create creates a new juju backup archive and returns it.
 func (c *FakeCreator) Create(meta *backups.Metadata) (*backups.CreateResult, error) {
 	c.Calls = append(c.Calls, "Create")
-
 	c.MetaArg = meta
-
-	result := backups.CreateResult{
-		Archive:  c.Archive,
-		Size:     c.Size,
-		Checksum: c.Checksum,
-	}
-	return &result, c.Error
+	return c.Result, c.Error
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
-	"github.com/juju/utils/set"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/state/backups"
@@ -40,28 +39,6 @@ func (s *backupsSuite) setStored(id string) *time.Time {
 	return &stored
 }
 
-type fakeDumper struct{}
-
-func (*fakeDumper) Dump(dumpDir string) error {
-	return nil
-}
-
-func (s *backupsSuite) checkFailure(c *gc.C, expected string) {
-	s.PatchValue(backups.GetDBDumper, func(*backups.DBInfo) (backups.DBDumper, error) {
-		return &fakeDumper{}, nil
-	})
-
-	paths := backups.Paths{DataDir: "/var/lib/juju"}
-	targets := set.NewStrings("juju", "admin")
-	dbInfo := backups.DBInfo{"a", "b", "c", targets}
-	creator := backups.NewCreator(&paths, &dbInfo)
-	meta := backupstesting.NewMetadataStarted()
-	meta.Notes = "some notes"
-	err := s.api.Create(meta, creator)
-
-	c.Check(err, gc.ErrorMatches, expected)
-}
-
 func (s *backupsSuite) TestNewBackups(c *gc.C) {
 	api := backups.NewBackups(s.Storage)
 
@@ -69,32 +46,12 @@ func (s *backupsSuite) TestNewBackups(c *gc.C) {
 }
 
 func (s *backupsSuite) TestCreateOkay(c *gc.C) {
-
-	// Patch the internals.
-	archiveFile := ioutil.NopCloser(bytes.NewBufferString("<compressed tarball>"))
-	result := backups.CreateResult{archiveFile, 10, "<checksum>"}
-	received, testCreate := backups.NewTestCreate(&result)
-	s.PatchValue(backups.RunCreate, testCreate)
-
-	rootDir := "<was never set>"
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths) ([]string, error) {
-		rootDir = root
-		return []string{"<some file>"}, nil
-	})
-
-	var receivedDBInfo *backups.DBInfo
-	s.PatchValue(backups.GetDBDumper, func(info *backups.DBInfo) (backups.DBDumper, error) {
-		receivedDBInfo = info
-		return nil, nil
-	})
-
 	stored := s.setStored("spam")
 
 	// Run the backup.
-	paths := backups.Paths{DataDir: "/var/lib/juju"}
-	targets := set.NewStrings("juju", "admin")
-	dbInfo := backups.DBInfo{"a", "b", "c", targets}
-	creator := backups.NewCreator(&paths, &dbInfo)
+	archiveFile := ioutil.NopCloser(bytes.NewBufferString("<compressed tarball>"))
+	result := &backups.CreateResult{archiveFile, 10, "<checksum>"}
+	creator := &backupstesting.FakeCreator{Result: result}
 	meta := backupstesting.NewMetadataStarted()
 	backupstesting.SetOrigin(meta, "<env ID>", "<machine ID>", "<hostname>")
 	meta.Notes = "some notes"
@@ -102,15 +59,6 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 
 	// Test the call values.
 	s.Storage.CheckCalled(c, "spam", meta, archiveFile, "Add", "Metadata")
-	filesToBackUp, _ := backups.ExposeCreateArgs(received)
-	c.Check(filesToBackUp, jc.SameContents, []string{"<some file>"})
-
-	c.Check(receivedDBInfo.Address, gc.Equals, "a")
-	c.Check(receivedDBInfo.Username, gc.Equals, "b")
-	c.Check(receivedDBInfo.Password, gc.Equals, "c")
-	c.Check(receivedDBInfo.Targets, gc.DeepEquals, targets)
-
-	c.Check(rootDir, gc.Equals, "")
 
 	// Check the resulting metadata.
 	c.Check(meta, gc.Equals, s.Storage.MetaArg)
@@ -146,7 +94,8 @@ func (s *backupsSuite) TestCreateFailToFinishMeta(c *gc.C) {
 	s.PatchValue(backups.FinishMeta, backups.NewTestMetaFinisher("failed!"))
 
 	meta := backupstesting.NewMetadataStarted()
-	creator := &backupstesting.FakeCreator{Archive: ioutil.NopCloser(nil)}
+	result := &backups.CreateResult{Archive: ioutil.NopCloser(nil)}
+	creator := &backupstesting.FakeCreator{Result: result}
 	err := s.api.Create(meta, creator)
 
 	c.Check(err, gc.ErrorMatches, "while updating metadata: failed!")
@@ -157,7 +106,8 @@ func (s *backupsSuite) TestCreateFailToStoreArchive(c *gc.C) {
 	s.PatchValue(backups.StoreArchiveRef, backups.NewTestArchiveStorer("failed!"))
 
 	meta := backupstesting.NewMetadataStarted()
-	creator := &backupstesting.FakeCreator{Archive: ioutil.NopCloser(nil)}
+	result := &backups.CreateResult{Archive: ioutil.NopCloser(nil)}
+	creator := &backupstesting.FakeCreator{Result: result}
 	err := s.api.Create(meta, creator)
 
 	c.Check(err, gc.ErrorMatches, "while storing backup archive: failed!")
