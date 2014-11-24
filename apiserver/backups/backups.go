@@ -13,6 +13,7 @@ import (
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 )
 
 func init() {
@@ -24,7 +25,7 @@ var logger = loggo.GetLogger("juju.apiserver.backups")
 // API serves backup-specific API methods.
 type API struct {
 	st    *state.State
-	paths *backups.Paths
+	paths *create.Paths
 
 	// machineID is the ID of the machine where the API server is running.
 	machineID string
@@ -45,7 +46,7 @@ func NewAPI(st *state.State, resources *common.Resources, authorizer common.Auth
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	paths := backups.Paths{
+	paths := create.Paths{
 		DataDir: dataDir,
 		LogsDir: logsDir,
 	}

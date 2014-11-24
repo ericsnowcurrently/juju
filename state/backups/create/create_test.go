@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package create_test
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 	backupstesting "github.com/juju/juju/state/backups/testing"
 )
 
@@ -39,8 +40,8 @@ func (s *createSuite) TestLegacy(c *gc.C) {
 	_, testFiles, expected := s.createTestFiles(c)
 
 	dumper := &TestDBDumper{}
-	args := backups.NewTestCreateArgs(testFiles, dumper, metadataFile)
-	result, err := backups.Create(args)
+	args := create.NewTestCreateArgs(testFiles, dumper, metadataFile)
+	result, err := create.Create(args)
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(result, gc.NotNil)
 
@@ -59,8 +60,8 @@ func (s *createSuite) TestMetadataFileMissing(c *gc.C) {
 	var testFiles []string
 	dumper := &TestDBDumper{}
 
-	args := backups.NewTestCreateArgs(testFiles, dumper, nil)
-	_, err := backups.Create(args)
+	args := create.NewTestCreateArgs(testFiles, dumper, nil)
+	_, err := create.Create(args)
 
 	c.Check(err, gc.ErrorMatches, "missing metadataReader")
 }
@@ -70,26 +71,26 @@ func (s *createSuite) TestCreateOkay(c *gc.C) {
 	// Patch the internals.
 	archiveFile := ioutil.NopCloser(bytes.NewBufferString("<compressed tarball>"))
 	expected := &backups.CreateResult{archiveFile, 10, "<checksum>"}
-	received, testCreate := backups.NewTestCreate(expected)
-	s.PatchValue(backups.RunCreate, testCreate)
+	received, testCreate := create.NewTestCreate(expected)
+	s.PatchValue(create.RunCreate, testCreate)
 
 	rootDir := "<was never set>"
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths) ([]string, error) {
+	s.PatchValue(create.TestGetFilesToBackUp, func(root string, paths *create.Paths) ([]string, error) {
 		rootDir = root
 		return []string{"<some file>"}, nil
 	})
 
-	var receivedDBInfo *backups.DBInfo
-	s.PatchValue(backups.GetDBDumper, func(info *backups.DBInfo) (backups.DBDumper, error) {
+	var receivedDBInfo *create.DBInfo
+	s.PatchValue(create.GetDBDumper, func(info *create.DBInfo) (create.DBDumper, error) {
 		receivedDBInfo = info
 		return nil, nil
 	})
 
 	// Run the backup.
-	paths := backups.Paths{DataDir: "/var/lib/juju"}
+	paths := create.Paths{DataDir: "/var/lib/juju"}
 	targets := set.NewStrings("juju", "admin")
-	dbInfo := backups.DBInfo{"a", "b", "c", targets}
-	creator := backups.NewCreator(&paths, &dbInfo)
+	dbInfo := create.DBInfo{"a", "b", "c", targets}
+	creator := create.NewCreator(&paths, &dbInfo)
 	meta := backupstesting.NewMetadataStarted()
 	backupstesting.SetOrigin(meta, "<env ID>", "<machine ID>", "<hostname>")
 	meta.Notes = "some notes"
@@ -97,7 +98,7 @@ func (s *createSuite) TestCreateOkay(c *gc.C) {
 	c.Assert(err, jc.IsNil)
 
 	// Test the mocked values.
-	filesToBackUp, _ := backups.ExposeCreateArgs(received)
+	filesToBackUp, _ := create.ExposeCreateArgs(received)
 	c.Check(filesToBackUp, jc.SameContents, []string{"<some file>"})
 
 	c.Check(receivedDBInfo.Address, gc.Equals, "a")
@@ -120,24 +121,24 @@ func (s *createSuite) TestCreateOkay(c *gc.C) {
 }
 
 func (s *createSuite) TestCreateFailToListFiles(c *gc.C) {
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths, oldmachine string) ([]string, error) {
+	s.PatchValue(create.TestGetFilesToBackUp, func(root string, paths *create.Paths, oldmachine string) ([]string, error) {
 		return nil, errors.New("failed!")
 	})
 	meta := backupstesting.NewMetadataStarted()
-	creator := backups.NewCreator(nil, nil)
+	creator := create.NewCreator(nil, nil)
 	_, err := creator.Create(meta)
 
 	c.Check(err, gc.ErrorMatches, "while listing files to back up: failed!")
 }
 
 func (s *createSuite) TestCreateFailToCreate(c *gc.C) {
-	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths, oldmachine string) ([]string, error) {
+	s.PatchValue(create.TestGetFilesToBackUp, func(root string, paths *create.Paths, oldmachine string) ([]string, error) {
 		return []string{}, nil
 	})
-	s.PatchValue(backups.RunCreate, backups.NewTestCreateFailure("failed!"))
+	s.PatchValue(create.RunCreate, create.NewTestCreateFailure("failed!"))
 
 	meta := backupstesting.NewMetadataStarted()
-	creator := backups.NewCreator(nil, nil)
+	creator := create.NewCreator(nil, nil)
 	_, err := creator.Create(meta)
 
 	c.Check(err, gc.ErrorMatches, "while creating backup archive: failed!")

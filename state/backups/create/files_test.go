@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package create_test
 
 import (
 	"os"
@@ -12,7 +12,7 @@ import (
 	"github.com/juju/utils/set"
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 	"github.com/juju/juju/testing"
 )
 
@@ -99,13 +99,13 @@ func (s *filesSuite) checkSameStrings(c *gc.C, actual, expected []string) {
 }
 
 func (s *filesSuite) TestGetFilesToBackUpMachine0(c *gc.C) {
-	paths := backups.Paths{
+	paths := create.Paths{
 		DataDir: "/var/lib/juju",
 		LogsDir: "/var/log/juju",
 	}
 	s.createFiles(c, paths, s.root, "0")
 
-	files, err := backups.GetFilesToBackUp(s.root, &paths, "0")
+	files, err := create.GetFilesToBackUp(s.root, &paths, "0")
 	c.Assert(err, jc.ErrorIsNil)
 
 	expected := []string{

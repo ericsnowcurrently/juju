@@ -9,6 +9,7 @@ import (
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/replicaset"
 	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 )
 
 var waitUntilReady = replicaset.WaitUntilReady
@@ -29,11 +30,11 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	}
 
 	mgoInfo := a.st.MongoConnectionInfo()
-	dbInfo, err := backups.NewDBInfo(mgoInfo, session)
+	dbInfo, err := create.NewDBInfo(mgoInfo, session)
 	if err != nil {
 		return p, errors.Trace(err)
 	}
-	creator := backups.NewCreator(a.paths, dbInfo)
+	creator := create.NewCreator(a.paths, dbInfo)
 
 	meta, err := backups.NewMetadataState(a.st, a.machineID)
 	if err != nil {
