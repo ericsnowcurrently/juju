@@ -39,15 +39,14 @@ func (s *createSuite) TestLegacy(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	c.Assert(result, gc.NotNil)
 
-	archiveFile, size, checksum := backups.ExposeCreateResult(result)
-	c.Assert(archiveFile, gc.NotNil)
+	c.Assert(result.Archive, gc.NotNil)
 
 	// Check the result.
-	file, ok := archiveFile.(*os.File)
+	file, ok := result.Archive.(*os.File)
 	c.Assert(ok, gc.Equals, true)
 
-	s.checkSize(c, file, size)
-	s.checkChecksum(c, file, checksum)
+	s.checkSize(c, file, result.Size)
+	s.checkChecksum(c, file, result.Checksum)
 	s.checkArchive(c, file, expected)
 }
 

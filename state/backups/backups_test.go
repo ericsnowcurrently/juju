@@ -71,8 +71,8 @@ func (s *backupsSuite) TestCreateOkay(c *gc.C) {
 
 	// Patch the internals.
 	archiveFile := ioutil.NopCloser(bytes.NewBufferString("<compressed tarball>"))
-	result := backups.NewTestCreateResult(archiveFile, 10, "<checksum>")
-	received, testCreate := backups.NewTestCreate(result)
+	result := backups.CreateResult{archiveFile, 10, "<checksum>"}
+	received, testCreate := backups.NewTestCreate(&result)
 	s.PatchValue(backups.RunCreate, testCreate)
 
 	rootDir := "<was never set>"

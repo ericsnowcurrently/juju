@@ -33,15 +33,9 @@ type createArgs struct {
 	metadataReader io.Reader
 }
 
-type createResult struct {
-	archiveFile io.ReadCloser
-	size        int64
-	checksum    string
-}
-
 // create builds a new backup archive file and returns it.  It also
 // updates the metadata with the file info.
-func create(args *createArgs) (_ *createResult, err error) {
+func create(args *createArgs) (_ *CreateResult, err error) {
 	// Prepare the backup builder.
 	builder, err := newBuilder(args.filesToBackUp, args.db)
 	if err != nil {
@@ -357,7 +351,7 @@ func (b *builder) buildAll() error {
 // consequence is that we cannot simply return the temp filename, we
 // must leave the file open, and the caller is responsible for closing
 // the file (hence io.ReadCloser).
-func (b *builder) result() (*createResult, error) {
+func (b *builder) result() (*CreateResult, error) {
 	// Open the file in read-only mode.
 	file, err := os.Open(b.filename)
 	if err != nil {
@@ -380,10 +374,10 @@ func (b *builder) result() (*createResult, error) {
 	checksum := b.checksum
 
 	// Return the result.
-	result := createResult{
-		archiveFile: file,
-		size:        size,
-		checksum:    checksum,
+	result := CreateResult{
+		Archive:  file,
+		Size:     size,
+		Checksum: checksum,
 	}
 	return &result, nil
 }

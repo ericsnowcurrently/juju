@@ -62,8 +62,8 @@ var (
 	getFilesToBackUp = GetFilesToBackUp
 	getDBDumper      = NewDBDumper
 	runCreate        = create
-	finishMeta       = func(meta *Metadata, result *createResult) error {
-		return meta.MarkComplete(result.size, result.checksum)
+	finishMeta       = func(meta *Metadata, result *CreateResult) error {
+		return meta.MarkComplete(result.Size, result.Checksum)
 	}
 	storeArchive = StoreArchive
 )
@@ -158,7 +158,7 @@ func (b *backups) Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error {
 	if err != nil {
 		return errors.Annotate(err, "while creating backup archive")
 	}
-	defer result.archiveFile.Close()
+	defer result.Archive.Close()
 
 	// Finalize the metadata.
 	err = finishMeta(meta, result)
@@ -167,7 +167,7 @@ func (b *backups) Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error {
 	}
 
 	// Store the archive.
-	err = storeArchive(b.storage, meta, result.archiveFile)
+	err = storeArchive(b.storage, meta, result.Archive)
 	if err != nil {
 		return errors.Annotate(err, "while storing backup archive")
 	}
