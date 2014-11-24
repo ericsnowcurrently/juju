@@ -6,6 +6,7 @@ package backups_test
 import (
 	"os"
 
+	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
@@ -59,4 +60,28 @@ func (s *createSuite) TestMetadataFileMissing(c *gc.C) {
 	_, err := backups.Create(args)
 
 	c.Check(err, gc.ErrorMatches, "missing metadataReader")
+}
+
+func (s *createSuite) TestCreateFailToListFiles(c *gc.C) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths, oldmachine string) ([]string, error) {
+		return nil, errors.New("failed!")
+	})
+	meta := backupstesting.NewMetadataStarted()
+	creator := backups.NewCreator(nil, nil)
+	_, err := creator.Create(meta)
+
+	c.Check(err, gc.ErrorMatches, "while listing files to back up: failed!")
+}
+
+func (s *createSuite) TestCreateFailToCreate(c *gc.C) {
+	s.PatchValue(backups.TestGetFilesToBackUp, func(root string, paths *backups.Paths, oldmachine string) ([]string, error) {
+		return []string{}, nil
+	})
+	s.PatchValue(backups.RunCreate, backups.NewTestCreateFailure("failed!"))
+
+	meta := backupstesting.NewMetadataStarted()
+	creator := backups.NewCreator(nil, nil)
+	_, err := creator.Create(meta)
+
+	c.Check(err, gc.ErrorMatches, "while creating backup archive: failed!")
 }

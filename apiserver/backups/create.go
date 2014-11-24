@@ -33,6 +33,7 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	if err != nil {
 		return p, errors.Trace(err)
 	}
+	creator := backups.NewCreator(a.paths, dbInfo)
 
 	meta, err := backups.NewMetadataState(a.st, a.machineID)
 	if err != nil {
@@ -40,7 +41,7 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	}
 	meta.Notes = args.Notes
 
-	err = backupsMethods.Create(meta, a.paths, dbInfo)
+	err = backupsMethods.Create(meta, creator)
 	if err != nil {
 		return p, errors.Trace(err)
 	}
