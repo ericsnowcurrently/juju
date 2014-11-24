@@ -77,6 +77,10 @@ type Creator interface {
 	Create(meta *Metadata) (*CreateResult, error)
 }
 
+type Restorer interface {
+	Restore(archive io.Reader) error
+}
+
 // StoreArchive sends the backup archive and its metadata to storage.
 // It also sets the metadata's ID and Stored values.
 func StoreArchive(stor filestorage.FileStorage, meta *Metadata, file io.Reader) error {
@@ -111,6 +115,9 @@ type Backups interface {
 
 	// Remove deletes the backup from storage.
 	Remove(id string) error
+
+	// Restore restores juju state from a stored archive.
+	Restore(id string, restorer Restorer) error
 }
 
 type backups struct {
@@ -198,4 +205,16 @@ func (b *backups) List() ([]*Metadata, error) {
 // Remove deletes the backup from storage.
 func (b *backups) Remove(id string) error {
 	return errors.Trace(b.storage.Remove(id))
+}
+
+// Restore restores juju state from a stored archive.
+func (b *backups) Restore(id string, restorer Restorer) error {
+	_, archive, err := b.storage.Get(id)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	defer archive.Close()
+
+	err = restorer.Restore(archive)
+	return errors.Trace(err)
 }
