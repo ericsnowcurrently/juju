@@ -55,10 +55,7 @@ const (
 var logger = loggo.GetLogger("juju.state.backups")
 
 var (
-	getFilesToBackUp = GetFilesToBackUp
-	getDBDumper      = NewDBDumper
-	runCreate        = create
-	finishMeta       = func(meta *Metadata, result *CreateResult) error {
+	finishMeta = func(meta *Metadata, result *CreateResult) error {
 		return meta.MarkComplete(result.Size, result.Checksum)
 	}
 	storeArchive = StoreArchive

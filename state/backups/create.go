@@ -27,6 +27,55 @@ const (
 	tempFilename = "juju-backup.tar.gz"
 )
 
+var (
+	getFilesToBackUp = GetFilesToBackUp
+	getDBDumper      = NewDBDumper
+	runCreate        = create
+)
+
+type backupCreator struct {
+	paths  *Paths
+	dbInfo *DBInfo
+}
+
+// NewCreator builds a new backup creator.
+func NewCreator(paths *Paths, dbInfo *DBInfo) Creator {
+	return &backupCreator{
+		paths:  paths,
+		dbInfo: dbInfo,
+	}
+}
+
+// Create creates a new backup archive.
+func (c *backupCreator) Create(meta *Metadata) (*CreateResult, error) {
+	// The metadata file will not yet contain the ID or the "finished"
+	// data. However, that information is not as critical. The
+	// alternatives are either adding the metadata file to the archive
+	// after the fact or adding placeholders here for the finished data
+	// and filling them in afterward. Neither is particularly trivial.
+	metadataFile, err := meta.AsJSONBuffer()
+	if err != nil {
+		return nil, errors.Annotate(err, "while preparing the metadata")
+	}
+
+	// Create the archive.
+	filesToBackUp, err := getFilesToBackUp("", c.paths)
+	if err != nil {
+		return nil, errors.Annotate(err, "while listing files to back up")
+	}
+	dumper, err := getDBDumper(c.dbInfo)
+	if err != nil {
+		return nil, errors.Annotate(err, "while preparing for DB dump")
+	}
+	args := createArgs{filesToBackUp, dumper, metadataFile}
+	result, err := runCreate(&args)
+	if err != nil {
+		return nil, errors.Annotate(err, "while creating backup archive")
+	}
+
+	return result, nil
+}
+
 type createArgs struct {
 	filesToBackUp  []string
 	db             DBDumper
