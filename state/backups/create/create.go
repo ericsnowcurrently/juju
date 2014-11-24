@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups
+package create
 
 import (
 	"compress/gzip"
@@ -16,6 +16,8 @@ import (
 	"github.com/juju/loggo"
 	"github.com/juju/utils/hash"
 	"github.com/juju/utils/tar"
+
+	"github.com/juju/juju/state/backups"
 )
 
 // TODO(ericsnow) One concern is files that get out of date by the time
@@ -26,6 +28,8 @@ const (
 	tempPrefix   = "jujuBackup-"
 	tempFilename = "juju-backup.tar.gz"
 )
+
+var logger = loggo.GetLogger("juju.state.backups.create")
 
 var (
 	getFilesToBackUp = GetFilesToBackUp
@@ -39,7 +43,7 @@ type backupCreator struct {
 }
 
 // NewCreator builds a new backup creator.
-func NewCreator(paths *Paths, dbInfo *DBInfo) Creator {
+func NewCreator(paths *Paths, dbInfo *DBInfo) backups.Creator {
 	return &backupCreator{
 		paths:  paths,
 		dbInfo: dbInfo,
@@ -47,7 +51,7 @@ func NewCreator(paths *Paths, dbInfo *DBInfo) Creator {
 }
 
 // Create creates a new backup archive.
-func (c *backupCreator) Create(meta *Metadata) (*CreateResult, error) {
+func (c *backupCreator) Create(meta *backups.Metadata) (*backups.CreateResult, error) {
 	// The metadata file will not yet contain the ID or the "finished"
 	// data. However, that information is not as critical. The
 	// alternatives are either adding the metadata file to the archive
@@ -84,7 +88,7 @@ type createArgs struct {
 
 // create builds a new backup archive file and returns it.  It also
 // updates the metadata with the file info.
-func create(args *createArgs) (_ *CreateResult, err error) {
+func create(args *createArgs) (_ *backups.CreateResult, err error) {
 	// Prepare the backup builder.
 	builder, err := newBuilder(args.filesToBackUp, args.db)
 	if err != nil {
@@ -132,7 +136,7 @@ type builder struct {
 	// rootDir is the root of the archive workspace.
 	rootDir string
 	// archivePaths is the backups archive summary.
-	archivePaths ArchivePaths
+	archivePaths backups.ArchivePaths
 	// filename is the path to the archive file.
 	filename string
 	// filesToBackUp is the paths to every file to include in the archive.
@@ -162,7 +166,7 @@ func newBuilder(filesToBackUp []string, db DBDumper) (b *builder, err error) {
 	// Populate the builder.
 	b = &builder{
 		rootDir:       rootDir,
-		archivePaths:  NewNonCanonicalArchivePaths(rootDir),
+		archivePaths:  backups.NewNonCanonicalArchivePaths(rootDir),
 		filename:      filepath.Join(rootDir, tempFilename),
 		filesToBackUp: filesToBackUp,
 		db:            db,
@@ -400,7 +404,7 @@ func (b *builder) buildAll() error {
 // consequence is that we cannot simply return the temp filename, we
 // must leave the file open, and the caller is responsible for closing
 // the file (hence io.ReadCloser).
-func (b *builder) result() (*CreateResult, error) {
+func (b *builder) result() (*backups.CreateResult, error) {
 	// Open the file in read-only mode.
 	file, err := os.Open(b.filename)
 	if err != nil {
@@ -423,7 +427,7 @@ func (b *builder) result() (*CreateResult, error) {
 	checksum := b.checksum
 
 	// Return the result.
-	result := CreateResult{
+	result := backups.CreateResult{
 		Archive:  file,
 		Size:     size,
 		Checksum: checksum,

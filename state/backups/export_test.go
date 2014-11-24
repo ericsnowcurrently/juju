@@ -4,9 +4,7 @@
 package backups
 
 import (
-	"bytes"
 	"io"
-	"io/ioutil"
 	"time"
 
 	"github.com/juju/errors"
@@ -17,15 +15,8 @@ import (
 )
 
 var (
-	Create = create
-
-	TestGetFilesToBackUp = &getFilesToBackUp
-	GetDBDumper          = &getDBDumper
-	RunCreate            = &runCreate
-	FinishMeta           = &finishMeta
-	StoreArchiveRef      = &storeArchive
-	GetMongodumpPath     = &getMongodumpPath
-	RunCommand           = &runCommand
+	FinishMeta      = &finishMeta
+	StoreArchiveRef = &storeArchive
 )
 
 var _ filestorage.DocStorage = (*backupsDocStorage)(nil)
@@ -83,45 +74,6 @@ func SetBackupStoredTime(st *state.State, id string, stored time.Time) error {
 	db := getBackupDBWrapper(st)
 	defer db.Close()
 	return setStorageStoredTime(db, id, stored)
-}
-
-// NewTestCreateArgs builds a new args value for create() calls.
-func NewTestCreateArgs(filesToBackUp []string, db DBDumper, metar io.Reader) *createArgs {
-	args := createArgs{
-		filesToBackUp:  filesToBackUp,
-		db:             db,
-		metadataReader: metar,
-	}
-	return &args
-}
-
-// ExposeCreateResult extracts the values in a create() args value.
-func ExposeCreateArgs(args *createArgs) ([]string, DBDumper) {
-	return args.filesToBackUp, args.db
-}
-
-// NewTestCreate builds a new replacement for create() with the given result.
-func NewTestCreate(result *CreateResult) (*createArgs, func(*createArgs) (*CreateResult, error)) {
-	var received createArgs
-
-	if result == nil {
-		archiveFile := ioutil.NopCloser(bytes.NewBufferString("<archive>"))
-		result = &CreateResult{archiveFile, 10, "<checksum>"}
-	}
-
-	testCreate := func(args *createArgs) (*CreateResult, error) {
-		received = *args
-		return result, nil
-	}
-
-	return &received, testCreate
-}
-
-// NewTestCreate builds a new replacement for create() with the given failure.
-func NewTestCreateFailure(failure string) func(*createArgs) (*CreateResult, error) {
-	return func(*createArgs) (*CreateResult, error) {
-		return nil, errors.New(failure)
-	}
 }
 
 // NewTestMetaFinisher builds a new replacement for finishMetadata with

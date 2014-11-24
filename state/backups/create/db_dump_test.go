@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package create_test
 
 import (
 	"os"
@@ -11,7 +11,7 @@ import (
 	"github.com/juju/utils/set"
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 	"github.com/juju/juju/testing"
 )
 
@@ -19,7 +19,7 @@ type dumpSuite struct {
 	testing.BaseSuite
 
 	targets    set.Strings
-	dbInfo     *backups.DBInfo
+	dbInfo     *create.DBInfo
 	dumpDir    string
 	ranCommand bool
 }
@@ -30,17 +30,17 @@ func (s *dumpSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 
 	targets := set.NewStrings("juju", "admin")
-	s.dbInfo = &backups.DBInfo{"a", "b", "c", targets}
+	s.dbInfo = &create.DBInfo{"a", "b", "c", targets}
 	s.targets = targets
 	s.dumpDir = c.MkDir()
 }
 
 func (s *dumpSuite) patch(c *gc.C) {
-	s.PatchValue(backups.GetMongodumpPath, func() (string, error) {
+	s.PatchValue(create.GetMongodumpPath, func() (string, error) {
 		return "bogusmongodump", nil
 	})
 
-	s.PatchValue(backups.RunCommand, func(cmd string, args ...string) error {
+	s.PatchValue(create.RunCommand, func(cmd string, args ...string) error {
 		s.ranCommand = true
 		return nil
 	})
@@ -53,8 +53,8 @@ func (s *dumpSuite) prepDB(c *gc.C, name string) string {
 	return dirName
 }
 
-func (s *dumpSuite) prep(c *gc.C, targetDBs ...string) backups.DBDumper {
-	dumper, err := backups.NewDBDumper(s.dbInfo)
+func (s *dumpSuite) prep(c *gc.C, targetDBs ...string) create.DBDumper {
+	dumper, err := create.NewDBDumper(s.dbInfo)
 	c.Assert(err, gc.IsNil)
 
 	// Prep each of the target databases.

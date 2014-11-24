@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups_test
+package create_test
 
 import (
 	"github.com/juju/names"
@@ -9,7 +9,7 @@ import (
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/mongo"
-	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 	"github.com/juju/juju/testing"
 )
 
@@ -39,7 +39,7 @@ func (s *dbInfoSuite) TestNewDBInfoOkay(c *gc.C) {
 		Tag:      tag,
 		Password: "eggs",
 	}
-	dbInfo, err := backups.NewDBInfo(mgoInfo, &session)
+	dbInfo, err := create.NewDBInfo(mgoInfo, &session)
 	c.Assert(err, jc.IsNil)
 
 	c.Check(dbInfo.Address, gc.Equals, "localhost:8080")
@@ -56,7 +56,7 @@ func (s *dbInfoSuite) TestNewDBInfoMissingTag(c *gc.C) {
 		},
 		Password: "eggs",
 	}
-	dbInfo, err := backups.NewDBInfo(mgoInfo, &session)
+	dbInfo, err := create.NewDBInfo(mgoInfo, &session)
 	c.Assert(err, jc.IsNil)
 
 	c.Check(dbInfo.Username, gc.Equals, "")

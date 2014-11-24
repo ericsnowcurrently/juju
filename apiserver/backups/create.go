@@ -8,6 +8,7 @@ import (
 
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/create"
 )
 
 // Create is the API method that requests juju to create a new backup
@@ -17,11 +18,11 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	defer closer.Close()
 
 	mgoInfo := a.st.MongoConnectionInfo()
-	dbInfo, err := backups.NewDBInfo(mgoInfo, a.st.MongoSession())
+	dbInfo, err := create.NewDBInfo(mgoInfo, a.st.MongoSession())
 	if err != nil {
 		return p, errors.Trace(err)
 	}
-	creator := backups.NewCreator(a.paths, dbInfo)
+	creator := create.NewCreator(a.paths, dbInfo)
 
 	// TODO(ericsnow) lp-1389362
 	// The machine ID needs to be introspected from the API server, likely
