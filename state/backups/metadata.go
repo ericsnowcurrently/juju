@@ -13,8 +13,6 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/utils/filestorage"
 
-	"github.com/juju/juju/apiserver/params"
-	"github.com/juju/juju/state"
 	"github.com/juju/juju/version"
 )
 
@@ -63,7 +61,7 @@ func NewMetadata() *Metadata {
 // NewMetadataState composes a new backup metadata with its origin
 // values set.  The environment UUID comes from state.  The hostname is
 // retrieved from the OS.
-func NewMetadataState(st *state.State, machine string) (*Metadata, error) {
+func NewMetadataState(db DB, machine string) (*Metadata, error) {
 	// hostname could be derived from the environment...
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -73,7 +71,7 @@ func NewMetadataState(st *state.State, machine string) (*Metadata, error) {
 	}
 
 	meta := NewMetadata()
-	meta.Origin.Environment = st.EnvironTag().Id()
+	meta.Origin.Environment = db.EnvironTag().Id()
 	meta.Origin.Machine = machine
 	meta.Origin.Hostname = hostname
 	return meta, nil
@@ -187,28 +185,4 @@ func NewMetadataJSONReader(in io.Reader) (*Metadata, error) {
 	}
 
 	return meta, nil
-}
-
-// UpdateResult updates the result with the information in the
-// metadata value.
-func (meta *Metadata) UpdateResult(result *params.BackupsMetadataResult) {
-	result.ID = meta.ID()
-
-	result.Checksum = meta.Checksum()
-	result.ChecksumFormat = meta.ChecksumFormat()
-	result.Size = meta.Size()
-	if meta.Stored() != nil {
-		result.Stored = *(meta.Stored())
-	}
-
-	result.Started = meta.Started
-	if meta.Finished != nil {
-		result.Finished = *meta.Finished
-	}
-	result.Notes = meta.Notes
-
-	result.Environment = meta.Origin.Environment
-	result.Machine = meta.Origin.Machine
-	result.Hostname = meta.Origin.Hostname
-	result.Version = meta.Origin.Version
 }

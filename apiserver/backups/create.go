@@ -16,7 +16,8 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 	backupsMethods, closer := newBackups(a.st)
 	defer closer.Close()
 
-	dbInfo, err := backups.NewDBBackupInfo(a.st)
+	mgoInfo := a.st.MongoConnectionInfo()
+	dbInfo, err := backups.NewDBInfo(mgoInfo, a.st.MongoSession())
 	if err != nil {
 		return p, errors.Trace(err)
 	}
@@ -37,7 +38,7 @@ func (a *API) Create(args params.BackupsCreateArgs) (p params.BackupsMetadataRes
 		return p, errors.Trace(err)
 	}
 
-	meta.UpdateResult(&p)
+	p.UpdateFromMetadata(meta)
 
 	return p, nil
 }

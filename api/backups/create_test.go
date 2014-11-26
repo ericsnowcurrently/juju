@@ -4,6 +4,7 @@
 package backups_test
 
 import (
+	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/api/backups"
@@ -27,7 +28,7 @@ func (s *createSuite) TestCreate(c *gc.C) {
 			c.Check(p.Notes, gc.Equals, "important")
 
 			if result, ok := resp.(*params.BackupsMetadataResult); ok {
-				s.Meta.UpdateResult(result)
+				result.UpdateFromMetadata(s.Meta)
 				result.Notes = p.Notes
 			} else {
 				c.Fatalf("wrong output structure")
@@ -38,7 +39,7 @@ func (s *createSuite) TestCreate(c *gc.C) {
 	defer cleanup()
 
 	result, err := s.client.Create("important")
-	c.Assert(err, gc.IsNil)
+	c.Assert(err, jc.ErrorIsNil)
 
 	meta := backupstesting.UpdateNotes(s.Meta, "important")
 	s.checkMetadataResult(c, result, meta)
