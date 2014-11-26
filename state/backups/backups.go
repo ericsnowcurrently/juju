@@ -66,14 +66,31 @@ const (
 var logger = loggo.GetLogger("juju.state.backups")
 
 var (
-	getFilesToBackUp = GetFilesToBackUp
-	getDBDumper      = NewDBDumper
-	runCreate        = create
-	finishMeta       = func(meta *Metadata, result *createResult) error {
-		return meta.MarkComplete(result.size, result.checksum)
+	finishMeta = func(meta *Metadata, result *CreateResult) error {
+		return meta.MarkComplete(result.Size, result.Checksum)
 	}
 	storeArchive = StoreArchive
 )
+
+// CreateResult holds the result of creating a new backup archive.
+type CreateResult struct {
+	// Archive is the new backup archive.
+	Archive io.ReadCloser
+	// Size is the size of the backup archive.
+	Size int64
+	// Checksum is the checksum of the archive.
+	Checksum string
+}
+
+// Creator is used to create a new backup archive.
+type Creator interface {
+	// Create creates a new backup archive.
+	Create(meta *Metadata) (*CreateResult, error)
+}
+
+type Restorer interface {
+	Restore(archive io.Reader) error
+}
 
 // StoreArchive sends the backup archive and its metadata to storage.
 // It also sets the metadata's ID and Stored values.
@@ -95,7 +112,7 @@ func StoreArchive(stor filestorage.FileStorage, meta *Metadata, file io.Reader) 
 type Backups interface {
 	// Create creates and stores a new juju backup archive. It updates
 	// the provided metadata.
-	Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error
+	Create(meta *Metadata, creator Creator) error
 
 	// Get returns the metadata and archive file associated with the ID.
 	Get(id string) (*Metadata, io.ReadCloser, error)
@@ -105,8 +122,9 @@ type Backups interface {
 
 	// Remove deletes the backup from storage.
 	Remove(id string) error
-	// Restore updates juju's state to the contents of the backup archive.
-	Restore(io.ReadCloser, string, instance.Id) error
+
+	// Restore restores juju state from a stored archive.
+	Restore(id string, restorer Restorer) error
 }
 
 type backups struct {
@@ -123,34 +141,14 @@ func NewBackups(stor filestorage.FileStorage) Backups {
 
 // Create creates and stores a new juju backup archive and updates the
 // provided metadata.
-func (b *backups) Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error {
+func (b *backups) Create(meta *Metadata, creator Creator) error {
 	meta.Started = time.Now().UTC()
 
-	// The metadata file will not contain the ID or the "finished" data.
-	// However, that information is not as critical. The alternatives
-	// are either adding the metadata file to the archive after the fact
-	// or adding placeholders here for the finished data and filling
-	// them in afterward.  Neither is particularly trivial.
-	metadataFile, err := meta.AsJSONBuffer()
+	result, err := creator.Create(meta)
 	if err != nil {
-		return errors.Annotate(err, "while preparing the metadata")
+		return errors.Trace(err)
 	}
-
-	// Create the archive.
-	filesToBackUp, err := getFilesToBackUp("", paths)
-	if err != nil {
-		return errors.Annotate(err, "while listing files to back up")
-	}
-	dumper, err := getDBDumper(dbInfo)
-	if err != nil {
-		return errors.Annotate(err, "while preparing for DB dump")
-	}
-	args := createArgs{filesToBackUp, dumper, metadataFile}
-	result, err := runCreate(&args)
-	if err != nil {
-		return errors.Annotate(err, "while creating backup archive")
-	}
-	defer result.archiveFile.Close()
+	defer result.Archive.Close()
 
 	// Finalize the metadata.
 	err = finishMeta(meta, result)
@@ -159,7 +157,7 @@ func (b *backups) Create(meta *Metadata, paths *Paths, dbInfo *DBInfo) error {
 	}
 
 	// Store the archive.
-	err = storeArchive(b.storage, meta, result.archiveFile)
+	err = storeArchive(b.storage, meta, result.Archive)
 	if err != nil {
 		return errors.Annotate(err, "while storing backup archive")
 	}
@@ -214,6 +212,19 @@ func (b *backups) Remove(id string) error {
 	return errors.Trace(b.storage.Remove(id))
 }
 
+// Restore restores juju state from a stored archive.
+func (b *backups) Restore(id string, restorer Restorer) error {
+	_, archive, err := b.storage.Get(id)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	defer archive.Close()
+
+	err = restorer.Restore(archive)
+	return errors.Trace(err)
+}
+
+/*
 // Restore handles either returning or creating a state server to a backed up status:
 // * extracts the content of the given backup file and:
 // * runs mongorestore with the backed up mongo dump
@@ -317,6 +328,7 @@ func (b *backups) Restore(backupFile io.ReadCloser, privateAddress string, newIn
 
 	return errors.Annotate(err, "failed to set status to finished")
 }
+*/
 
 // The following code is temporary and in support of the initial
 // restore patch.  Once we have an HTTP-based upload this code will

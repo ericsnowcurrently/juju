@@ -1,7 +1,7 @@
 // Copyright 2014 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package backups
+package create
 
 import (
 	"compress/gzip"
@@ -16,6 +16,8 @@ import (
 	"github.com/juju/loggo"
 	"github.com/juju/utils/hash"
 	"github.com/juju/utils/tar"
+
+	"github.com/juju/juju/state/backups"
 )
 
 // TODO(ericsnow) One concern is files that get out of date by the time
@@ -27,21 +29,66 @@ const (
 	tempFilename = "juju-backup.tar.gz"
 )
 
+var logger = loggo.GetLogger("juju.state.backups.create")
+
+var (
+	getFilesToBackUp = GetFilesToBackUp
+	getDBDumper      = NewDBDumper
+	runCreate        = create
+)
+
+type backupCreator struct {
+	paths  *Paths
+	dbInfo *DBInfo
+}
+
+// NewCreator builds a new backup creator.
+func NewCreator(paths *Paths, dbInfo *DBInfo) backups.Creator {
+	return &backupCreator{
+		paths:  paths,
+		dbInfo: dbInfo,
+	}
+}
+
+// Create creates a new backup archive.
+func (c *backupCreator) Create(meta *backups.Metadata) (*backups.CreateResult, error) {
+	// The metadata file will not yet contain the ID or the "finished"
+	// data. However, that information is not as critical. The
+	// alternatives are either adding the metadata file to the archive
+	// after the fact or adding placeholders here for the finished data
+	// and filling them in afterward. Neither is particularly trivial.
+	metadataFile, err := meta.AsJSONBuffer()
+	if err != nil {
+		return nil, errors.Annotate(err, "while preparing the metadata")
+	}
+
+	// Create the archive.
+	filesToBackUp, err := getFilesToBackUp("", c.paths)
+	if err != nil {
+		return nil, errors.Annotate(err, "while listing files to back up")
+	}
+	dumper, err := getDBDumper(c.dbInfo)
+	if err != nil {
+		return nil, errors.Annotate(err, "while preparing for DB dump")
+	}
+	args := createArgs{filesToBackUp, dumper, metadataFile}
+	result, err := runCreate(&args)
+	if err != nil {
+		return nil, errors.Annotate(err, "while creating backup archive")
+	}
+
+	return result, nil
+}
+
 type createArgs struct {
 	filesToBackUp  []string
 	db             DBDumper
 	metadataReader io.Reader
 }
 
-type createResult struct {
-	archiveFile io.ReadCloser
-	size        int64
-	checksum    string
-}
-
 // create builds a new backup archive file and returns it.  It also
 // updates the metadata with the file info.
-func create(args *createArgs) (_ *createResult, err error) {
+func create(args *createArgs) (_ *backups.CreateResult, err error) {
 	// Prepare the backup builder.
 	builder, err := newBuilder(args.filesToBackUp, args.db)
 	if err != nil {
@@ -89,7 +136,7 @@ type builder struct {
 	// rootDir is the root of the archive workspace.
 	rootDir string
 	// archivePaths is the backups archive summary.
-	archivePaths ArchivePaths
+	archivePaths backups.ArchivePaths
 	// filename is the path to the archive file.
 	filename string
 	// filesToBackUp is the paths to every file to include in the archive.
@@ -119,7 +166,7 @@ func newBuilder(filesToBackUp []string, db DBDumper) (b *builder, err error) {
 	// Populate the builder.
 	b = &builder{
 		rootDir:       rootDir,
-		archivePaths:  NewNonCanonicalArchivePaths(rootDir),
+		archivePaths:  backups.NewNonCanonicalArchivePaths(rootDir),
 		filename:      filepath.Join(rootDir, tempFilename),
 		filesToBackUp: filesToBackUp,
 		db:            db,
@@ -357,7 +404,7 @@ func (b *builder) buildAll() error {
 // consequence is that we cannot simply return the temp filename, we
 // must leave the file open, and the caller is responsible for closing
 // the file (hence io.ReadCloser).
-func (b *builder) result() (*createResult, error) {
+func (b *builder) result() (*backups.CreateResult, error) {
 	// Open the file in read-only mode.
 	file, err := os.Open(b.filename)
 	if err != nil {
@@ -380,10 +427,10 @@ func (b *builder) result() (*createResult, error) {
 	checksum := b.checksum
 
 	// Return the result.
-	result := createResult{
-		archiveFile: file,
-		size:        size,
-		checksum:    checksum,
+	result := backups.CreateResult{
+		Archive:  file,
+		Size:     size,
+		Checksum: checksum,
 	}
 	return &result, nil
 }

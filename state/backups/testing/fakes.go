@@ -32,27 +32,22 @@ type FakeBackups struct {
 
 	// IDArg holds the ID that was passed in.
 	IDArg string
-	// PathsArg holds the Paths that was passed in.
-	PathsArg *backups.Paths
-	// DBInfoArg holds the ConnInfo that was passed in.
-	DBInfoArg *backups.DBInfo
+	// CreatorArg holds the creator that was passed in.
+	CreatorArg backups.Creator
 	// MetaArg holds the backup metadata that was passed in.
 	MetaArg *backups.Metadata
-	// PrivateAddr Holds the address for the internal network of the machine.
-	PrivateAddr string
-	// InstanceId Is the id of the machine to be restored.
-	InstanceId instance.Id
+	// RestorerArg holds the restorer that was passed in.
+	RestorerArg backups.Restorer
 }
 
 var _ backups.Backups = (*FakeBackups)(nil)
 
 // Create creates and stores a new juju backup archive and returns
 // its associated metadata.
-func (b *FakeBackups) Create(meta *backups.Metadata, paths *backups.Paths, dbInfo *backups.DBInfo) error {
+func (b *FakeBackups) Create(meta *backups.Metadata, creator backups.Creator) error {
 	b.Calls = append(b.Calls, "Create")
 
-	b.PathsArg = paths
-	b.DBInfoArg = dbInfo
+	b.CreatorArg = creator
 	b.MetaArg = meta
 
 	if b.Meta != nil {
@@ -88,6 +83,14 @@ func (b *FakeBackups) Restore(bkpFile io.ReadCloser, privateAddress string, newI
 	b.PrivateAddr = privateAddress
 	b.InstanceId = newInstId
 	return errors.Trace(b.Error)
+}
+
+// Restore restores juju state from an archive.
+func (b *FakeBackups) Restore(id string, restorer backups.Restorer) error {
+	b.Calls = append(b.Calls, "Restore")
+	b.IDArg = id
+	b.RestorerArg = restorer
+	return b.Error
 }
 
 // TODO(ericsnow) FakeStorage should probably move over to the utils repo.
@@ -165,4 +168,27 @@ func (s *FakeStorage) Remove(id string) error {
 func (s *FakeStorage) Close() error {
 	s.Calls = append(s.Calls, "Close")
 	return s.Error
+}
+
+// FakeCreator is an implementation of Creator to use for testing.
+type FakeCreator struct {
+	// Calls contains the order in which methods were called.
+	Calls []string
+
+	// Result holds the result to return.
+	Result *backups.CreateResult
+	// Error holds the error to return.
+	Error error
+
+	// MetaArg holds the backup metadata that was passed in.
+	MetaArg *backups.Metadata
+}
+
+var _ backups.Creator = (*FakeCreator)(nil)
+
+// Create creates a new juju backup archive and returns it.
+func (c *FakeCreator) Create(meta *backups.Metadata) (*backups.CreateResult, error) {
+	c.Calls = append(c.Calls, "Create")
+	c.MetaArg = meta
+	return c.Result, c.Error
 }
