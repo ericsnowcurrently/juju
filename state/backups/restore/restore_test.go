@@ -3,7 +3,7 @@
 
 // +build !windows
 
-package backups
+package restore_test
 
 import (
 	"fmt"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/juju/juju/mongo"
 	"github.com/juju/juju/replicaset"
+	"github.com/juju/juju/state/backups"
 	coretesting "github.com/juju/juju/testing"
 )
 
