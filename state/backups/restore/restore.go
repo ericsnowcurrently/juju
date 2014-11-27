@@ -28,18 +28,6 @@ import (
 	"github.com/juju/juju/worker/peergrouper"
 )
 
-// resetReplicaSet re-initiates replica-set using the new state server
-// values, this is required after a mongo restore.
-// In case of failure returns error.
-func resetReplicaSet(dialInfo *mgo.DialInfo, memberHostPort string) error {
-	params := peergrouper.InitiateMongoParams{dialInfo,
-		memberHostPort,
-		dialInfo.Username,
-		dialInfo.Password,
-	}
-	return peergrouper.InitiateMongoServer(params, true)
-}
-
 var filesystemRoot = getFilesystemRoot
 
 func getFilesystemRoot() string {
@@ -70,13 +58,19 @@ func newDialInfo(privateAddr string, conf agent.Config) (*mgo.DialInfo, error) {
 // updateMongoEntries will update the machine entries in the restored mongo to
 // reflect the real machine instanceid in case it changed (a newly bootstraped
 // server).
-func updateMongoEntries(newInstId instance.Id, dialInfo *mgo.DialInfo) error {
-	session, err := mgo.DialWithInfo(dialInfo)
+func updateMongoEntries(newInstId instance.Id, st *state.State) error {
+	session, err := st.MongoSession.Copy()
 	if err != nil {
 		return errors.Annotate(err, "cannot connect to mongo to update")
 	}
 	defer session.Close()
-	if err := session.DB("juju").C("machines").Update(bson.M{"machineid": "0"}, bson.M{"$set": bson.M{"instanceid": string(newInstId)}}); err != nil {
+
+	coll := session.DB("juju").C("machines")
+	err = coll.Update(
+		bson.M{"machineid": "0"},
+		bson.M{"$set": bson.M{"instanceid": string(newInstId)}},
+	)
+	if err != nil {
 		return errors.Annotate(err, "cannot update machine 0 instance information")
 	}
 	return nil
@@ -235,6 +229,15 @@ func backupVersion(backupMetadata *Metadata, backupFilesPath string) (int, error
 
 //-----------------------------------------
 
+type restorer struct {
+	privateAddress string
+	newInstId      string
+}
+
+func NewRestorer(privateAddress string, newInstId instance.Id) backups.Restorer {
+	return &restorer{privateAddress, newInstId}
+}
+
 // Restore handles either returning or creating a state server to a backed up status:
 // * extracts the content of the given backup file and:
 // * runs mongorestore with the backed up mongo dump
@@ -242,54 +245,53 @@ func backupVersion(backupMetadata *Metadata, backupFilesPath string) (int, error
 // * updates existing db entries to make sure they hold no references to
 // old instances
 // * updates config in all agents.
-func (b *backups) Restore(backupFile io.ReadCloser, privateAddress string, newInstId instance.Id) error {
-	workspace, err := NewArchiveWorkspaceReader(backupFile)
+func (r *restorer) Restore(archive io.Reader) error {
+	workspace, err := backups.NewArchiveWorkspaceReader(archive)
 	if err != nil {
 		return errors.Annotate(err, "cannot unpack backup file")
 	}
 	defer workspace.Close()
 
-	meta, err := workspace.Metadata()
+	// Restore files/data from the backup archive.
+	if err := restoreFiles(workspace); err != nil {
+		return errors.Trace(err)
+	}
+	if err := restoreDB(workspace); err != nil {
+		return errors.Trace(err)
+	}
+
+	// Point to the new state server.
+	agentConfig, err := r.fixConfig()
 	if err != nil {
-		return errors.Annotatef(err, "cannot read metadata file, this backup is either too old or corrupt")
+		return errors.Trace(err)
 	}
-	version := meta.Origin.Version
-
-	// delete all the files to be replaced
-	if err := PrepareMachineForRestore(); err != nil {
-		return errors.Annotate(err, "cannot delete existing files")
+	if err := resetReplicaSet(agentConfig); err != nil {
+		return errors.Trace(err)
 	}
-
-	if err := workspace.UnpackFilesBundle(filesystemRoot()); err != nil {
-		return errors.Annotate(err, "cannot obtain system files from backup")
+	if err := resetRunningAgents(agentConfig); err != nil {
+		return errors.Trace(err)
 	}
 
-	var agentConfig agent.ConfigSetterWriter
-	if agentConfig, err = agent.ReadConfig("/var/lib/juju/agents/machine-0/agent.conf"); err != nil {
-		return errors.Annotate(err, "cannot load agent config from disk")
+	// Finalize the restore.
+	rInfo, err := st.EnsureRestoreInfo()
+	if err != nil {
+		return errors.Trace(err)
 	}
-	ssi, ok := agentConfig.StateServingInfo()
-	if !ok {
-		return errors.Errorf("cannot determine state serving info")
-	}
-
-	APIHostPort := network.HostPort{Address: network.Address{
-		Value: privateAddress,
-		Type:  network.DeriveAddressType(privateAddress),
-	},
-		Port: ssi.APIPort}
-	agentConfig.SetAPIHostPorts([][]network.HostPort{{APIHostPort}})
-	if err := agentConfig.Write(); err != nil {
-		return errors.Annotate(err, "cannot write new agent configuration")
+	// Mark restoreInfo as Finished so upon restart of the apiserver
+	// the client can reconnect and determine if we where succesful.
+	if err := rInfo.SetStatus(state.RestoreFinished); err != nil {
+		return errors.Annotate(err, "failed to set status to finished")
 	}
 
-	// Restore backed up mongo
-	if err := db.PlaceNewMongo(workspace.DBDumpDir, version); err != nil {
-		return errors.Annotate(err, "error restoring state from backup")
-	}
+	return nil
+}
 
+// resetReplicaSet re-initiates replica-set using the new state server
+// values, this is required after a mongo restore.
+// In case of failure returns error.
+func (r *restorer) resetReplicaSet(agentConfig agent.ConfigSetterWriter) error {
 	// Re-start replicaset with the new value for server address
-	dialInfo, err := newDialInfo(privateAddress, agentConfig)
+	dialInfo, err := newDialInfo(r.privateAddress, agentConfig)
 	if err != nil {
 		return errors.Annotate(err, "cannot produce dial information")
 	}
@@ -300,18 +302,27 @@ func (b *backups) Restore(backupFile io.ReadCloser, privateAddress string, newIn
 		return errors.Annotate(err, "cannot reset replicaSet")
 	}
 
-	// Update entries for machine 0 to point to the newest instance
-	err = updateMongoEntries(newInstId, dialInfo)
-	if err != nil {
-		return errors.Annotate(err, "cannot update mongo entries")
+	params := peergrouper.InitiateMongoParams{dialInfo,
+		memberHostPort,
+		dialInfo.Username,
+		dialInfo.Password,
 	}
+	return peergrouper.InitiateMongoServer(params, true)
+}
 
-	// From here we work with the restored state server
+func (r *restorer) resetRunningAgents(agentConfig agent.ConfigSetterWriter) error {
+	// From here we work with the restored state server.
 	st, err := newStateConnection(agentConfig)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	defer st.Close()
+
+	// Update entries for machine 0 to point to the newest instance
+	err = updateMongoEntries(r.newInstId, st)
+	if err != nil {
+		return errors.Annotate(err, "cannot update mongo entries")
+	}
 
 	// update all agents known to the new state server.
 	// TODO(perrito666): We should never stop process because of this
@@ -326,15 +337,60 @@ func (b *backups) Restore(backupFile io.ReadCloser, privateAddress string, newIn
 		return errors.Annotate(err, "cannot update agents")
 	}
 
-	rInfo, err := st.EnsureRestoreInfo()
+	return nil
+}
 
-	if err != nil {
-		return errors.Trace(err)
+func restoreFiles(workspace backups.ArchiveWorkspace) error {
+	// delete all the files to be replaced
+	if err := PrepareMachineForRestore(); err != nil {
+		return errors.Annotate(err, "cannot delete existing files")
 	}
 
-	// Mark restoreInfo as Finished so upon restart of the apiserver
-	// the client can reconnect and determine if we where succesful.
-	err = rInfo.SetStatus(state.RestoreFinished)
+	if err := workspace.UnpackFilesBundle(filesystemRoot()); err != nil {
+		return errors.Annotate(err, "cannot obtain system files from backup")
+	}
+	return nil
+}
 
-	return errors.Annotate(err, "failed to set status to finished")
+func restoreDB(workspace backups.ArchiveWorkspace) error {
+	meta, err := workspace.Metadata()
+	if err != nil {
+		return errors.Annotatef(err, "cannot read metadata file, this backup is either too old or corrupt")
+	}
+	version := meta.Origin.Version
+
+	// Restore backed up mongo
+	if err := PlaceNewMongo(workspace.DBDumpDir, version); err != nil {
+		return errors.Annotate(err, "error restoring state from backup")
+	}
+
+	return nil
+}
+
+func (r *restorer) fixConfig() (agent.ConfigSetterWriter, error) {
+	var agentConfig agent.ConfigSetterWriter
+
+	const confFilename = "/var/lib/juju/agents/machine-0/agent.conf"
+	if agentConfig, err = agent.ReadConfig(confFilename); err != nil {
+		return nil, errors.Annotate(err, "cannot load agent config from disk")
+	}
+
+	ssi, ok := agentConfig.StateServingInfo()
+	if !ok {
+		return nil, errors.Errorf("cannot determine state serving info")
+	}
+
+	APIHostPort := network.HostPort{
+		Address: network.Address{
+			Value: privateAddress,
+			Type:  network.DeriveAddressType(privateAddress),
+		},
+		Port: ssi.APIPort,
+	}
+	agentConfig.SetAPIHostPorts([][]network.HostPort{{APIHostPort}})
+	if err := agentConfig.Write(); err != nil {
+		return nil, errors.Annotate(err, "cannot write new agent configuration")
+	}
+
+	return agentConfig, nil
 }

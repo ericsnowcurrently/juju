@@ -51,7 +51,6 @@ import (
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
-	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/backups/db"
 )
 
@@ -214,6 +213,11 @@ func (b *backups) Remove(id string) error {
 
 // Restore restores juju state from a stored archive.
 func (b *backups) Restore(id string, restorer Restorer) error {
+	id, err := b.temporaryUploadHackID(id)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
 	_, archive, err := b.storage.Get(id)
 	if err != nil {
 		return errors.Trace(err)
@@ -223,112 +227,6 @@ func (b *backups) Restore(id string, restorer Restorer) error {
 	err = restorer.Restore(archive)
 	return errors.Trace(err)
 }
-
-/*
-// Restore handles either returning or creating a state server to a backed up status:
-// * extracts the content of the given backup file and:
-// * runs mongorestore with the backed up mongo dump
-// * updates and writes configuration files
-// * updates existing db entries to make sure they hold no references to
-// old instances
-// * updates config in all agents.
-func (b *backups) Restore(backupFile io.ReadCloser, privateAddress string, newInstId instance.Id) error {
-	workspace, err := NewArchiveWorkspaceReader(backupFile)
-	if err != nil {
-		return errors.Annotate(err, "cannot unpack backup file")
-	}
-	defer workspace.Close()
-
-	meta, err := workspace.Metadata()
-	if err != nil {
-		return errors.Annotatef(err, "cannot read metadata file, this backup is either too old or corrupt")
-	}
-	version := meta.Origin.Version
-
-	// delete all the files to be replaced
-	if err := PrepareMachineForRestore(); err != nil {
-		return errors.Annotate(err, "cannot delete existing files")
-	}
-
-	if err := workspace.UnpackFilesBundle(filesystemRoot()); err != nil {
-		return errors.Annotate(err, "cannot obtain system files from backup")
-	}
-
-	var agentConfig agent.ConfigSetterWriter
-	if agentConfig, err = agent.ReadConfig("/var/lib/juju/agents/machine-0/agent.conf"); err != nil {
-		return errors.Annotate(err, "cannot load agent config from disk")
-	}
-	ssi, ok := agentConfig.StateServingInfo()
-	if !ok {
-		return errors.Errorf("cannot determine state serving info")
-	}
-
-	APIHostPort := network.HostPort{Address: network.Address{
-		Value: privateAddress,
-		Type:  network.DeriveAddressType(privateAddress),
-	},
-		Port: ssi.APIPort}
-	agentConfig.SetAPIHostPorts([][]network.HostPort{{APIHostPort}})
-	if err := agentConfig.Write(); err != nil {
-		return errors.Annotate(err, "cannot write new agent configuration")
-	}
-
-	// Restore backed up mongo
-	if err := db.PlaceNewMongo(workspace.DBDumpDir, version); err != nil {
-		return errors.Annotate(err, "error restoring state from backup")
-	}
-
-	// Re-start replicaset with the new value for server address
-	dialInfo, err := newDialInfo(privateAddress, agentConfig)
-	if err != nil {
-		return errors.Annotate(err, "cannot produce dial information")
-	}
-
-	memberHostPort := fmt.Sprintf("%s:%d", privateAddress, ssi.StatePort)
-	err = resetReplicaSet(dialInfo, memberHostPort)
-	if err != nil {
-		return errors.Annotate(err, "cannot reset replicaSet")
-	}
-
-	// Update entries for machine 0 to point to the newest instance
-	err = updateMongoEntries(newInstId, dialInfo)
-	if err != nil {
-		return errors.Annotate(err, "cannot update mongo entries")
-	}
-
-	// From here we work with the restored state server
-	st, err := newStateConnection(agentConfig)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	defer st.Close()
-
-	// update all agents known to the new state server.
-	// TODO(perrito666): We should never stop process because of this
-	// it is too late to go back and errors in a couple of agents have
-	// better change of being fixed by the user, if we where to fail
-	// we risk an inconsistent state server because of one unresponsive
-	// agent, we should nevertheless return the err info to the user.
-	// for this updateAllMachines will not return errors for individual
-	// agent update failures
-	err = updateAllMachines(privateAddress, st)
-	if err != nil {
-		return errors.Annotate(err, "cannot update agents")
-	}
-
-	rInfo, err := st.EnsureRestoreInfo()
-
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	// Mark restoreInfo as Finished so upon restart of the apiserver
-	// the client can reconnect and determine if we where succesful.
-	err = rInfo.SetStatus(state.RestoreFinished)
-
-	return errors.Annotate(err, "failed to set status to finished")
-}
-*/
 
 // The following code is temporary and in support of the initial
 // restore patch.  Once we have an HTTP-based upload this code will
@@ -376,4 +274,21 @@ func openUploaded(id string) (io.ReadCloser, error) {
 	}
 	archive, err := os.Open(filename)
 	return archive, errors.Trace(err)
+}
+
+func (b *backups) temporaryUploadHackID(id string) (string, error) {
+	if !strings.HasPrefix(id, uploadedPrefix) {
+		return id, nil
+	}
+
+	fileName := strings.TrimPrefix(id, uploadedPrefix)
+	fileName = sshUsername + fileName
+	archive, err := os.Open(fileName)
+	if err != nil {
+		return "", errors.Annotatef(err, "error opening %q", fileName)
+	}
+	defer archive.Close()
+
+	id, err := b.addFile(archive)
+	return id, errors.Trace(err)
 }

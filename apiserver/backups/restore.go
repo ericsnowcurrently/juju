@@ -14,42 +14,15 @@ import (
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/state/backups"
+	"github.com/juju/juju/state/backups/restore"
 )
 
 const restoreUserHome = "/home/ubuntu/"
 
-func (a *API) backupFile(backupId string, backup backups.Backups) (io.ReadCloser, error) {
-	var (
-		fileHandler io.ReadCloser
-		err         error
-	)
-	switch {
-	case strings.HasPrefix(backupId, backups.FilenamePrefix):
-		fileName := strings.TrimPrefix(backupId, backups.FilenamePrefix)
-		fileName = restoreUserHome + fileName
-		if fileHandler, err = os.Open(fileName); err != nil {
-			return nil, errors.Annotatef(err, "error opening %q", fileName)
-		}
-	case backupId == "":
-		return nil, errors.Errorf("no backup file or id given")
-	default:
-		if _, fileHandler, err = backup.Get(backupId); err != nil {
-			return nil, errors.Annotatef(err, "could not fetch backup %q", backupId)
-		}
-	}
-	return fileHandler, nil
-}
-
 // Restore implements the server side of Backups.Restore.
 func (a *API) Restore(p params.RestoreArgs) error {
-	// Get hold of a backup file Reader
 	backup, closer := newBackups(a.st)
 	defer closer.Close()
-	fileHandler, err := a.backupFile(p.BackupId, backup)
-	if err != nil {
-		return errors.Annotate(err, "cannot obtain a backup")
-	}
-	defer fileHandler.Close()
 
 	// Obtain the address of the machine where restore is going to be performed
 	machine, err := a.st.Machine(p.Machine)
@@ -78,8 +51,9 @@ func (a *API) Restore(p params.RestoreArgs) error {
 		return errors.Annotate(err, "cannot obtain instance id for machine to be restored")
 	}
 
-	// Restore
-	if err := backup.Restore(fileHandler, addr, instanceId); err != nil {
+	// Restore!
+	restorer := restore.NewRestorer(addr, instanceId)
+	if err := backup.Restore(p.BackupId, restorer); err != nil {
 		return errors.Annotate(err, "restore failed")
 	}
 
