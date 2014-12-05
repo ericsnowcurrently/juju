@@ -35,6 +35,8 @@ type FakeBackups struct {
 	MetaArg *backups.Metadata
 	// ArchiveArg holds the backup archive that was passed in.
 	ArchiveArg io.Reader
+	// RestorerArg holds the restorer that was passed in.
+	RestorerArg backups.Restorer
 }
 
 var _ backups.Backups = (*FakeBackups)(nil)
@@ -83,6 +85,14 @@ func (b *FakeBackups) List() ([]*backups.Metadata, error) {
 func (b *FakeBackups) Remove(id string) error {
 	b.Calls = append(b.Calls, "Remove")
 	b.IDArg = id
+	return b.Error
+}
+
+// Restore restores juju state from an archive.
+func (b *FakeBackups) Restore(id string, restorer backups.Restorer) error {
+	b.Calls = append(b.Calls, "Restore")
+	b.IDArg = id
+	b.RestorerArg = restorer
 	return b.Error
 }
 
