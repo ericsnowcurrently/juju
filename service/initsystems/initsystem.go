@@ -6,6 +6,22 @@
 
 package initsystems
 
+// InitSystemCommands exposes shell commands that may be used to
+// interact with the init system on a host. This is useful for
+// sending commands to run on a remote host. Unsupported commands
+// will return errors.NotSupported.
+type InitSystemCommands interface {
+	// List returns a command for listing all enabled service
+	// names and returns it.
+	List() (string, error)
+
+	// Install returns a command for adding and enabling the service
+	// described by the provided Conf.
+	Write(filename string, conf *Conf) (string, error)
+	Enable(name, filename string) (string, error)
+	Start(name string) (string, error)
+}
+
 // InitSystem represents the functionality provided by an init system.
 // It encompasses all init services on the host, rather than just juju-
 // managed ones.
@@ -67,4 +83,9 @@ type InitSystem interface {
 	// the init system's conf file format. If the data does not
 	// correspond to that file format then an error is returned.
 	Deserialize(data []byte) (*Conf, error)
+
+	// Commands returns the set of shell commands that may be used to
+	// interact with the init system. If an init system does not support
+	// shell commands then this will return nil.
+	Commands() InitSystemCommands
 }

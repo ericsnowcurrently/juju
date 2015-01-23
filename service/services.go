@@ -63,6 +63,9 @@ func NewServices(dataDir string, init initsystems.InitSystem) *Services {
 	}
 }
 
+func NewRemoteServices(dataDir, initSystem string) *Services {
+}
+
 func extractInitSystem(args []string) (initsystems.InitSystem, error) {
 	// Get the init system name from the args.
 	var name string
@@ -231,6 +234,16 @@ func (s Services) disable(name string) error {
 		// TODO(ericsnow) Is this correct?
 		return nil
 	}
+	return errors.Trace(err)
+}
+
+// StopAndDisable is a helper that simply calls Stop and Disable for the
+// named service.
+func (s Services) StopAndDisable(name string) error {
+	if err := s.Stop(name); err != nil {
+		return errors.Trace(err)
+	}
+	err := s.disable(name)
 	return errors.Trace(err)
 }
 
