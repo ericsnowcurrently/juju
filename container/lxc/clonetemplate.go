@@ -22,29 +22,27 @@ import (
 	"github.com/juju/juju/environs/cloudinit"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/arch"
+	"github.com/juju/juju/service"
+	"github.com/juju/juju/service/common"
 )
 
 const (
-	templateShutdownUpstartFilename = "/etc/init/juju-template-restart.conf"
-	templateShutdownUpstartScript   = `
-description "Juju lxc template shutdown job"
-author "Juju Team <juju@lists.ubuntu.com>"
-start on stopped cloud-final
-
-script
-  shutdown -h now
-end script
-
-post-stop script
-  rm ` + templateShutdownUpstartFilename + `
-end script
-`
+	// We do not need Windows support here (LXC).
+	tempdir                  = "/tmp"
+	templateShutdownFilename = "/tmp/juju-template-restart.conf"
 )
 
 var (
 	TemplateLockDir = "/var/lib/juju/locks"
 
 	TemplateStopTimeout = 5 * time.Minute
+
+	shutdownSvc = common.Conf{
+		Desc:     "Juju lxc template shutdown job",
+		Follows:  "cloud-final",
+		Cmd:      "shutdown -h now",
+		StopPost: "rm " + templateShutdownFilename,
+	}
 )
 
 // templateUserData returns a minimal user data necessary for the template.
@@ -68,12 +66,17 @@ func templateUserData(
 		cloudinit.MaybeAddCloudArchiveCloudTools(config, series)
 	}
 	cloudinit.AddAptCommands(aptProxy, aptMirror, config, enablePackageUpdates, enableOSUpgrades)
-	config.AddScripts(
-		fmt.Sprintf(
-			"printf '%%s\n' %s > %s",
-			utils.ShQuote(templateShutdownUpstartScript),
-			templateShutdownUpstartFilename,
-		))
+
+	// Add the shutdown service.
+	svc, err := service.NewRemoveService("", "", tempdir, initSystem)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	cmds, err := service.CloudInitInstallCommands("juju-template-restart", svc, shutdownSvc)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	config.AddScripts(cmds...)
 
 	renderer, err := corecloudinit.NewRenderer(series)
 	if err != nil {

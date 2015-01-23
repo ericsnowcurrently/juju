@@ -22,7 +22,7 @@ import (
 	"github.com/juju/juju/cloudinit"
 	"github.com/juju/juju/environs/imagemetadata"
 	"github.com/juju/juju/juju/osenv"
-	"github.com/juju/juju/service/upstart"
+	"github.com/juju/juju/service"
 )
 
 const (
@@ -309,20 +309,38 @@ func toolsDownloadCommand(curlCommand string, urls []string) string {
 }
 
 func (w *ubuntuConfigure) addMachineAgentToBoot(tag string) error {
+	name := w.mcfg.MachineAgentServiceName
+
+	// TODO(ericsnow) Factor out the common code here and in cloudinit_win.go.
+
+	svc, err := service.NewRemoteServices("", "", w.mcfg.DataDir, service.InitSystemUpstart)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	spec := service.AgentService{
+		AgentPaths: service.AgentPaths{
+			DataDir: w.mcfg.DataDir,
+			LogDir:  w.mcfg.LogDir,
+		},
+		Name:      name,
+		Tag:       tag,
+		MachineID: w.mcfg.MachineId,
+		Env:       osenv.FeatureFlags(),
+	}
+
 	// Make the agent run via a symbolic link to the actual tools
 	// directory, so it can upgrade itself without needing to change
 	// the init script.
-	toolsDir := agenttool.ToolsDir(w.mcfg.DataDir, tag)
+	toolsDir := svc.ToolsDir()
 	// TODO(dfc) ln -nfs, so it doesn't fail if for some reason that the target already exists
 	w.conf.AddScripts(fmt.Sprintf("ln -s %v %s", w.mcfg.Tools.Version, shquote(toolsDir)))
 
-	name := w.mcfg.MachineAgentServiceName
-	conf := upstart.MachineAgentUpstartService(
-		name, toolsDir, w.mcfg.DataDir, w.mcfg.LogDir, tag, w.mcfg.MachineId, osenv.FeatureFlags())
-	cmds, err := conf.InstallCommands()
+	cmds, err := service.CloudinitInstallCommands(svc, spec)
 	if err != nil {
-		return errors.Annotatef(err, "cannot make cloud-init upstart script for the %s agent", tag)
+		return errors.Annotatef(err, "cannot make cloud-init init script for the %s agent", tag)
 	}
+
 	w.conf.AddRunCmd(cloudinit.LogProgressCmd("Starting Juju machine agent (%s)", name))
 	w.conf.AddScripts(cmds...)
 	return nil

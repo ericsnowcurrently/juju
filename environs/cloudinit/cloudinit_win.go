@@ -112,6 +112,7 @@ func (w *windowsConfigure) ConfigureJuju() error {
 // machineAgentWindowsService returns the powershell command for a machine agent service
 // based on the tag and machineId passed in.
 func (w *windowsConfigure) machineAgentWindowsService(name, toolsDir string) []string {
+
 	jujud := filepath.Join(toolsDir, "jujud.exe")
 
 	serviceString := fmt.Sprintf(`"%s" machine --data-dir "%s" --machine-id "%s" --debug`,
@@ -128,17 +129,35 @@ func (w *windowsConfigure) machineAgentWindowsService(name, toolsDir string) []s
 }
 
 func (w *windowsConfigure) addMachineAgentToBoot(tag string) error {
+	name := w.mcfg.MachineAgentServiceName
+
+    svc, err := service.NewRemoteServices("", "", dataDir, service.InitSystemWindows)
+    if err != nil {
+        return errors.Trace(err)
+    }
+
+    spec := service.AgentService{
+        AgentPaths: service.AgentPaths{
+            DataDir: w.mcfg.DataDir,
+            LogDir: w.mcfg.LogDir,
+        }
+        Name: name,
+        Tag: tag,
+        MachineID: w.mcfg.MachineId,
+        Env: osenv.FeatureFlags(),
+    }
+
 	// Make the agent run via a symbolic link to the actual tools
 	// directory, so it can upgrade itself without needing to change
 	// the init script.
-	toolsDir := tools.ToolsDir(w.mcfg.DataDir, tag)
+	toolsDir := svc.ToolsDir()
 	w.conf.AddScripts(
 		fmt.Sprintf(
 			`cmd.exe /C mklink /D %s %v`,
 			w.renderer.FromSlash(toolsDir),
 			w.mcfg.Tools.Version),
 	)
-	name := w.mcfg.MachineAgentServiceName
+
 	cmds := w.machineAgentWindowsService(name, toolsDir)
 	w.conf.AddScripts(cmds...)
 	return nil
