@@ -22,8 +22,8 @@ import (
 
 	agentcmd "github.com/juju/juju/cmd/jujud/agent"
 	"github.com/juju/juju/environs"
+	"github.com/juju/juju/service/upstart"
 	coretesting "github.com/juju/juju/testing"
-	"github.com/juju/juju/worker/deployer"
 	"github.com/juju/juju/worker/uniter/runner/jujuc"
 )
 
@@ -54,7 +54,7 @@ func TestPackage(t *stdtesting.T) {
 	// Change the default init dir in worker/deployer,
 	// so the deployer doesn't try to remove upstart
 	// jobs from tests.
-	restore := testing.PatchValue(&deployer.InitDir, mkdtemp("juju-worker-deployer"))
+	restore := testing.PatchValue(&upstart.ConfDir, mkdtemp("juju-worker-deployer"))
 	defer restore()
 
 	// TODO(waigani) 2014-03-19 bug 1294458
