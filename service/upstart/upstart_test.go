@@ -4,26 +4,17 @@
 package upstart_test
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"testing"
-
-	jc "github.com/juju/testing/checkers"
+	//jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
-	"github.com/juju/utils/symlink"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/service/common"
 	"github.com/juju/juju/service/upstart"
-	coretesting "github.com/juju/juju/testing"
+	"github.com/juju/juju/testing"
 )
 
-func Test(t *testing.T) { gc.TestingT(t) }
-
 type UpstartSuite struct {
-	coretesting.BaseSuite
+	testing.BaseSuite
 	testPath string
 	service  *upstart.Service
 	initDir  string
@@ -46,6 +37,8 @@ func (s *UpstartSuite) SetUpTest(c *gc.C) {
 	)
 }
 
+// TODO(ericsnow) Port to initsystem_test.go.
+/*
 var checkargs = `
 #!/bin/bash --norc
 if [ "$1" != "--system" ]; then
@@ -302,3 +295,4 @@ func (s *UpstartSuite) TestInstallAlreadyRunning(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(s.service, jc.Satisfies, (*upstart.Service).Running)
 }
+*/
