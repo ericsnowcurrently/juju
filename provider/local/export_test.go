@@ -19,6 +19,7 @@ var (
 	ExecuteCloudConfig = &executeCloudConfig
 	Provider           = providerInstance
 	UserCurrent        = &userCurrent
+	NewServices        = &newServices
 )
 
 // ConfigNamespace returns the result of the namespace call on the
