@@ -133,6 +133,7 @@ func (s *initSystemSuite) TestInitSystemStart(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	statusCmd := cmdPrefix + `(Get-Service "` + name + `").Status`
+	descrCmd := cmdPrefix + `(Get-Service "` + name + `").DisplayName`
 	cmd := cmdPrefix + `Start-Service  "` + name + `"`
 	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "RunCommandStr",
@@ -142,7 +143,7 @@ func (s *initSystemSuite) TestInitSystemStart(c *gc.C) {
 	}, {
 		FuncName: "RunCommandStr",
 		Args: []interface{}{
-			statusCmd,
+			descrCmd,
 		},
 	}, {
 		FuncName: "RunCommandStr",
@@ -180,6 +181,7 @@ func (s *initSystemSuite) TestInitSystemStop(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	statusCmd := cmdPrefix + `(Get-Service "` + name + `").Status`
+	descrCmd := cmdPrefix + `(Get-Service "` + name + `").DisplayName`
 	cmd := cmdPrefix + `Stop-Service  "` + name + `"`
 	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "RunCommandStr",
@@ -189,7 +191,7 @@ func (s *initSystemSuite) TestInitSystemStop(c *gc.C) {
 	}, {
 		FuncName: "RunCommandStr",
 		Args: []interface{}{
-			statusCmd,
+			descrCmd,
 		},
 	}, {
 		FuncName: "RunCommandStr",
@@ -272,11 +274,17 @@ func (s *initSystemSuite) TestInitSystemDisable(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	statusCmd := cmdPrefix + `(Get-Service "` + name + `").Status`
+	descrCmd := cmdPrefix + `(Get-Service "` + name + `").DisplayName`
 	cmd := cmdPrefix + `(gwmi win32_service -filter 'name="` + name + `"').Delete()`
 	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "RunCommandStr",
 		Args: []interface{}{
 			statusCmd,
+		},
+	}, {
+		FuncName: "RunCommandStr",
+		Args: []interface{}{
+			descrCmd,
 		},
 	}, {
 		FuncName: "RunCommandStr",

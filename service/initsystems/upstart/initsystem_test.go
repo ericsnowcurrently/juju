@@ -144,16 +144,24 @@ func (s *initSystemSuite) TestInitSystemListLimitedEmpty(c *gc.C) {
 }
 
 func (s *initSystemSuite) TestInitSystemStart(c *gc.C) {
+	name := "jujud-unit-wordpress-0"
+	data := s.newConfStr(name, "", nil, nil)
+	s.files.Returns.Data = []byte(data)
 	s.files.Returns.Exists = true
 
-	name := "jujud-unit-wordpress-0"
 	err := s.init.Start(name)
 	c.Assert(err, jc.ErrorIsNil)
 
+	linkname := s.initDir + "/" + name + ".conf"
 	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "Exists",
 		Args: []interface{}{
-			s.initDir + "/" + name + ".conf",
+			linkname,
+		},
+	}, {
+		FuncName: "ReadFile",
+		Args: []interface{}{
+			linkname,
 		},
 	}, {
 		FuncName: "RunCommand",
@@ -172,6 +180,8 @@ func (s *initSystemSuite) TestInitSystemStart(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemStartAlreadyRunning(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
+	data := s.newConfStr(name, "", nil, nil)
+	s.files.Returns.Data = []byte(data)
 	s.files.Returns.Exists = true
 	s.cmd.SetOutString("service " + name + " start/running, process 12345\n")
 
@@ -188,16 +198,24 @@ func (s *initSystemSuite) TestInitSystemStartNotEnabled(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemStop(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
+	data := s.newConfStr(name, "", nil, nil)
+	s.files.Returns.Data = []byte(data)
 	s.files.Returns.Exists = true
 	s.cmd.SetOutString("service " + name + " start/running, process 12345\n")
 
 	err := s.init.Stop(name)
 	c.Assert(err, jc.ErrorIsNil)
 
+	linkname := s.initDir + "/" + name + ".conf"
 	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "Exists",
 		Args: []interface{}{
-			s.initDir + "/" + name + ".conf",
+			linkname,
+		},
+	}, {
+		FuncName: "ReadFile",
+		Args: []interface{}{
+			linkname,
 		},
 	}, {
 		FuncName: "RunCommand",
@@ -215,9 +233,12 @@ func (s *initSystemSuite) TestInitSystemStop(c *gc.C) {
 }
 
 func (s *initSystemSuite) TestInitSystemStopNotRunning(c *gc.C) {
+	name := "jujud-unit-wordpress-0"
+	data := s.newConfStr(name, "", nil, nil)
+	s.files.Returns.Data = []byte(data)
 	s.files.Returns.Exists = true
 
-	err := s.init.Stop("jujud-unit-wordpress-0")
+	err := s.init.Stop(name)
 
 	c.Check(err, jc.Satisfies, errors.IsNotFound)
 }
@@ -268,9 +289,11 @@ func (s *initSystemSuite) TestInitSystemEnableAlreadyEnabled(c *gc.C) {
 }
 
 func (s *initSystemSuite) TestInitSystemDisable(c *gc.C) {
+	name := "jujud-unit-wordpress-0"
+	data := s.newConfStr(name, "", nil, nil)
+	s.files.Returns.Data = []byte(data)
 	s.files.Returns.Exists = true
 
-	name := "jujud-unit-wordpress-0"
 	err := s.init.Disable("jujud-unit-wordpress-0")
 	c.Assert(err, jc.ErrorIsNil)
 
@@ -278,7 +301,18 @@ func (s *initSystemSuite) TestInitSystemDisable(c *gc.C) {
 	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "Exists",
 		Args: []interface{}{
-			s.initDir + "/" + name + ".conf",
+			initFile,
+		},
+	}, {
+		FuncName: "ReadFile",
+		Args: []interface{}{
+			initFile,
+		},
+	}, {
+		FuncName: "RunCommand",
+		Args: []interface{}{
+			"status",
+			[]string{"--system", name},
 		},
 	}, {
 		FuncName: "RemoveAll",

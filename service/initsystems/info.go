@@ -5,13 +5,12 @@ package initsystems
 
 // These are the possible service statuses.
 const (
+	StatusEnabled  = "enabled"
 	StatusDisabled = "disabled"
 	StatusStopped  = "stopped"
 	StatusStarting = "starting"
 	StatusRunning  = "running"
 	StatusStopping = "stopping"
-
-	StatusEnabled = StatusStopped
 )
 
 // ServiceInfo holds information about an init service, as gathered at

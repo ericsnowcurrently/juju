@@ -130,13 +130,7 @@ func (is *upstart) List(include ...string) ([]string, error) {
 
 // Start implements initsystems.InitSystem.
 func (is *upstart) Start(name string) error {
-	if err := initsystems.EnsureEnabled(name, is); err != nil {
-		return errors.Trace(err)
-	}
-
-	if err := is.ensureRunning(name); err == nil {
-		return errors.AlreadyExistsf("service %q", name)
-	} else if !errors.IsNotFound(err) {
+	if err := initsystems.EnsureStatus(is, name, initsystems.StatusStopped); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -155,7 +149,7 @@ func (is *upstart) start(name string) error {
 	_, err := is.cmd.RunCommand("start", "--system", name)
 	if err != nil {
 		// Double check to see if we were started before our command ran.
-		if err := is.ensureRunning(name); err == nil {
+		if err := initsystems.EnsureStatus(is, name, initsystems.StatusRunning); err != nil {
 			return nil
 		}
 		return errors.Trace(err)
@@ -165,11 +159,7 @@ func (is *upstart) start(name string) error {
 
 // Stop implements initsystems.InitSystem.
 func (is *upstart) Stop(name string) error {
-	if err := initsystems.EnsureEnabled(name, is); err != nil {
-		return errors.Trace(err)
-	}
-
-	if err := is.ensureRunning(name); err != nil {
+	if err := initsystems.EnsureStatus(is, name, initsystems.StatusRunning); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -179,12 +169,8 @@ func (is *upstart) Stop(name string) error {
 
 // Enable implements initsystems.InitSystem.
 func (is *upstart) Enable(name, filename string) error {
-	enabled, err := is.IsEnabled(name)
-	if err != nil {
+	if err := initsystems.EnsureStatus(is, name, initsystems.StatusDisabled); err != nil {
 		return errors.Trace(err)
-	}
-	if enabled {
-		return errors.AlreadyExistsf("service %q", name)
 	}
 
 	// Deserialize and validate the file.
@@ -192,13 +178,13 @@ func (is *upstart) Enable(name, filename string) error {
 		return errors.Trace(err)
 	}
 
-	err = is.fops.Symlink(filename, is.confPath(name))
+	err := is.fops.Symlink(filename, is.confPath(name))
 	return errors.Trace(err)
 }
 
 // Disable implements initsystems.InitSystem.
 func (is *upstart) Disable(name string) error {
-	if err := initsystems.EnsureEnabled(name, is); err != nil {
+	if err := initsystems.EnsureStatus(is, name, initsystems.StatusEnabled); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -219,6 +205,9 @@ func (is *upstart) IsEnabled(name string) (bool, error) {
 // Check implements initsystems.InitSystem.
 func (is *upstart) Check(name, filename string) (bool, error) {
 	actual, err := is.fops.Readlink(is.confPath(name))
+	if os.IsNotExist(errors.Cause(err)) {
+		return false, errors.NotFoundf("service %q", name)
+	}
 	if err != nil {
 		return false, errors.Trace(err)
 	}
@@ -229,8 +218,12 @@ func (is *upstart) Check(name, filename string) (bool, error) {
 func (is *upstart) Info(name string) (initsystems.ServiceInfo, error) {
 	var info initsystems.ServiceInfo
 
-	if err := initsystems.EnsureEnabled(name, is); err != nil {
+	enabled, err := is.IsEnabled(name)
+	if err != nil {
 		return info, errors.Trace(err)
+	}
+	if !enabled {
+		return info, errors.NotFoundf("service %q", name)
 	}
 
 	conf, err := is.Conf(name)
@@ -238,10 +231,8 @@ func (is *upstart) Info(name string) (initsystems.ServiceInfo, error) {
 		return info, errors.Trace(err)
 	}
 
-	status := initsystems.StatusStopped
-	if err := is.ensureRunning(name); err == nil {
-		status = initsystems.StatusRunning
-	} else if !errors.IsNotFound(err) {
+	status, err := is.status(name)
+	if err != nil {
 		return info, errors.Trace(err)
 	}
 
@@ -253,15 +244,16 @@ func (is *upstart) Info(name string) (initsystems.ServiceInfo, error) {
 	return info, nil
 }
 
-func (is *upstart) ensureRunning(name string) error {
+//func (is *upstart) ensureRunning(name string) error {
+func (is *upstart) status(name string) (string, error) {
 	out, err := is.cmd.RunCommand("status", "--system", name)
 	if err != nil {
-		return errors.Trace(err)
+		return "", errors.Trace(err)
 	}
-	if !startedRE.Match(out) {
-		return errors.NotFoundf("service %q", name)
+	if startedRE.Match(out) {
+		return initsystems.StatusRunning, nil
 	}
-	return nil
+	return initsystems.StatusStopped, nil
 }
 
 // Conf implements initsystems.InitSystem.

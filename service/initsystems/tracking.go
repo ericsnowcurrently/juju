@@ -63,7 +63,7 @@ func (is *Tracking) List(include ...string) ([]string, error) {
 
 // Start implements InitSystem.
 func (is *Tracking) Start(name string) error {
-	if err := EnsureEnabled(name, is); err != nil {
+	if err := EnsureStatus(is, name, StatusStopped); err != nil {
 		return errors.Trace(err)
 	}
 	if is.Running.Contains(name) {
@@ -76,7 +76,7 @@ func (is *Tracking) Start(name string) error {
 
 // Stop implements InitSystem.
 func (is *Tracking) Stop(name string) error {
-	if err := EnsureEnabled(name, is); err != nil {
+	if err := EnsureStatus(is, name, StatusRunning); err != nil {
 		return errors.Trace(err)
 	}
 	if !is.Running.Contains(name) {
@@ -89,7 +89,7 @@ func (is *Tracking) Stop(name string) error {
 
 // Enable implements InitSystem.
 func (is *Tracking) Enable(name, filename string) error {
-	if err := EnsureEnabled(name, is); err == nil {
+	if err := EnsureStatus(is, name, StatusDisabled); err == nil {
 		return errors.AlreadyExistsf("service %q", name)
 	} else if !errors.IsNotFound(err) {
 		return errors.Trace(err)
@@ -107,7 +107,7 @@ func (is *Tracking) Enable(name, filename string) error {
 
 // Disable implements InitSystem.
 func (is *Tracking) Disable(name string) error {
-	if err := EnsureEnabled(name, is); err != nil {
+	if err := EnsureStatus(is, name, StatusEnabled); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -131,7 +131,7 @@ func (is *Tracking) Check(name, filename string) (bool, error) {
 func (is *Tracking) Info(name string) (ServiceInfo, error) {
 	var info ServiceInfo
 
-	if err := EnsureEnabled(name, is); err != nil {
+	if err := EnsureStatus(is, name, StatusEnabled); err != nil {
 		return info, errors.Trace(err)
 	}
 
@@ -153,7 +153,7 @@ func (is *Tracking) Info(name string) (ServiceInfo, error) {
 func (is *Tracking) Conf(name string) (Conf, error) {
 	var conf Conf
 
-	if err := EnsureEnabled(name, is); err != nil {
+	if err := EnsureStatus(is, name, StatusEnabled); err != nil {
 		return conf, errors.Trace(err)
 	}
 
