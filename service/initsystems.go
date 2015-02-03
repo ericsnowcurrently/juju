@@ -5,6 +5,7 @@ package service
 
 import (
 	"github.com/juju/juju/service/initsystems"
+	"github.com/juju/juju/service/initsystems/systemd"
 	"github.com/juju/juju/service/initsystems/upstart"
 	"github.com/juju/juju/service/initsystems/windows"
 	"github.com/juju/juju/version"
@@ -14,6 +15,7 @@ import (
 const (
 	InitSystemWindows = windows.Name
 	InitSystemUpstart = upstart.Name
+	InitSystemSystemd = systemd.Name
 )
 
 // DiscoverInitSystem determines the name of the init system to use
