@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/container/lxc"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/instance"
+	"github.com/juju/juju/mongo"
 )
 
 var checkIfRoot = func() bool {
@@ -108,7 +109,7 @@ func (c *environConfig) storageDir() string {
 }
 
 func (c *environConfig) mongoDir() string {
-	return filepath.Join(c.rootDir(), "db")
+	return mongo.DBDir(c.rootDir())
 }
 
 func (c *environConfig) logDir() string {
