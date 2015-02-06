@@ -96,6 +96,11 @@ func Serialize(name string, conf initsystems.Conf) ([]byte, error) {
 			Value:   v,
 		})
 	}
+	unitOptions = append(unitOptions, &unit.UnitOption{
+		Section: "Install",
+		Name:    "WantedBy",
+		Value:   "multi-user.target",
+	})
 
 	data, err := ioutil.ReadAll(unit.Serialize(unitOptions))
 	return data, errors.Trace(err)
@@ -145,7 +150,7 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 					}
 				}
 			default:
-				return nil, errors.NotSupportedf("service directive %q")
+				return nil, errors.NotSupportedf("Service directive %q", uo.Name)
 			}
 
 		case "Unit":
@@ -153,10 +158,19 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 			case "Description":
 				conf.Desc = uo.Value
 			default:
-				return nil, errors.NotSupportedf("unit directive %q")
+				return nil, errors.NotSupportedf("Unit directive %q", uo.Name)
+			}
+		case "Install":
+			switch uo.Name {
+			case "WantedBy":
+				if uo.Value != "multi-user.target" {
+					return nil, errors.NotValidf("unit target %q", uo.Value)
+				}
+			default:
+				return nil, errors.NotSupportedf("Install directive %q", uo.Name)
 			}
 		default:
-			return nil, errors.NotSupportedf("section %q")
+			return nil, errors.NotSupportedf("section %q", uo.Name)
 		}
 	}
 

@@ -26,6 +26,9 @@ Description=juju agent for %s
 [Service]
 ExecStart=jujud %s
 
+[Install]
+WantedBy=multi-user.target
+
 `
 
 type fakeDbusApi struct {
@@ -500,6 +503,9 @@ Description=juju agent for machine-0
 [Service]
 ExecStart=jujud machine-0
 StandardOutput=/var/log/juju/machine-0.log
+
+[Install]
+WantedBy=multi-user.target
 
 `[1:]
 	_, err := s.init.Deserialize([]byte(data), name)
