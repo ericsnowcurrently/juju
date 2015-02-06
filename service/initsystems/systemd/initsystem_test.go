@@ -22,9 +22,15 @@ import (
 const confStr = `
 [Unit]
 Description=juju agent for %s
+After=syslog.target
+After=network.target
+After=systemd-user-sessions.service
 
 [Service]
+Type=forking
 ExecStart=jujud %s
+RemainAfterExit=yes
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
@@ -499,10 +505,16 @@ func (s *initSystemSuite) TestInitSystemDeserializeUnsupported(c *gc.C) {
 	data := `
 [Unit]
 Description=juju agent for machine-0
+After=syslog.target
+After=network.target
+After=systemd-user-sessions.service
 
 [Service]
-ExecStart=jujud machine-0
+Type=forking
 StandardOutput=/var/log/juju/machine-0.log
+ExecStart=jujud machine-0
+RemainAfterExit=yes
+Restart=always
 
 [Install]
 WantedBy=multi-user.target

@@ -60,16 +60,51 @@ func Serialize(name string, conf initsystems.Conf) ([]byte, error) {
 	}
 
 	var unitOptions []*unit.UnitOption
+	unitOptions = append(unitOptions, serializeUnit(conf)...)
+	unitOptions = append(unitOptions, serializeService(conf)...)
+	unitOptions = append(unitOptions, serializeInstall(conf)...)
+	// TODO(ericsnow) Support other types.
+
+	data, err := ioutil.ReadAll(unit.Serialize(unitOptions))
+	return data, errors.Trace(err)
+}
+
+func serializeUnit(conf initsystems.Conf) []*unit.UnitOption {
+	var unitOptions []*unit.UnitOption
+
 	unitOptions = append(unitOptions, &unit.UnitOption{
 		Section: "Unit",
 		Name:    "Description",
 		Value:   conf.Desc,
 	})
+
+	// TODO(ericsnow) Add "After" to initsystems.Conf.
+	after := []string{
+		"syslog.target",
+		"network.target",
+		"systemd-user-sessions.service",
+	}
+	for _, name := range after {
+		unitOptions = append(unitOptions, &unit.UnitOption{
+			Section: "Unit",
+			Name:    "After",
+			Value:   name,
+		})
+	}
+
+	return unitOptions
+}
+
+func serializeService(conf initsystems.Conf) []*unit.UnitOption {
+	var unitOptions []*unit.UnitOption
+
+	// TODO(ericsnow) Add "Forking" to initsystems.Conf.
 	unitOptions = append(unitOptions, &unit.UnitOption{
 		Section: "Service",
-		Name:    "ExecStart",
-		Value:   conf.Cmd,
+		Name:    "Type",
+		Value:   "forking",
 	})
+
 	if conf.Out != "" {
 		unitOptions = append(unitOptions, &unit.UnitOption{
 			Section: "Service",
@@ -82,6 +117,7 @@ func Serialize(name string, conf initsystems.Conf) ([]byte, error) {
 			Value:   conf.Out,
 		})
 	}
+
 	for k, v := range conf.Env {
 		unitOptions = append(unitOptions, &unit.UnitOption{
 			Section: "Service",
@@ -89,6 +125,7 @@ func Serialize(name string, conf initsystems.Conf) ([]byte, error) {
 			Value:   fmt.Sprintf(`"%q=%q"`, k, v),
 		})
 	}
+
 	for k, v := range conf.Limit {
 		unitOptions = append(unitOptions, &unit.UnitOption{
 			Section: "Service",
@@ -96,14 +133,40 @@ func Serialize(name string, conf initsystems.Conf) ([]byte, error) {
 			Value:   v,
 		})
 	}
+
+	unitOptions = append(unitOptions, &unit.UnitOption{
+		Section: "Service",
+		Name:    "ExecStart",
+		Value:   conf.Cmd,
+	})
+
+	// TODO(ericsnow) Add "RemainAfterExit" to initsystems.Conf.
+	unitOptions = append(unitOptions, &unit.UnitOption{
+		Section: "Service",
+		Name:    "RemainAfterExit",
+		Value:   "yes",
+	})
+
+	// TODO(ericsnow) Add "Restart" to initsystems.Conf.
+	unitOptions = append(unitOptions, &unit.UnitOption{
+		Section: "Service",
+		Name:    "Restart",
+		Value:   "always",
+	})
+
+	return unitOptions
+}
+
+func serializeInstall(conf initsystems.Conf) []*unit.UnitOption {
+	var unitOptions []*unit.UnitOption
+
 	unitOptions = append(unitOptions, &unit.UnitOption{
 		Section: "Install",
 		Name:    "WantedBy",
 		Value:   "multi-user.target",
 	})
 
-	data, err := ioutil.ReadAll(unit.Serialize(unitOptions))
-	return data, errors.Trace(err)
+	return unitOptions
 }
 
 // Deserialize parses the provided data (in the init system's prefered
@@ -118,6 +181,15 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 
 	for _, uo := range opts {
 		switch uo.Section {
+		case "Unit":
+			switch uo.Name {
+			case "Description":
+				conf.Desc = uo.Value
+			case "After":
+				// Do nothing until we support it in initsystems.Conf.
+			default:
+				return nil, errors.NotSupportedf("Unit directive %q", uo.Name)
+			}
 		case "Service":
 			switch {
 			case uo.Name == "ExecStart":
@@ -149,17 +221,16 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 						break
 					}
 				}
+			case uo.Name == "Type":
+				// Do nothing until we support it in initsystems.Conf.
+			case uo.Name == "RemainAfterExit":
+				// Do nothing until we support it in initsystems.Conf.
+			case uo.Name == "Restart":
+				// Do nothing until we support it in initsystems.Conf.
 			default:
 				return nil, errors.NotSupportedf("Service directive %q", uo.Name)
 			}
 
-		case "Unit":
-			switch uo.Name {
-			case "Description":
-				conf.Desc = uo.Value
-			default:
-				return nil, errors.NotSupportedf("Unit directive %q", uo.Name)
-			}
 		case "Install":
 			switch uo.Name {
 			case "WantedBy":
