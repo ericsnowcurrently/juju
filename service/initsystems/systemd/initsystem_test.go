@@ -6,10 +6,12 @@ package systemd_test
 import (
 	"fmt"
 
+	"github.com/coreos/go-systemd/dbus"
 	"github.com/juju/errors"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils"
+	"github.com/juju/utils/fs"
 	gc "gopkg.in/check.v1"
 
 	"github.com/juju/juju/service/initsystems"
@@ -17,23 +19,107 @@ import (
 	coretesting "github.com/juju/juju/testing"
 )
 
-const confStr = `{
- "description": "juju agent for %s",
- "startexec": "jujud.exe %s"
-}`
+const confStr = `
+[Unit]
+Description=juju agent for %s
+
+[Service]
+ExecStart=jujud %s
+
+`
 
 type fakeDbusApi struct {
-	testing.Fake
+	*testing.Fake
+
+	units []dbus.UnitStatus
+}
+
+func (fda *fakeDbusApi) addUnit(name, desc, status string) {
+	active := ""
+	load := "loaded"
+	switch status {
+	case initsystems.StatusRunning:
+		active = "active"
+	case initsystems.StatusStopped:
+		active = "inactive"
+	case initsystems.StatusEnabled:
+		active = "inactive"
+	case initsystems.StatusError:
+		load = "error"
+	}
+
+	unit := dbus.UnitStatus{
+		Name:        name,
+		Description: desc,
+		ActiveState: active,
+		LoadState:   load,
+	}
+	fda.units = append(fda.units, unit)
+}
+
+func (fda *fakeDbusApi) ListUnits() ([]dbus.UnitStatus, error) {
+	fda.Fake.AddCall("ListUnits", nil)
+
+	return fda.units, fda.Err()
+}
+
+func (fda *fakeDbusApi) StartUnit(name string, mode string, ch chan<- string) (int, error) {
+	fda.Fake.AddCall("StartUnit", testing.FakeCallArgs{
+		"name": name,
+		"mode": mode,
+		"ch":   ch,
+	})
+
+	return 0, fda.Err()
+}
+
+func (fda *fakeDbusApi) StopUnit(name string, mode string, ch chan<- string) (int, error) {
+	fda.Fake.AddCall("StopUnit", testing.FakeCallArgs{
+		"name": name,
+		"mode": mode,
+		"ch":   ch,
+	})
+
+	return 0, fda.Err()
+}
+
+func (fda *fakeDbusApi) EnableUnitFiles(files []string, runtime bool, force bool) (bool, []dbus.EnableUnitFileChange, error) {
+	fda.Fake.AddCall("EnableUnitFiles", testing.FakeCallArgs{
+		"files":   files,
+		"runtime": runtime,
+		"force":   force,
+	})
+
+	return false, nil, fda.Err()
+}
+
+func (fda *fakeDbusApi) DisableUnitFiles(files []string, runtime bool) ([]dbus.DisableUnitFileChange, error) {
+	fda.Fake.AddCall("DisableUnitFiles", testing.FakeCallArgs{
+		"files":   files,
+		"runtime": runtime,
+	})
+
+	return nil, fda.Err()
+}
+
+func (fda *fakeDbusApi) Close() {
+	fda.Fake.AddCall("Close", nil)
+
+	fda.Fake.Err()
 }
 
 type initSystemSuite struct {
 	coretesting.BaseSuite
 
-	fake    *fakeDbusApi
 	initDir string
-	init    initsystems.InitSystem
 	conf    initsystems.Conf
 	confStr string
+
+	ch   chan string
+	fake *testing.Fake
+	conn *fakeDbusApi
+	fops *fs.FakeOps
+	init initsystems.InitSystem
 }
 
 var _ = gc.Suite(&initSystemSuite{})
@@ -41,11 +127,14 @@ var _ = gc.Suite(&initSystemSuite{})
 func (s *initSystemSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 
-	s.fake = &fakeDbusApi{}
-	s.init = systemd.NewSystemd(s.fake)
+	s.ch = make(chan string, 1)
+	s.fake = &testing.Fake{}
+	s.conn = &fakeDbusApi{Fake: s.fake}
+	s.fops = &fs.FakeOps{Fake: s.fake}
+	s.init = systemd.NewSystemd(s.conn, s.fops, s.ch)
 	s.conf = initsystems.Conf{
-		Desc: "juju agent for jujud-machine-0",
-		Cmd:  "jujud.exe machine-0",
+		Desc: "juju agent for machine-0",
+		Cmd:  "jujud machine-0",
 	}
 	s.confStr = s.newConfStr("jujud-machine-0")
 
@@ -54,18 +143,13 @@ func (s *initSystemSuite) SetUpTest(c *gc.C) {
 
 func (s *initSystemSuite) newConfStr(name string) string {
 	tag := name[len("jujud-"):]
-	return fmt.Sprintf(confStr, name, tag)
+	return fmt.Sprintf(confStr[1:], tag, tag)
 }
 
-func (s *initSystemSuite) setStatus(name, status string) {
-	switch status {
-	case initsystems.StatusRunning:
-		s.cmd.Out = []byte("Running\n")
-	case initsystems.StatusEnabled:
-		s.cmd.Out = []byte("Stopped\n")
-	case "":
-		s.cmd.SetErrors(errors.New("service " + name + " not found"))
-	}
+func (s *initSystemSuite) addUnit(name, status string) {
+	tag := name[len("jujud-"):]
+	desc := "juju agent for " + tag
+	s.conn.addUnit(name, desc, status)
 }
 
 func (s *initSystemSuite) TestInitSystemName(c *gc.C) {
@@ -75,10 +159,10 @@ func (s *initSystemSuite) TestInitSystemName(c *gc.C) {
 }
 
 func (s *initSystemSuite) TestInitSystemList(c *gc.C) {
-	s.cmd.Out = []byte("" +
-		"jujud-machine-0 " +
-		"something-else " +
-		"jujud-unit-wordpress-0")
+	s.conn.addUnit("jujud-machine-0", "<>", initsystems.StatusRunning)
+	s.conn.addUnit("something-else", "<>", initsystems.StatusError)
+	s.conn.addUnit("jujud-unit-wordpress-0", "<>", initsystems.StatusRunning)
+	s.conn.addUnit("another", "<>", initsystems.StatusStopped)
 
 	names, err := s.init.List()
 	c.Assert(err, jc.ErrorIsNil)
@@ -87,14 +171,15 @@ func (s *initSystemSuite) TestInitSystemList(c *gc.C) {
 		"jujud-machine-0",
 		"something-else",
 		"jujud-unit-wordpress-0",
+		"another",
 	})
 }
 
 func (s *initSystemSuite) TestInitSystemListLimited(c *gc.C) {
-	s.cmd.Out = []byte("" +
-		"jujud-machine-0 " +
-		"something-else " +
-		"jujud-unit-wordpress-0")
+	s.conn.addUnit("jujud-machine-0", "<>", initsystems.StatusRunning)
+	s.conn.addUnit("something-else", "<>", initsystems.StatusError)
+	s.conn.addUnit("jujud-unit-wordpress-0", "<>", initsystems.StatusRunning)
+	s.conn.addUnit("another", "<>", initsystems.StatusStopped)
 
 	names, err := s.init.List("jujud-machine-0")
 	c.Assert(err, jc.ErrorIsNil)
@@ -111,17 +196,18 @@ func (s *initSystemSuite) TestInitSystemListLimitedEmpty(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemStart(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusStopped)
+	s.ch <- "done"
 
 	err := s.init.Start(name)
 	c.Assert(err, jc.ErrorIsNil)
 
-	// TODO(ericsnow) Check underlying calls.
+	s.fake.CheckCallNames(c, "ListUnits", "Close", "StartUnit", "Close")
 }
 
 func (s *initSystemSuite) TestInitSystemStartAlreadyRunning(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusRunning)
+	s.addUnit(name, initsystems.StatusRunning)
 
 	err := s.init.Start(name)
 
@@ -130,8 +216,6 @@ func (s *initSystemSuite) TestInitSystemStartAlreadyRunning(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemStartNotEnabled(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
-
 	err := s.init.Start(name)
 
 	c.Check(err, jc.Satisfies, errors.IsNotFound)
@@ -139,17 +223,18 @@ func (s *initSystemSuite) TestInitSystemStartNotEnabled(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemStop(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusRunning)
+	s.addUnit(name, initsystems.StatusRunning)
+	s.ch <- "done"
 
 	err := s.init.Stop(name)
 	c.Assert(err, jc.ErrorIsNil)
 
-	// TODO(ericsnow) Check underlying calls.
+	s.fake.CheckCallNames(c, "ListUnits", "Close", "StopUnit", "Close")
 }
 
 func (s *initSystemSuite) TestInitSystemStopNotRunning(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusStopped)
 
 	err := s.init.Stop(name)
 
@@ -158,30 +243,38 @@ func (s *initSystemSuite) TestInitSystemStopNotRunning(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemStopNotEnabled(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
-
-	err := s.init.Stop("jujud-unit-wordpress-0")
+	err := s.init.Stop(name)
 
 	c.Check(err, jc.Satisfies, errors.IsNotFound)
 }
 
 func (s *initSystemSuite) TestInitSystemEnable(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
-	s.files.Returns.Data = []byte(s.newConfStr(name))
-
-	filename := "/var/lib/juju/init/jujud-machine-0"
+	filename := "/var/lib/juju/init/" + name + "/systemd.conf"
 	err := s.init.Enable(name, filename)
 	c.Assert(err, jc.ErrorIsNil)
 
-	// TODO(ericsnow) Check underlying calls.
+	s.fake.CheckCalls(c, []testing.FakeCall{{
+		FuncName: "ListUnits",
+	}, {
+		FuncName: "Close",
+	}, {
+		FuncName: "EnableUnitFiles",
+		Args: testing.FakeCallArgs{
+			"files":   []string{filename},
+			"runtime": false,
+			"force":   true,
+		},
+	}, {
+		FuncName: "Close",
+	}})
 }
 
 func (s *initSystemSuite) TestInitSystemEnableAlreadyEnabled(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusEnabled)
 
-	filename := "/var/lib/juju/init/jujud-machine-0"
+	filename := "/var/lib/juju/init/" + name + "/systemd.conf"
 	err := s.init.Enable(name, filename)
 
 	c.Check(err, jc.Satisfies, errors.IsAlreadyExists)
@@ -189,17 +282,29 @@ func (s *initSystemSuite) TestInitSystemEnableAlreadyEnabled(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemDisable(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusEnabled)
 
 	err := s.init.Disable(name)
 	c.Assert(err, jc.ErrorIsNil)
 
-	// TODO(ericsnow) Check underlying calls.
+	filename := "/var/lib/juju/init/" + name + "/systemd.conf"
+	s.fake.CheckCalls(c, []testing.FakeCall{{
+		FuncName: "ListUnits",
+	}, {
+		FuncName: "Close",
+	}, {
+		FuncName: "DisableUnitFiles",
+		Args: testing.FakeCallArgs{
+			"files":   []string{filename},
+			"runtime": false,
+		},
+	}, {
+		FuncName: "Close",
+	}})
 }
 
 func (s *initSystemSuite) TestInitSystemDisableNotEnabled(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
 
 	err := s.init.Disable(name)
 
@@ -208,18 +313,22 @@ func (s *initSystemSuite) TestInitSystemDisableNotEnabled(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemIsEnabledTrue(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusEnabled)
 
 	enabled, err := s.init.IsEnabled(name)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(enabled, jc.IsTrue)
-	// TODO(ericsnow) Check underlying calls.
+
+	s.fake.CheckCalls(c, []testing.FakeCall{{
+		FuncName: "ListUnits",
+	}, {
+		FuncName: "Close",
+	}})
 }
 
 func (s *initSystemSuite) TestInitSystemIsEnabledFalse(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
 
 	enabled, err := s.init.IsEnabled(name)
 	c.Assert(err, jc.ErrorIsNil)
@@ -229,36 +338,40 @@ func (s *initSystemSuite) TestInitSystemIsEnabledFalse(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemInfoRunning(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusRunning)
+	s.addUnit(name, initsystems.StatusRunning)
 
 	info, err := s.init.Info(name)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(info, jc.DeepEquals, &initsystems.ServiceInfo{
-		Name:   name,
-		Status: initsystems.StatusRunning,
+		Name:        name,
+		Description: "juju agent for unit-wordpress-0",
+		Status:      initsystems.StatusRunning,
 	})
-	// TODO(ericsnow) Check underlying calls.
+
+	s.fake.CheckCalls(c, []testing.FakeCall{{
+		FuncName: "ListUnits",
+	}, {
+		FuncName: "Close",
+	}})
 }
 
 func (s *initSystemSuite) TestInitSystemInfoNotRunning(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusStopped)
 
 	info, err := s.init.Info(name)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(info, jc.DeepEquals, &initsystems.ServiceInfo{
-		Name:   name,
-		Status: initsystems.StatusStopped,
+		Name:        name,
+		Description: "juju agent for unit-wordpress-0",
+		Status:      initsystems.StatusStopped,
 	})
-	// TODO(ericsnow) Check underlying calls.
 }
 
 func (s *initSystemSuite) TestInitSystemInfoNotEnabled(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
-
 	_, err := s.init.Info(name)
 
 	c.Check(err, jc.Satisfies, errors.IsNotFound)
@@ -266,21 +379,25 @@ func (s *initSystemSuite) TestInitSystemInfoNotEnabled(c *gc.C) {
 
 func (s *initSystemSuite) TestInitSystemConf(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, initsystems.StatusEnabled)
+	s.addUnit(name, initsystems.StatusEnabled)
 
 	conf, err := s.init.Conf(name)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(conf, jc.DeepEquals, &initsystems.Conf{
-		Desc: `juju agent for jujud-unit-wordpress-0`,
-		Cmd:  "jujud.exe unit-wordpress-0",
+		Desc: `juju agent for unit-wordpress-0`,
+		Cmd:  "jujud unit-wordpress-0",
 	})
-	// TODO(ericsnow) Check underlying calls.
+
+	s.fake.CheckCalls(c, []testing.FakeCall{{
+		FuncName: "ListUnits",
+	}, {
+		FuncName: "Close",
+	}})
 }
 
 func (s *initSystemSuite) TestInitSystemConfNotEnabled(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
-	s.setStatus(name, "")
 
 	_, err := s.init.Conf(name)
 
@@ -291,7 +408,22 @@ func (s *initSystemSuite) TestInitSystemValidate(c *gc.C) {
 	err := s.init.Validate("jujud-machine-0", s.conf)
 	c.Assert(err, jc.ErrorIsNil)
 
-	// TODO(ericsnow) Check underlying calls.
+	s.fake.CheckCalls(c, nil)
+}
+
+func (s *initSystemSuite) TestInitSystemValidateFull(c *gc.C) {
+	s.conf.Env = map[string]string{
+		"x": "y",
+	}
+	s.conf.Limit = map[string]string{
+		"nofile": "10",
+	}
+	s.conf.Out = "syslog"
+
+	err := s.init.Validate("jujud-machine-0", s.conf)
+	c.Assert(err, jc.ErrorIsNil)
+
+	s.fake.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemValidateInvalid(c *gc.C) {
@@ -302,34 +434,23 @@ func (s *initSystemSuite) TestInitSystemValidateInvalid(c *gc.C) {
 	c.Check(err, jc.Satisfies, errors.IsNotValid)
 }
 
-func (s *initSystemSuite) TestInitSystemValidateUnsupportedEnv(c *gc.C) {
-	s.conf.Env = map[string]string{
-		"x": "y",
-	}
+func (s *initSystemSuite) TestInitSystemValidateInvalidOut(c *gc.C) {
+	s.conf.Out = "/var/log/juju/machine-0.log"
 
 	err := s.init.Validate("jujud-machine-0", s.conf)
 
-	expected := initsystems.NewUnsupportedField("Env")
+	expected := errors.NotValidf("Out")
 	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
 }
 
-func (s *initSystemSuite) TestInitSystemValidateUnsupportedLimit(c *gc.C) {
+func (s *initSystemSuite) TestInitSystemValidateInvalidLimit(c *gc.C) {
 	s.conf.Limit = map[string]string{
 		"x": "y",
 	}
 
 	err := s.init.Validate("jujud-machine-0", s.conf)
 
-	expected := initsystems.NewUnsupportedField("Limit")
-	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
-}
-
-func (s *initSystemSuite) TestInitSystemValidateUnsupportedOut(c *gc.C) {
-	s.conf.Out = "/var/log/juju/machine-0.log"
-
-	err := s.init.Validate("jujud-machine-0", s.conf)
-
-	expected := initsystems.NewUnsupportedField("Out")
+	expected := errors.NotValidf("Limit")
 	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
 }
 
@@ -338,41 +459,51 @@ func (s *initSystemSuite) TestInitSystemSerialize(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(string(data), gc.Equals, s.confStr)
+
+	s.fake.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemSerializeUnsupported(c *gc.C) {
+	tag := "unit-wordpress-0"
 	name := "jujud-unit-wordpress-0"
 	conf := initsystems.Conf{
-		Desc: "juju agent for " + name,
-		Cmd:  "jujud.exe unit-wordpress-0",
-		Out:  "/var/log/juju/unit-wordpress-0",
+		Desc: "juju agent for " + tag,
+		Cmd:  "jujud " + tag,
+		Out:  "/var/log/juju/" + tag,
 	}
-	_, err := s.init.Serialize("jujud-machine-0", conf)
+	_, err := s.init.Serialize(name, conf)
 
-	expected := initsystems.NewUnsupportedField("Out")
+	expected := errors.NotValidf("Out")
 	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
 }
 
 func (s *initSystemSuite) TestInitSystemDeserialize(c *gc.C) {
 	name := "jujud-unit-wordpress-0"
 	data := s.newConfStr(name)
-	conf, err := s.init.Deserialize([]byte(data))
+	conf, err := s.init.Deserialize([]byte(data), name)
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(conf, jc.DeepEquals, &initsystems.Conf{
-		Desc: "juju agent for jujud-unit-wordpress-0",
-		Cmd:  "jujud.exe unit-wordpress-0",
+		Desc: "juju agent for unit-wordpress-0",
+		Cmd:  "jujud unit-wordpress-0",
 	})
+
+	s.fake.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemDeserializeUnsupported(c *gc.C) {
-	data := `{
- "description": "juju agent for machine-0",
- "startexec": "jujud.exe machine-0",
- "out": "/var/log/juju/machine-0.log"
-}`
-	_, err := s.init.Deserialize([]byte(data))
+	name := "jujud-machine-0"
+	data := `
+[Unit]
+Description=juju agent for machine-0
 
-	expected := initsystems.NewUnsupportedField("Out")
+[Service]
+ExecStart=jujud machine-0
+StandardOutput=/var/log/juju/machine-0.log
+
+`[1:]
+	_, err := s.init.Deserialize([]byte(data), name)
+
+	expected := errors.NotValidf("Out")
 	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
 }

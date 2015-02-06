@@ -26,6 +26,7 @@ func init() {
 type systemd struct {
 	name    string
 	newConn func() (dbusApi, error)
+	newChan func() chan string
 	fops    fileOperations
 }
 
@@ -35,6 +36,7 @@ func NewInitSystem(name string) initsystems.InitSystem {
 	return &systemd{
 		name:    name,
 		newConn: newConn,
+		newChan: func() chan string { return make(chan string) },
 		fops:    newFileOperations(),
 	}
 }
@@ -77,12 +79,13 @@ func (is *systemd) Start(name string) error {
 	}
 	defer conn.Close()
 
-	statusCh := make(chan string)
+	statusCh := is.newChan()
 	_, err = conn.StartUnit(name, "fail", statusCh)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
+	// TODO(ericsnow) Add timeout support?
 	status := <-statusCh
 	if status != "done" {
 		return errors.Errorf("failed to start service %s", name)
@@ -103,12 +106,13 @@ func (is *systemd) Stop(name string) error {
 	}
 	defer conn.Close()
 
-	statusCh := make(chan string)
+	statusCh := is.newChan()
 	_, err = conn.StopUnit(name, "fail", statusCh)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
+	// TODO(ericsnow) Add timeout support?
 	status := <-statusCh
 	if status != "done" {
 		return errors.Errorf("failed to stop service %s", name)
