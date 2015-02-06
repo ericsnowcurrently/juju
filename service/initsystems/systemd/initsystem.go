@@ -133,6 +133,10 @@ func (is *systemd) Enable(name, filename string) error {
 	}
 	defer conn.Close()
 
+	// TODO(ericsnow) The filename may need to have the format of
+	// "<unit name>.service.
+	// TODO(ericsnow) We may need to use conn.LinkUnitFiles either
+	// instead of or in conjunction with EnableUnitFiles.
 	_, _, err = conn.EnableUnitFiles([]string{filename}, false, true)
 
 	return errors.Trace(err)
@@ -150,6 +154,8 @@ func (is *systemd) Disable(name string) error {
 	}
 	defer conn.Close()
 
+	// TODO(ericsnow) We may need the original file name (or make sure
+	// the unit conf is on the systemd search path.
 	_, err = conn.DisableUnitFiles([]string{name}, false)
 
 	return errors.Trace(err)
@@ -200,6 +206,7 @@ func (is *systemd) Conf(name string) (*initsystems.Conf, error) {
 	}
 
 	// TODO(ericsnow) Finish!
+	// This may involve conn.GetUnitProperties...
 	return nil, nil
 }
 
