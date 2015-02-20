@@ -33,29 +33,31 @@ var limitMap = map[string]string{
 }
 
 // Validate returns an error if the service is not adequately defined.
-func Validate(name string, conf initsystems.Conf) error {
+func Validate(name string, conf initsystems.Conf) (string, error) {
+	confName := name + ".service"
+
 	err := conf.Validate(name)
 	if err != nil {
-		return errors.Trace(err)
+		return confName, errors.Trace(err)
 	}
 
 	if conf.Out != "" && conf.Out != "syslog" {
-		return errors.NotValidf("conf.Out value %q (Options are syslog)", conf.Out)
+		return confName, errors.NotValidf("conf.Out value %q (Options are syslog)", conf.Out)
 	}
 
 	for k := range conf.Limit {
 		if _, ok := limitMap[k]; !ok {
-			return errors.NotValidf("conf.Limit key %q", k)
+			return confName, errors.NotValidf("conf.Limit key %q", k)
 		}
 	}
-	return nil
+	return confName, nil
 }
 
 // Serialize serializes the provided Conf for the named service. The
 // resulting data will be in the prefered format for consumption by
 // the init system.
 func Serialize(name string, conf initsystems.Conf) ([]byte, error) {
-	if err := Validate(name, conf); err != nil {
+	if _, err := Validate(name, conf); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -171,13 +173,13 @@ func serializeInstall(conf initsystems.Conf) []*unit.UnitOption {
 
 // Deserialize parses the provided data (in the init system's prefered
 // format) and populates a new Conf with the result.
-func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
+func Deserialize(data []byte, name string) (initsystems.Conf, error) {
+	var conf initsystems.Conf
+
 	opts, err := unit.Deserialize(bytes.NewBuffer(data))
 	if err != nil {
-		return nil, errors.Trace(err)
+		return conf, errors.Trace(err)
 	}
-
-	var conf initsystems.Conf
 
 	for _, uo := range opts {
 		switch uo.Section {
@@ -188,7 +190,7 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 			case "After":
 				// Do nothing until we support it in initsystems.Conf.
 			default:
-				return nil, errors.NotSupportedf("Unit directive %q", uo.Name)
+				return conf, errors.NotSupportedf("Unit directive %q", uo.Name)
 			}
 		case "Service":
 			switch {
@@ -208,7 +210,7 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 				}
 				parts := strings.SplitN(value, "=", 2)
 				if len(parts) != 2 {
-					return nil, errors.NotValidf("service environment value %q", uo.Value)
+					return conf, errors.NotValidf("service environment value %q", uo.Value)
 				}
 				conf.Env[parts[0]] = parts[1]
 			case strings.HasPrefix(uo.Name, "Limit"):
@@ -228,26 +230,26 @@ func Deserialize(data []byte, name string) (*initsystems.Conf, error) {
 			case uo.Name == "Restart":
 				// Do nothing until we support it in initsystems.Conf.
 			default:
-				return nil, errors.NotSupportedf("Service directive %q", uo.Name)
+				return conf, errors.NotSupportedf("Service directive %q", uo.Name)
 			}
 
 		case "Install":
 			switch uo.Name {
 			case "WantedBy":
 				if uo.Value != "multi-user.target" {
-					return nil, errors.NotValidf("unit target %q", uo.Value)
+					return conf, errors.NotValidf("unit target %q", uo.Value)
 				}
 			default:
-				return nil, errors.NotSupportedf("Install directive %q", uo.Name)
+				return conf, errors.NotSupportedf("Install directive %q", uo.Name)
 			}
 		default:
-			return nil, errors.NotSupportedf("section %q", uo.Name)
+			return conf, errors.NotSupportedf("section %q", uo.Name)
 		}
 	}
 
 	if name == "" {
 		name = "<>"
 	}
-	err = Validate(name, conf)
-	return &conf, errors.Trace(err)
+	_, err = Validate(name, conf)
+	return conf, errors.Trace(err)
 }

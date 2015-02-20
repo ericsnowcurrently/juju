@@ -37,13 +37,13 @@ WantedBy=multi-user.target
 
 `
 
-type fakeDbusApi struct {
-	*testing.Fake
+type stubDbusApi struct {
+	*testing.Stub
 
 	units []dbus.UnitStatus
 }
 
-func (fda *fakeDbusApi) addUnit(name, desc, status string) {
+func (fda *stubDbusApi) addUnit(name, desc, status string) {
 	active := ""
 	load := "loaded"
 	switch status {
@@ -66,55 +66,43 @@ func (fda *fakeDbusApi) addUnit(name, desc, status string) {
 	fda.units = append(fda.units, unit)
 }
 
-func (fda *fakeDbusApi) ListUnits() ([]dbus.UnitStatus, error) {
-	fda.Fake.AddCall("ListUnits", nil)
+func (fda *stubDbusApi) ListUnits() ([]dbus.UnitStatus, error) {
+	fda.Stub.AddCall("ListUnits", nil)
 
-	return fda.units, fda.Err()
+	return fda.units, fda.NextErr()
 }
 
-func (fda *fakeDbusApi) StartUnit(name string, mode string, ch chan<- string) (int, error) {
-	fda.Fake.AddCall("StartUnit", testing.FakeCallArgs{
-		"name": name,
-		"mode": mode,
-		"ch":   ch,
+func (fda *stubDbusApi) StartUnit(name string, mode string, ch chan<- string) (int, error) {
+	fda.Stub.AddCall("StartUnit", name, mode, ch)
+
+	return 0, fda.NextErr()
+}
+
+func (fda *stubDbusApi) StopUnit(name string, mode string, ch chan<- string) (int, error) {
+	fda.Stub.AddCall("StopUnit", name, mode, ch)
+
+	return 0, fda.NextErr()
+}
+
+func (fda *stubDbusApi) EnableUnitFiles(files []string, runtime bool, force bool) (bool, []dbus.EnableUnitFileChange, error) {
+	fda.Stub.AddCall("EnableUnitFiles", files, runtime, force)
+
+	return false, nil, fda.NextErr()
+}
+
+func (fda *stubDbusApi) DisableUnitFiles(files []string, runtime bool) ([]dbus.DisableUnitFileChange, error) {
+	fda.Stub.AddCall("DisableUnitFiles", []interface{}{
+		files,
+		runtime,
 	})
 
-	return 0, fda.Err()
+	return nil, fda.NextErr()
 }
 
-func (fda *fakeDbusApi) StopUnit(name string, mode string, ch chan<- string) (int, error) {
-	fda.Fake.AddCall("StopUnit", testing.FakeCallArgs{
-		"name": name,
-		"mode": mode,
-		"ch":   ch,
-	})
+func (fda *stubDbusApi) Close() {
+	fda.Stub.AddCall("Close", nil)
 
-	return 0, fda.Err()
-}
-
-func (fda *fakeDbusApi) EnableUnitFiles(files []string, runtime bool, force bool) (bool, []dbus.EnableUnitFileChange, error) {
-	fda.Fake.AddCall("EnableUnitFiles", testing.FakeCallArgs{
-		"files":   files,
-		"runtime": runtime,
-		"force":   force,
-	})
-
-	return false, nil, fda.Err()
-}
-
-func (fda *fakeDbusApi) DisableUnitFiles(files []string, runtime bool) ([]dbus.DisableUnitFileChange, error) {
-	fda.Fake.AddCall("DisableUnitFiles", testing.FakeCallArgs{
-		"files":   files,
-		"runtime": runtime,
-	})
-
-	return nil, fda.Err()
-}
-
-func (fda *fakeDbusApi) Close() {
-	fda.Fake.AddCall("Close", nil)
-
-	fda.Fake.Err()
+	fda.Stub.NextErr()
 }
 
 type initSystemSuite struct {
@@ -125,9 +113,9 @@ type initSystemSuite struct {
 	confStr string
 
 	ch   chan string
-	fake *testing.Fake
-	conn *fakeDbusApi
-	fops *fs.FakeOps
+	stub *testing.Stub
+	conn *stubDbusApi
+	fops *fs.StubOps
 	init initsystems.InitSystem
 }
 
@@ -137,9 +125,9 @@ func (s *initSystemSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 
 	s.ch = make(chan string, 1)
-	s.fake = &testing.Fake{}
-	s.conn = &fakeDbusApi{Fake: s.fake}
-	s.fops = &fs.FakeOps{Fake: s.fake}
+	s.stub = &testing.Stub{}
+	s.conn = &stubDbusApi{Stub: s.stub}
+	s.fops = &fs.StubOps{Stub: s.stub}
 	s.init = systemd.NewSystemd(s.conn, s.fops, s.ch)
 	s.conf = initsystems.Conf{
 		Desc: "juju agent for machine-0",
@@ -211,7 +199,7 @@ func (s *initSystemSuite) TestInitSystemStart(c *gc.C) {
 	err := s.init.Start(name)
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.fake.CheckCallNames(c, "ListUnits", "Close", "StartUnit", "Close")
+	s.stub.CheckCallNames(c, "ListUnits", "Close", "StartUnit", "Close")
 }
 
 func (s *initSystemSuite) TestInitSystemStartAlreadyRunning(c *gc.C) {
@@ -238,7 +226,7 @@ func (s *initSystemSuite) TestInitSystemStop(c *gc.C) {
 	err := s.init.Stop(name)
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.fake.CheckCallNames(c, "ListUnits", "Close", "StopUnit", "Close")
+	s.stub.CheckCallNames(c, "ListUnits", "Close", "StopUnit", "Close")
 }
 
 func (s *initSystemSuite) TestInitSystemStopNotRunning(c *gc.C) {
@@ -263,16 +251,16 @@ func (s *initSystemSuite) TestInitSystemEnable(c *gc.C) {
 	err := s.init.Enable(name, filename)
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.fake.CheckCalls(c, []testing.FakeCall{{
+	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "ListUnits",
 	}, {
 		FuncName: "Close",
 	}, {
 		FuncName: "EnableUnitFiles",
-		Args: testing.FakeCallArgs{
-			"files":   []string{filename},
-			"runtime": false,
-			"force":   true,
+		Args: []interface{}{
+			[]string{filename},
+			false,
+			true,
 		},
 	}, {
 		FuncName: "Close",
@@ -297,15 +285,15 @@ func (s *initSystemSuite) TestInitSystemDisable(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 
 	filename := "/var/lib/juju/init/" + name + "/systemd.conf"
-	s.fake.CheckCalls(c, []testing.FakeCall{{
+	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "ListUnits",
 	}, {
 		FuncName: "Close",
 	}, {
 		FuncName: "DisableUnitFiles",
-		Args: testing.FakeCallArgs{
-			"files":   []string{filename},
-			"runtime": false,
+		Args: []interface{}{
+			[]string{filename},
+			false,
 		},
 	}, {
 		FuncName: "Close",
@@ -329,7 +317,7 @@ func (s *initSystemSuite) TestInitSystemIsEnabledTrue(c *gc.C) {
 
 	c.Check(enabled, jc.IsTrue)
 
-	s.fake.CheckCalls(c, []testing.FakeCall{{
+	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "ListUnits",
 	}, {
 		FuncName: "Close",
@@ -358,7 +346,7 @@ func (s *initSystemSuite) TestInitSystemInfoRunning(c *gc.C) {
 		Status:      initsystems.StatusRunning,
 	})
 
-	s.fake.CheckCalls(c, []testing.FakeCall{{
+	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "ListUnits",
 	}, {
 		FuncName: "Close",
@@ -398,7 +386,7 @@ func (s *initSystemSuite) TestInitSystemConf(c *gc.C) {
 		Cmd:  "jujud unit-wordpress-0",
 	})
 
-	s.fake.CheckCalls(c, []testing.FakeCall{{
+	s.stub.CheckCalls(c, []testing.StubCall{{
 		FuncName: "ListUnits",
 	}, {
 		FuncName: "Close",
@@ -414,10 +402,11 @@ func (s *initSystemSuite) TestInitSystemConfNotEnabled(c *gc.C) {
 }
 
 func (s *initSystemSuite) TestInitSystemValidate(c *gc.C) {
-	err := s.init.Validate("jujud-machine-0", s.conf)
+	confName, err := s.init.Validate("jujud-machine-0", s.conf)
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.fake.CheckCalls(c, nil)
+	c.Check(confName, gc.Equals, "jujud-machine-0.service")
+	s.stub.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemValidateFull(c *gc.C) {
@@ -429,16 +418,16 @@ func (s *initSystemSuite) TestInitSystemValidateFull(c *gc.C) {
 	}
 	s.conf.Out = "syslog"
 
-	err := s.init.Validate("jujud-machine-0", s.conf)
+	_, err := s.init.Validate("jujud-machine-0", s.conf)
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.fake.CheckCalls(c, nil)
+	s.stub.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemValidateInvalid(c *gc.C) {
 	s.conf.Cmd = ""
 
-	err := s.init.Validate("jujud-machine-0", s.conf)
+	_, err := s.init.Validate("jujud-machine-0", s.conf)
 
 	c.Check(err, jc.Satisfies, errors.IsNotValid)
 }
@@ -446,7 +435,7 @@ func (s *initSystemSuite) TestInitSystemValidateInvalid(c *gc.C) {
 func (s *initSystemSuite) TestInitSystemValidateInvalidOut(c *gc.C) {
 	s.conf.Out = "/var/log/juju/machine-0.log"
 
-	err := s.init.Validate("jujud-machine-0", s.conf)
+	_, err := s.init.Validate("jujud-machine-0", s.conf)
 
 	expected := errors.NotValidf("Out")
 	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
@@ -457,7 +446,7 @@ func (s *initSystemSuite) TestInitSystemValidateInvalidLimit(c *gc.C) {
 		"x": "y",
 	}
 
-	err := s.init.Validate("jujud-machine-0", s.conf)
+	_, err := s.init.Validate("jujud-machine-0", s.conf)
 
 	expected := errors.NotValidf("Limit")
 	c.Check(errors.Cause(err), gc.FitsTypeOf, expected)
@@ -469,7 +458,7 @@ func (s *initSystemSuite) TestInitSystemSerialize(c *gc.C) {
 
 	c.Check(string(data), gc.Equals, s.confStr)
 
-	s.fake.CheckCalls(c, nil)
+	s.stub.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemSerializeUnsupported(c *gc.C) {
@@ -497,7 +486,7 @@ func (s *initSystemSuite) TestInitSystemDeserialize(c *gc.C) {
 		Cmd:  "jujud unit-wordpress-0",
 	})
 
-	s.fake.CheckCalls(c, nil)
+	s.stub.CheckCalls(c, nil)
 }
 
 func (s *initSystemSuite) TestInitSystemDeserializeUnsupported(c *gc.C) {

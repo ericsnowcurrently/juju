@@ -178,16 +178,18 @@ func (is *systemd) Check(name string, filename string) (bool, error) {
 }
 
 // Info implements service/initsystems.InitSystem.
-func (is *systemd) Info(name string) (*initsystems.ServiceInfo, error) {
+func (is *systemd) Info(name string) (initsystems.ServiceInfo, error) {
+	var info initsystems.ServiceInfo
+
 	conn, err := is.newConn()
 	if err != nil {
-		return nil, errors.Trace(err)
+		return info, errors.Trace(err)
 	}
 	defer conn.Close()
 
 	units, err := conn.ListUnits()
 	if err != nil {
-		return nil, errors.Trace(err)
+		return info, errors.Trace(err)
 	}
 
 	for _, unit := range units {
@@ -196,24 +198,26 @@ func (is *systemd) Info(name string) (*initsystems.ServiceInfo, error) {
 		}
 	}
 
-	return nil, errors.NotFoundf("service %q", name)
+	return info, errors.NotFoundf("service %q", name)
 }
 
 // Conf implements service/initsystems.InitSystem.
-func (is *systemd) Conf(name string) (*initsystems.Conf, error) {
+func (is *systemd) Conf(name string) (initsystems.Conf, error) {
+	var conf initsystems.Conf
+
 	if err := initsystems.EnsureStatus(is, name, initsystems.StatusEnabled); err != nil {
-		return nil, errors.Trace(err)
+		return conf, errors.Trace(err)
 	}
 
 	// TODO(ericsnow) Finish!
 	// This may involve conn.GetUnitProperties...
-	return nil, nil
+	return conf, nil
 }
 
 // Validate implements service/initsystems.InitSystem.
-func (is *systemd) Validate(name string, conf initsystems.Conf) error {
-	err := Validate(name, conf)
-	return errors.Trace(err)
+func (is *systemd) Validate(name string, conf initsystems.Conf) (string, error) {
+	confName, err := Validate(name, conf)
+	return confName, errors.Trace(err)
 }
 
 // Serialize implements service/initsystems.InitSystem.
@@ -223,7 +227,7 @@ func (is *systemd) Serialize(name string, conf initsystems.Conf) ([]byte, error)
 }
 
 // Deserialize implements service/initsystems.InitSystem.
-func (is *systemd) Deserialize(data []byte, name string) (*initsystems.Conf, error) {
+func (is *systemd) Deserialize(data []byte, name string) (initsystems.Conf, error) {
 	conf, err := Deserialize(data, name)
 	return conf, errors.Trace(err)
 }

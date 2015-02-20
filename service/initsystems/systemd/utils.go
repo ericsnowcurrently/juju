@@ -31,7 +31,7 @@ func newFileOperations() fileOperations {
 	return &fs.Ops{}
 }
 
-func newInfo(unit dbus.UnitStatus) *initsystems.ServiceInfo {
+func newInfo(unit dbus.UnitStatus) initsystems.ServiceInfo {
 	status := initsystems.StatusError
 	if unit.LoadState == "loaded" {
 		var ok bool
@@ -41,7 +41,7 @@ func newInfo(unit dbus.UnitStatus) *initsystems.ServiceInfo {
 		}
 	}
 
-	return &initsystems.ServiceInfo{
+	return initsystems.ServiceInfo{
 		Name:        unit.Name,
 		Description: unit.Description,
 		Status:      status,
