@@ -8,10 +8,10 @@ package cloudinit
 
 import (
 	"bytes"
-	"strings"
 	"text/template"
 
 	"github.com/juju/errors"
+	"github.com/juju/utils"
 	"github.com/juju/utils/shell"
 
 	"github.com/juju/juju/version"
@@ -24,7 +24,7 @@ type Config struct {
 	// osName is the name of the OS derived from the series. It will
 	// be the lower-cased. Currently it only matters if it is
 	// "windows" or not "windows".
-	osName string
+	osName utils.OSName
 
 	// Series is the series that this config is targeting.
 	Series string
@@ -40,8 +40,8 @@ func New(series string) (*Config, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	osName := strings.ToLower(os.String())
-	shellRenderer, err := shell.NewRenderer(osName)
+	osName := os.GOOS()
+	shellRenderer, err := shell.OSRenderer(osName)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -65,7 +65,7 @@ func (cfg *Config) set(opt string, yes bool, value interface{}) {
 // Render converts the cloudinit config into the corresponding script
 // to write to disk.
 func (cfg *Config) Render() ([]byte, error) {
-	if cfg.osName == "windows" {
+	if cfg.osName == utils.OSWindows {
 		return renderWindows(cfg)
 	} else {
 		return renderUnix(cfg)

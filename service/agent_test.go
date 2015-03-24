@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/service"
 	"github.com/juju/juju/service/common"
+	"github.com/juju/juju/version"
 )
 
 func init() {
@@ -38,7 +39,7 @@ func (*agentSuite) TestAgentConfMachineLocal(c *gc.C) {
 	dataDir := c.MkDir()
 	logDir := c.MkDir()
 	info := service.NewMachineAgentInfo("0", dataDir, logDir)
-	renderer, err := shell.NewRenderer("")
+	renderer, err := shell.CurrentRenderer()
 	c.Assert(err, jc.ErrorIsNil)
 	conf := service.AgentConf(info, renderer)
 
@@ -65,7 +66,7 @@ func (*agentSuite) TestAgentConfMachineUbuntu(c *gc.C) {
 	dataDir := "/var/lib/juju"
 	logDir := "/var/log/juju"
 	info := service.NewMachineAgentInfo("0", dataDir, logDir)
-	renderer, err := shell.NewRenderer("ubuntu")
+	renderer, err := shell.OSRenderer(version.Ubuntu.GOOS())
 	c.Assert(err, jc.ErrorIsNil)
 	conf := service.AgentConf(info, renderer)
 
@@ -92,7 +93,7 @@ func (*agentSuite) TestAgentConfMachineWindows(c *gc.C) {
 	dataDir := `C:\Juju\lib\juju`
 	logDir := `C:\Juju\logs\juju`
 	info := service.NewMachineAgentInfo("0", dataDir, logDir)
-	renderer, err := shell.NewRenderer("windows")
+	renderer, err := shell.OSRenderer(version.Windows.GOOS())
 	c.Assert(err, jc.ErrorIsNil)
 	conf := service.AgentConf(info, renderer)
 
@@ -119,7 +120,7 @@ func (*agentSuite) TestAgentConfUnit(c *gc.C) {
 	dataDir := c.MkDir()
 	logDir := c.MkDir()
 	info := service.NewUnitAgentInfo("wordpress/0", dataDir, logDir)
-	renderer, err := shell.NewRenderer("")
+	renderer, err := shell.CurrentRenderer()
 	c.Assert(err, jc.ErrorIsNil)
 	conf := service.AgentConf(info, renderer)
 
@@ -143,7 +144,7 @@ func (*agentSuite) TestContainerAgentConf(c *gc.C) {
 	dataDir := c.MkDir()
 	logDir := c.MkDir()
 	info := service.NewUnitAgentInfo("wordpress/0", dataDir, logDir)
-	renderer, err := shell.NewRenderer("")
+	renderer, err := shell.CurrentRenderer()
 	c.Assert(err, jc.ErrorIsNil)
 	conf := service.ContainerAgentConf(info, renderer, "cont")
 

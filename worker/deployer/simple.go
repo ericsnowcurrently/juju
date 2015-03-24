@@ -90,7 +90,7 @@ func (ctx *SimpleContext) AgentConfig() agent.Config {
 
 func (ctx *SimpleContext) DeployUnit(unitName, initialPassword string) (err error) {
 	// Check sanity.
-	renderer, err := shell.NewRenderer("")
+	renderer, err := shell.CurrentRenderer()
 	if err != nil {
 		return errors.Trace(err)
 	}
