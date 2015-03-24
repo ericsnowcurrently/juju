@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/juju/utils"
 )
 
 type OSType int
@@ -34,6 +36,22 @@ func (t OSType) String() string {
 		return "CentOS"
 	}
 	return "Unknown"
+}
+
+// GOOS returns the expected value of runtime.GOOS for the OS.
+func (t OSType) GOOS() utils.OSName {
+	switch t {
+	case Ubuntu:
+		return utils.OSLinux
+	case Windows:
+		return utils.OSWindows
+	case OSX:
+		return utils.OSDarwin
+	case CentOS:
+		return utils.OSLinux
+	default:
+		return utils.OSUnknown
+	}
 }
 
 // seriesVersions provides a mapping between Ubuntu series names and version numbers.
