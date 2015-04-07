@@ -20,6 +20,8 @@ type Id string
 // UnknownId can be used to explicitly specify the instance ID does not matter.
 const UnknownId Id = ""
 
+// TODO(ericsnow) Eliminate Instance.
+
 // Instance represents the the realization of a machine in state.
 type Instance interface {
 	// Id returns a provider-generated identifier for the Instance.
@@ -47,6 +49,60 @@ type Instance interface {
 	// which should have been started with the given machine id. The
 	// port ranges are returned as sorted by network.SortPortRanges().
 	Ports(machineId string) ([]network.PortRange, error)
+}
+
+// Info exposes all the information about a single provider instance.
+type Info struct {
+	id         Id
+	instancer  InstanceBroker
+	firewaller InstanceFirewallBroker
+	networker  provider.NetworkBroker
+
+	// TODO(ericsnow) Support caching information?
+}
+
+func NewInfo(id instance.Id, prov prov.Provider) *Info {
+	return *Info{
+		id:         id,
+		instancer:  prov.InstanceBroker(),
+		firewaller: prov.FirewallBroker(),
+		networker:  prov.NetworkBroker(),
+	}
+}
+
+// ID returns the provider-generated identifier for the instance.
+func (inst Info) ID() string {
+	return inst.id
+}
+
+// Status returns the provider-specific status for the instance.
+func (inst Info) Status() (string, error) {
+	return inst.instancer.Status(inst.ID)
+}
+
+// Addresses returns a list of hostnames or ip addresses
+// associated with the instance.
+func (inst Info) Addresses() ([]network.Address, error) {
+	return inst.networker.Addresses(inst.ID)
+}
+
+// OpenPorts opens the given port ranges on the instance, which
+// should have been started with the given machine id.
+func (inst Info) OpenPorts(machineId string, ports []network.PortRange) error {
+	return inst.firewaller.OpenPorts(inst.ID, machineID, ports)
+}
+
+// ClosePorts closes the given port ranges on the instance, which
+// should have been started with the given machine id.
+func (inst Info) ClosePorts(machineId string, ports []network.PortRange) error {
+	return inst.firewaller.OpenPorts(inst.ID, machineID, ports)
+}
+
+// Ports returns the set of port ranges open on the instance,
+// which should have been started with the given machine id. The
+// port ranges are returned as sorted by network.SortPortRanges().
+func (inst Info) Ports(machineId string) ([]network.PortRange, error) {
+	return inst.firewaller.Ports(inst.ID, machineID)
 }
 
 // HardwareCharacteristics represents the characteristics of the instance (if known).
