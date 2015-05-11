@@ -154,7 +154,8 @@ func (s *StorageStateSuite) TestAddServiceStorageConstraintsDefaultPool(c *gc.C)
 		"data": makeStorageCons("", 2048, 1),
 	}
 	expectedCons := map[string]state.StorageConstraints{
-		"data": makeStorageCons("loop-pool", 2048, 1),
+		"data":    makeStorageCons("loop-pool", 2048, 1),
+		"allecto": makeStorageCons("loop-pool", 1024, 0),
 	}
 	s.assertAddServiceStorageConstraintsDefaults(c, "loop-pool", storageCons, expectedCons)
 }
@@ -164,7 +165,8 @@ func (s *StorageStateSuite) TestAddServiceStorageConstraintsNoUserDefaultPool(c 
 		"data": makeStorageCons("", 2048, 1),
 	}
 	expectedCons := map[string]state.StorageConstraints{
-		"data": makeStorageCons("loop", 2048, 1),
+		"data":    makeStorageCons("loop", 2048, 1),
+		"allecto": makeStorageCons("loop", 1024, 0),
 	}
 	s.assertAddServiceStorageConstraintsDefaults(c, "", storageCons, expectedCons)
 }
@@ -174,7 +176,8 @@ func (s *StorageStateSuite) TestAddServiceStorageConstraintsDefaultSizeFallback(
 		"data": makeStorageCons("loop-pool", 0, 1),
 	}
 	expectedCons := map[string]state.StorageConstraints{
-		"data": makeStorageCons("loop-pool", 1024, 1),
+		"data":    makeStorageCons("loop-pool", 1024, 1),
+		"allecto": makeStorageCons("loop-pool", 1024, 0),
 	}
 	s.assertAddServiceStorageConstraintsDefaults(c, "loop-pool", storageCons, expectedCons)
 }
@@ -237,6 +240,7 @@ func (s *StorageStateSuite) assertStorageUnitsAdded(c *gc.C) {
 			c.Assert(err, jc.ErrorIsNil)
 			count[storageInstance.StorageName()]++
 			c.Assert(storageInstance.Kind(), gc.Equals, state.StorageKindBlock)
+			c.Assert(storageInstance.CharmURL(), gc.DeepEquals, ch.URL())
 		}
 		c.Assert(count, gc.DeepEquals, map[string]int{
 			"multi1to10": 1,
