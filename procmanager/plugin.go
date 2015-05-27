@@ -9,8 +9,10 @@ type Plugin interface {
 	// TODO(wwitzel3) determine specific details for storage and networking
 	// Launch launches a new process with the given info.
 	Launch(image, desc, storage, networking, args string) (ProcessDetails, error)
+
 	// Destroy destroys an existing process.
 	Destroy(id string) error
+
 	// Info retrieves information about an existing process, including status.
 	Info(id string) (ProcessDetails, error)
 }
@@ -21,6 +23,7 @@ type ProcessDetails struct {
 	// UniqueID is provided by the plugin as a guaranteed way
 	// to identify the process to the plugin.
 	UniqueID string
+
 	// Status is the status of the process as reported by the plugin.
 	Status string
 }
@@ -38,6 +41,7 @@ type PluginResource interface {
 	// storage resource.
 	// $ storage-info -> API.PluginResource.Storage
 	Storage(storageID string) (storageInfo, error)
+
 	// Networking returns information needed by a plugin about the given
 	// networking resource.
 	// $ network-info -> API.PluginResource.Networking
