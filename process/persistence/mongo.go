@@ -60,7 +60,10 @@ func (pp Persistence) extractProc(id string, definitionDocs map[string]ProcessDe
 	if !ok {
 		missing += 4
 	}
-	if missing > 0 {
+	if missing == 6 {
+		launchDoc = ProcessLaunchDoc{}
+		procDoc = ProcessDoc{}
+	} else if missing > 0 {
 		return nil, missing
 	}
 

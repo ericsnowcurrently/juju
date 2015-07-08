@@ -197,7 +197,7 @@ func (pp Persistence) List(ids ...string) ([]process.Info, []string, error) {
 	for _, id := range ids {
 		proc, missingCount := pp.extractProc(id, definitionDocs, launchDocs, procDocs)
 		if missingCount > 0 {
-			if missingCount < 6 {
+			if missingCount < 7 {
 				return nil, nil, errors.Errorf("found inconsistent records for process %q", id)
 			}
 			missing = append(missing, id)
