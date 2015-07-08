@@ -75,8 +75,9 @@ func (c *ProcLaunchCommand) init(name string) error {
 
 // Run implements cmd.Command.
 func (c *ProcLaunchCommand) Run(ctx *cmd.Context) error {
+	definition := c.baseCommand.info.Process
 
-	plugin, err := c.findPlugin(c.Name)
+	plugin, err := c.findPlugin(definition.Type)
 	if err != nil {
 		return err
 	}
@@ -85,7 +86,7 @@ func (c *ProcLaunchCommand) Run(ctx *cmd.Context) error {
 	// successful and returning an err if not. If err is not set, we
 	// assume success, and that the procDetails are for informational
 	// purposes.
-	procDetails, err := c.launchPlugin(*plugin, c.baseCommand.info.Process)
+	procDetails, err := c.launchPlugin(*plugin, definition)
 	if err != nil {
 		return err
 	}
