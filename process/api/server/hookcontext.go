@@ -104,8 +104,8 @@ func (a HookContextAPI) ListProcesses(args api.ListProcessesArgs) (api.ListProce
 		}
 		if !found {
 			hclogger.Debugf("error: %q not found", id)
-			res.Error = common.ServerError(errors.NotFoundf("process %q", id))
-			r.Error = common.ServerError(api.BulkFailure)
+			res.NotFound = true
+			//r.Error = common.ServerError(api.BulkFailure)
 		}
 		r.Results = append(r.Results, res)
 	}
