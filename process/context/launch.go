@@ -4,6 +4,8 @@
 package context
 
 import (
+	"os"
+
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 	"github.com/juju/juju/process"
@@ -77,9 +79,15 @@ func (c *ProcLaunchCommand) init(name string) error {
 func (c *ProcLaunchCommand) Run(ctx *cmd.Context) error {
 	definition := c.baseCommand.info.Process
 
+	// TODO(ericsnow) Move the plugin lookup over to a method in baseCommand.
+	// TODO(ericsnow) Fix this to support Windows.
+	envPath := ctx.Getenv("PATH") + ":" + os.Getenv("PATH")
+	if err := os.Setenv("PATH", envPath); err != nil {
+		return errors.Trace(err)
+	}
 	plugin, err := c.findPlugin(definition.Type)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	// The plugin is responsible for validating that the launch was
@@ -88,7 +96,7 @@ func (c *ProcLaunchCommand) Run(ctx *cmd.Context) error {
 	// purposes.
 	procDetails, err := c.launchPlugin(*plugin, definition)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	c.Details = procDetails
 
