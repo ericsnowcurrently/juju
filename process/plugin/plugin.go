@@ -88,11 +88,13 @@ func Find(name string) (*Plugin, error) {
 // be whatever information the plugin thinks might be relevant to see in the
 // service's status output.
 func (p Plugin) Launch(proc charm.Process) (process.Details, error) {
+	logger.Debugf("launching: %#v", proc)
 	var details process.Details
 	b, err := json.Marshal(proc)
 	if err != nil {
 		return details, errors.Annotate(err, "can't convert charm.Process to json")
 	}
+	logger.Debugf("serialized: %s", b)
 	out, err := p.run("launch", string(b))
 	if err != nil {
 		return details, errors.Trace(err)
