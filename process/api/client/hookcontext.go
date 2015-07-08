@@ -5,10 +5,13 @@ package client
 
 import (
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 
 	"github.com/juju/juju/process"
 	"github.com/juju/juju/process/api"
 )
+
+var hclogger = loggo.GetLogger("juju.process.api.client.hookcontext")
 
 const processAPI = "Process"
 

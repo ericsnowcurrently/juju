@@ -14,7 +14,7 @@ import (
 	"github.com/juju/juju/process/api"
 )
 
-var logger = loggo.GetLogger("juju.process.api.server")
+var hclogger = loggo.GetLogger("juju.process.api.server.hookcontext")
 
 // UnitProcesses exposes the State functionality for a unit's
 // workload processes.
@@ -48,7 +48,9 @@ func (a HookContextAPI) RegisterProcesses(args api.RegisterProcessesArgs) (api.P
 		res := api.ProcessResult{
 			ID: info.ID(),
 		}
+		hclogger.Debugf("registering %q: %#v", info.ID(), info)
 		if err := a.State.Register(info); err != nil {
+			hclogger.Debugf("error registering %q: %v", info.ID(), err)
 			res.Error = common.ServerError(errors.Trace(err))
 			r.Error = common.ServerError(api.BulkFailure)
 		}
@@ -63,6 +65,12 @@ func (a HookContextAPI) RegisterProcesses(args api.RegisterProcessesArgs) (api.P
 // processes for the unit are returned.
 func (a HookContextAPI) ListProcesses(args api.ListProcessesArgs) (api.ListProcessesResults, error) {
 	var r api.ListProcessesResults
+
+	if len(args.IDs) > 0 {
+		hclogger.Debugf("listing %v", args.IDs)
+	} else {
+		hclogger.Debugf("listing all")
+	}
 
 	ids := args.IDs
 	procs, err := a.State.List(ids...)
@@ -95,6 +103,7 @@ func (a HookContextAPI) ListProcesses(args api.ListProcessesArgs) (api.ListProce
 			}
 		}
 		if !found {
+			hclogger.Debugf("error: %q not found", id)
 			res.Error = common.ServerError(errors.NotFoundf("process %q", id))
 			r.Error = common.ServerError(api.BulkFailure)
 		}
@@ -111,8 +120,10 @@ func (a HookContextAPI) SetProcessesStatus(args api.SetProcessesStatusArgs) (api
 			ID: arg.ID,
 		}
 		status := api.APIStatus2Status(arg.Status)
+		hclogger.Debugf("setting status for %q to %#v", arg.ID, status)
 		err := a.State.SetStatus(arg.ID, status)
 		if err != nil {
+			hclogger.Debugf("error setting status for %q: %v", arg.ID, err)
 			res.Error = common.ServerError(err)
 			r.Error = common.ServerError(api.BulkFailure)
 		}
@@ -123,12 +134,15 @@ func (a HookContextAPI) SetProcessesStatus(args api.SetProcessesStatusArgs) (api
 
 // UnregisterProcesses marks the identified process as unregistered.
 func (a HookContextAPI) UnregisterProcesses(args api.UnregisterProcessesArgs) (api.ProcessResults, error) {
+	hclogger.Debugf("unregistering %v", args.IDs)
+
 	r := api.ProcessResults{}
 	for _, id := range args.IDs {
 		res := api.ProcessResult{
 			ID: id,
 		}
 		if err := a.State.Unregister(id); err != nil {
+			hclogger.Debugf("error unregistering %q: %v", id, err)
 			res.Error = common.ServerError(errors.Trace(err))
 			r.Error = common.ServerError(api.BulkFailure)
 		}
