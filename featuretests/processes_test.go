@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/juju/cmd"
@@ -30,6 +31,10 @@ import (
 )
 
 func initProcessesSuites() {
+	if runtime.GOOS == "windows" {
+		return
+	}
+
 	if err := all.RegisterForServer(); err != nil {
 		panic(err)
 	}
