@@ -195,12 +195,21 @@ func (c *Context) Flush() error {
 	}
 
 	var updates []process.Info
+	var events []process.Event
 	for _, info := range c.updates {
 		updates = append(updates, info)
+		// TODO(ericsnow) Pass in the plugin.
+		var plugin process.Plugin
+		events = append(events, process.Event{
+			Kind:   process.EventKindTracked,
+			ID:     info.ID(),
+			Plugin: plugin,
+		})
 	}
 	if _, err := c.api.RegisterProcesses(updates...); err != nil {
 		return errors.Trace(err)
 	}
+	c.addEvents(events...)
 
 	for k, v := range c.updates {
 		c.processes[k] = v
