@@ -321,8 +321,12 @@ func (s *contextSuite) TestListDefinitions(c *gc.C) {
 
 func (s *contextSuite) TestFlushDirty(c *gc.C) {
 	info := s.newProc("A", "myplugin", "xyz123", "okay")
+	findPlugin := func(ptype string) (process.Plugin, error) {
+		return &stubPlugin{stub: s.Stub}, nil
+	}
 
 	ctx := context.NewContext(s.apiClient, s.addEvents)
+	ctx.FindPlugin = findPlugin
 	err := ctx.Set(info)
 	c.Assert(err, jc.ErrorIsNil)
 
