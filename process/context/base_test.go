@@ -98,6 +98,7 @@ type stubContextComponent struct {
 	stub        *testing.Stub
 	procs       map[string]process.Info
 	definitions map[string]charm.Process
+	plugin      process.Plugin
 }
 
 func newStubContextComponent(stub *testing.Stub) *stubContextComponent {
@@ -106,6 +107,18 @@ func newStubContextComponent(stub *testing.Stub) *stubContextComponent {
 		procs:       make(map[string]process.Info),
 		definitions: make(map[string]charm.Process),
 	}
+}
+
+func (c *stubContextComponent) Plugin(info *process.Info) (process.Plugin, error) {
+	c.stub.AddCall("Plugin", info)
+	if err := c.stub.NextErr(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	if c.plugin == nil {
+		return &stubPlugin{stub: c.stub}, nil
+	}
+	return c.plugin, nil
 }
 
 func (c *stubContextComponent) Get(id string) (*process.Info, error) {
@@ -259,4 +272,37 @@ func (c *stubAPIClient) RegisterProcesses(procs ...process.Info) ([]string, erro
 		ids = append(ids, proc.ID())
 	}
 	return ids, nil
+}
+
+type stubPlugin struct {
+	stub    *testing.Stub
+	details process.Details
+	status  process.PluginStatus
+}
+
+func (c *stubPlugin) Launch(definition charm.Process) (process.Details, error) {
+	c.stub.AddCall("Launch", definition)
+	if err := c.stub.NextErr(); err != nil {
+		return c.details, errors.Trace(err)
+	}
+
+	return c.details, nil
+}
+
+func (c *stubPlugin) Destroy(id string) error {
+	c.stub.AddCall("Destroy", id)
+	if err := c.stub.NextErr(); err != nil {
+		return errors.Trace(err)
+	}
+
+	return nil
+}
+
+func (c *stubPlugin) Status(id string) (process.PluginStatus, error) {
+	c.stub.AddCall("Status", id)
+	if err := c.stub.NextErr(); err != nil {
+		return c.status, errors.Trace(err)
+	}
+
+	return c.status, nil
 }
