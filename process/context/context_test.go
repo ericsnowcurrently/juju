@@ -329,7 +329,7 @@ func (s *contextSuite) TestFlushDirty(c *gc.C) {
 	err = ctx.Flush()
 	c.Assert(err, jc.ErrorIsNil)
 
-	s.Stub.CheckCallNames(c, "RegisterProcesses")
+	s.Stub.CheckCallNames(c, "RegisterProcesses", "addEvents")
 }
 
 func (s *contextSuite) TestFlushNotDirty(c *gc.C) {
