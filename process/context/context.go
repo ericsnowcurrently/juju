@@ -49,27 +49,29 @@ type Component interface {
 // Context is the workload process portion of the hook context.
 type Context struct {
 	api       APIClient
+	addEvents func(...process.Event)
 	processes map[string]process.Info
 	updates   map[string]process.Info
 }
 
 // NewContext returns a new jujuc.ContextComponent for workload processes.
-func NewContext(api APIClient) *Context {
+func NewContext(api APIClient, addEvents func(...process.Event)) *Context {
 	return &Context{
 		api:       api,
+		addEvents: addEvents,
 		processes: make(map[string]process.Info),
 		updates:   make(map[string]process.Info),
 	}
 }
 
 // NewContextAPI returns a new jujuc.ContextComponent for workload processes.
-func NewContextAPI(api APIClient) (*Context, error) {
+func NewContextAPI(api APIClient, addEvents func(...process.Event)) (*Context, error) {
 	procs, err := api.ListProcesses()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ctx := NewContext(api)
+	ctx := NewContext(api, addEvents)
 	for _, proc := range procs {
 		ctx.processes[proc.ID()] = proc
 	}
