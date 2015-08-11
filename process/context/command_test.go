@@ -12,6 +12,7 @@ import (
 
 	"github.com/juju/juju/process"
 	"github.com/juju/juju/process/context"
+	proctesting "github.com/juju/juju/process/testing"
 	coretesting "github.com/juju/juju/testing"
 	"github.com/juju/juju/worker/uniter/runner/jujuc"
 )
@@ -22,14 +23,14 @@ type commandSuite struct {
 	cmdName string
 	cmd     cmd.Command
 	cmdCtx  *cmd.Context
-	compCtx *stubContextComponent
-	Ctx     *stubHookContext
+	compCtx *proctesting.StubContextComponent
+	Ctx     *proctesting.StubHookContext
 }
 
 func (s *commandSuite) SetUpTest(c *gc.C) {
 	s.baseSuite.SetUpTest(c)
 
-	s.compCtx = newStubContextComponent(s.Stub)
+	s.compCtx = proctesting.NewStubContextComponent(s.Stub)
 	hctx, info := s.NewHookContext()
 	info.SetComponent(process.ComponentName, s.compCtx)
 	s.Ctx = hctx
@@ -49,7 +50,7 @@ func (s *commandSuite) setCommand(c *gc.C, name string, cmd cmd.Command) {
 func (s *commandSuite) setMetadata(procs ...process.Info) {
 	for _, proc := range procs {
 		definition := proc.Process
-		s.compCtx.definitions[definition.Name] = definition
+		s.compCtx.Data.Definitions[definition.Name] = definition
 	}
 }
 

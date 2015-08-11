@@ -302,7 +302,7 @@ func (s *registerSuite) TestRunOkay(c *gc.C) {
 
 func (s *registerSuite) TestRunAlreadyRegistered(c *gc.C) {
 	s.proc.Details.ID = "xyz123"
-	s.compCtx.procs[s.proc.Name] = s.proc
+	s.compCtx.Data.Procs[s.proc.Name] = s.proc
 	s.init(c, s.proc.Name, "abc123", "okay")
 
 	err := s.registerCmd.Run(s.cmdCtx)

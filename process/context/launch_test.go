@@ -7,6 +7,7 @@ import (
 
 	"github.com/juju/juju/process"
 	"github.com/juju/juju/process/context"
+	proctesting "github.com/juju/juju/process/testing"
 )
 
 type launchCmdSuite struct {
@@ -45,14 +46,14 @@ func (s *launchCmdSuite) TestRun(c *gc.C) {
 	s.proc.Process.TypeOptions = map[string]string{}
 	s.proc.Process.EnvVars = map[string]string{}
 
-	plugin := &stubPlugin{stub: s.Stub}
-	plugin.details = process.Details{
+	plugin := &proctesting.StubPlugin{Stub: s.Stub}
+	plugin.Data.Details = process.Details{
 		ID: "id",
 		Status: process.PluginStatus{
 			State: "foo",
 		},
 	}
-	s.compCtx.plugin = plugin
+	s.compCtx.Data.Plugin = plugin
 
 	cmd, err := context.NewProcLaunchCommand(s.Ctx)
 	c.Assert(err, jc.ErrorIsNil)
@@ -70,9 +71,9 @@ func (s *launchCmdSuite) TestRun(c *gc.C) {
 }
 
 func (s *launchCmdSuite) TestRunCantFindPlugin(c *gc.C) {
-	plugin := &stubPlugin{stub: s.Stub}
+	plugin := &proctesting.StubPlugin{Stub: s.Stub}
 	failure := errors.NotFoundf("mock-error")
-	s.compCtx.plugin = plugin
+	s.compCtx.Data.Plugin = plugin
 
 	cmd, err := context.NewProcLaunchCommand(s.Ctx)
 	c.Assert(err, jc.ErrorIsNil)
@@ -91,9 +92,9 @@ func (s *launchCmdSuite) TestRunCantFindPlugin(c *gc.C) {
 }
 
 func (s *launchCmdSuite) TestLaunchCommandErrorRunning(c *gc.C) {
-	plugin := &stubPlugin{stub: s.Stub}
+	plugin := &proctesting.StubPlugin{Stub: s.Stub}
 	failure := errors.Errorf("mock-error")
-	s.compCtx.plugin = plugin
+	s.compCtx.Data.Plugin = plugin
 
 	cmd, err := context.NewProcLaunchCommand(s.Ctx)
 	c.Assert(err, jc.ErrorIsNil)
