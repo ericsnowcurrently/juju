@@ -11,6 +11,7 @@ import (
 
 	"github.com/juju/juju/process"
 	"github.com/juju/juju/process/context"
+	proctesting "github.com/juju/juju/process/testing"
 	"github.com/juju/juju/process/workers"
 	"github.com/juju/juju/testing"
 	workertesting "github.com/juju/juju/worker/testing"
@@ -21,7 +22,7 @@ type eventHandlerSuite struct {
 
 	stub      *gitjujutesting.Stub
 	runner    *workertesting.StubRunner
-	apiClient context.APIClient // TODO(ericsnow) Use a stub.
+	apiClient *proctesting.StubAPIClient
 }
 
 var _ = gc.Suite(&eventHandlerSuite{})
@@ -31,6 +32,7 @@ func (s *eventHandlerSuite) SetUpTest(c *gc.C) {
 
 	s.stub = &gitjujutesting.Stub{}
 	s.runner = workertesting.NewStubRunner(s.stub)
+	s.apiClient = proctesting.NewStubAPIClient(s.stub)
 }
 
 func (s *eventHandlerSuite) handler(events []process.Event, apiClient context.APIClient, runner workers.Runner) error {
