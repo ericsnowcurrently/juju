@@ -150,6 +150,8 @@ func (workloadProcesses) registerHookContextCommands() {
 	})
 }
 
+// TODO(ericsnow) Use a watcher instead of passing around the event handlers?
+
 func (c workloadProcesses) registerWorkers() map[string]*workers.EventHandlers {
 	if !markRegistered(process.ComponentName, "workers") {
 		return nil
@@ -160,7 +162,7 @@ func (c workloadProcesses) registerWorkers() map[string]*workers.EventHandlers {
 	// Add to-be-registered handlers here.
 	}
 
-	newWorkerFunc := func(config unit.ManifoldsConfig, caller base.APICaller) (func() (worker.Worker, error), error) {
+	newManifold := func(config unit.ManifoldsConfig) (dependency.Manifold, error) {
 		// At this point no workload process workers are running for the unit.
 
 		unitName := config.Agent.CurrentConfig().Tag().String()
@@ -170,36 +172,73 @@ func (c workloadProcesses) registerWorkers() map[string]*workers.EventHandlers {
 			unitHandler.Close()
 		}
 
-		apiClient := c.newHookContextAPIClient(caller)
-
-		var runner worker.Runner // TODO(ericsnow) Wrap a dependency engine in a runner.
-		unitHandler := workers.NewEventHandlers(apiClient, runner)
+		unitHandler := workers.NewEventHandlers()
 		for _, handlerFunc := range handlerFuncs {
 			unitHandler.RegisterHandler(handlerFunc)
 		}
 		unitEventHandlers[unitName] = unitHandler
 
-		// Pull all existing from State (via API) and add an event for each.
-		hctx, err := context.NewContextAPI(apiClient, unitHandler.AddEvents)
+		manifold, err := c.newUnitManifold(unitHandler)
 		if err != nil {
-			return nil, errors.Trace(err)
+			return manifest, errors.Trace(err)
 		}
-		events, err := c.initialEvents(hctx)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		unitHandler.AddEvents(events...)
-
-		// TODO(ericsnow) Start a state watcher?
-
-		return unitHandler.NewWorker, nil
+		return manifold, nil
 	}
-	err := unit.RegisterWorker(process.ComponentName, newWorkerFunc)
+	err := unit.RegisterManifold(process.ComponentName, newManifold)
 	if err != nil {
 		panic(err)
 	}
 
 	return unitEventHandlers
+}
+
+func (c workloadProcesses) newUnitManifold(unitHandler workers.EventHandlers) (dependency.Manifest, error) {
+	manifold := dependency.Manifold{
+		Inputs: []string{unit.APICallerName},
+	}
+	manifold.Start = func(getResource dependency.GetResourceFunc) (worker.Worker, error) {
+		var caller base.APICaller
+		err := getResource(unit.APICallerName, &caller)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		apiClient := c.newHookContextAPIClient(caller)
+
+		engine := dependency.NewEngine(cmdutil.IsFatal, 3*time.Second, 10*time.Millisecond)
+		var runner worker.Runner // TODO(ericsnow) Wrap engine in a runner.
+
+		// TODO(ericsnow) Provide the runner as a resource.
+
+		err = engine.Install("events", dependency.Manifest{
+			Inputs: []string{},
+			Start: func(dependency.GetResourceFunc) (worker.Worker, error) {
+				// Pull all existing from State (via API) and add an event for each.
+				hctx, err := context.NewContextAPI(apiClient, unitHandler.AddEvents)
+				if err != nil {
+					return nil, errors.Trace(err)
+				}
+				events, err := c.initialEvents(hctx)
+				if err != nil {
+					return nil, errors.Trace(err)
+				}
+				unitHandler.AddEvents(events...)
+
+				worker, err := unitHandler.NewWorker()
+				if err == nil {
+					return nil, errors.Trace(err)
+				}
+				return worker, nil
+			},
+			Output: func(in worker.Worker, out interface{}) error {
+				// provide the APICaller
+			},
+		})
+		if err == nil {
+			return nil, errors.Trace(err)
+		}
+		return engine, nil
+	}
+	return manifold, nil
 }
 
 func (workloadProcesses) initialEvents(hctx context.Component) ([]process.Event, error) {
