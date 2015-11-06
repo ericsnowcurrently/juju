@@ -11,144 +11,144 @@ import (
 	gc "gopkg.in/check.v1"
 )
 
-var _ = gc.Suite(&fixAddrSuite{})
+var _ = gc.Suite(&fixURLSuite{})
 
-type fixAddrSuite struct {
+type fixURLSuite struct {
 	testing.IsolationSuite
 }
 
-func (s *fixAddrSuite) TestFixAddrLocal(c *gc.C) {
-	fixed, err := fixAddr("")
+func (s *fixURLSuite) TestFixURLLocal(c *gc.C) {
+	fixed, err := fixURL("")
 	c.Assert(err, jc.ErrorIsNil)
 
 	c.Check(fixed, gc.Equals, "")
 }
 
-type addrTest struct {
-	addr     string
+type urlTest struct {
+	url      string
 	expected string
 	err      string
 }
 
-var typicalAddrTests = []addrTest{{
-	addr:     "a.b.c",
+var typicalURLTests = []urlTest{{
+	url:      "a.b.c",
 	expected: "https://a.b.c:8443",
 }, {
-	addr:     "https://a.b.c",
+	url:      "https://a.b.c",
 	expected: "https://a.b.c:8443",
 }, {
-	addr:     "https://a.b.c/",
+	url:      "https://a.b.c/",
 	expected: "https://a.b.c:8443",
 }, {
-	addr:     "a.b.c:1234",
+	url:      "a.b.c:1234",
 	expected: "https://a.b.c:1234",
 }, {
-	addr:     "https://a.b.c:1234",
+	url:      "https://a.b.c:1234",
 	expected: "https://a.b.c:1234",
 }, {
-	addr:     "https://a.b.c:1234/",
+	url:      "https://a.b.c:1234/",
 	expected: "https://a.b.c:1234",
 }, {
-	addr:     "a.b.c/x/y/z",
+	url:      "a.b.c/x/y/z",
 	expected: "https://a.b.c:8443/x/y/z",
 }, {
-	addr:     "https://a.b.c/x/y/z",
+	url:      "https://a.b.c/x/y/z",
 	expected: "https://a.b.c:8443/x/y/z",
 }, {
-	addr:     "https://a.b.c:1234/x/y/z",
+	url:      "https://a.b.c:1234/x/y/z",
 	expected: "https://a.b.c:1234/x/y/z",
 }, {
-	addr:     "http://a.b.c",
+	url:      "http://a.b.c",
 	expected: "https://a.b.c:8443",
 }, {
-	addr:     "1.2.3.4",
+	url:      "1.2.3.4",
 	expected: "https://1.2.3.4:8443",
 }, {
-	addr:     "1.2.3.4:1234",
+	url:      "1.2.3.4:1234",
 	expected: "https://1.2.3.4:1234",
 }, {
-	addr:     "https://1.2.3.4",
+	url:      "https://1.2.3.4",
 	expected: "https://1.2.3.4:8443",
 }, {
-	addr:     "127.0.0.1",
+	url:      "127.0.0.1",
 	expected: "https://127.0.0.1:8443",
 }, {
-	addr:     "2001:db8::ff00:42:8329",
+	url:      "2001:db8::ff00:42:8329",
 	expected: "https://[2001:db8::ff00:42:8329]:8443",
 }, {
-	addr:     "2001:db8::ff00:42:8329/",
+	url:      "2001:db8::ff00:42:8329/",
 	expected: "https://[2001:db8::ff00:42:8329]:8443",
 }, {
-	addr:     "[2001:db8::ff00:42:8329]:1234",
+	url:      "[2001:db8::ff00:42:8329]:1234",
 	expected: "https://[2001:db8::ff00:42:8329]:1234",
 }, {
-	addr:     "[2001:db8::ff00:42:8329]:1234/",
+	url:      "[2001:db8::ff00:42:8329]:1234/",
 	expected: "https://[2001:db8::ff00:42:8329]:1234",
 }, {
-	addr:     "https://2001:db8::ff00:42:8329",
+	url:      "https://2001:db8::ff00:42:8329",
 	expected: "https://[2001:db8::ff00:42:8329]:8443",
 }, {
-	addr:     "https://2001:db8::ff00:42:8329/",
+	url:      "https://2001:db8::ff00:42:8329/",
 	expected: "https://[2001:db8::ff00:42:8329]:8443",
 }, {
-	addr:     "https://[2001:db8::ff00:42:8329]:1234",
+	url:      "https://[2001:db8::ff00:42:8329]:1234",
 	expected: "https://[2001:db8::ff00:42:8329]:1234",
 }, {
-	addr:     "https://[2001:db8::ff00:42:8329]:1234/",
+	url:      "https://[2001:db8::ff00:42:8329]:1234/",
 	expected: "https://[2001:db8::ff00:42:8329]:1234",
 }, {
-	addr:     "2001:db8::ff00:42:8329/x/y/z",
+	url:      "2001:db8::ff00:42:8329/x/y/z",
 	expected: "https://[2001:db8::ff00:42:8329]:8443/x/y/z",
 }, {
-	addr:     "[2001:db8::ff00:42:8329]:1234/x/y/z",
+	url:      "[2001:db8::ff00:42:8329]:1234/x/y/z",
 	expected: "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
 }, {
-	addr:     "https://2001:db8::ff00:42:8329/x/y/z",
+	url:      "https://2001:db8::ff00:42:8329/x/y/z",
 	expected: "https://[2001:db8::ff00:42:8329]:8443/x/y/z",
 }, {
-	addr:     "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
+	url:      "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
 	expected: "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
 }, {
-	addr:     "::1",
+	url:      "::1",
 	expected: "https://[::1]:8443",
 }, {
-	addr:     "::1/",
+	url:      "::1/",
 	expected: "https://[::1]:8443",
 }, {
-	addr:     "::1/x/y/z",
+	url:      "::1/x/y/z",
 	expected: "https://[::1]:8443/x/y/z",
 }, {
-	addr:     "[::1]:1234",
+	url:      "[::1]:1234",
 	expected: "https://[::1]:1234",
 }, {
-	addr:     "[::1]:1234/",
+	url:      "[::1]:1234/",
 	expected: "https://[::1]:1234",
 }, {
-	addr:     "[::1]/x/y/z",
+	url:      "[::1]/x/y/z",
 	expected: "https://[::1]:8443/x/y/z",
 }, {
-	addr:     "[::1]:1234/x/y/z",
+	url:      "[::1]:1234/x/y/z",
 	expected: "https://[::1]:1234/x/y/z",
 }, {
-	addr:     "https://::1",
+	url:      "https://::1",
 	expected: "https://[::1]:8443",
 }, {
-	addr:     "https://::1/",
+	url:      "https://::1/",
 	expected: "https://[::1]:8443",
 }, {
-	addr:     "::1/x/y/z",
+	url:      "::1/x/y/z",
 	expected: "https://[::1]:8443/x/y/z",
 }, {
-	addr:     "https://::1/x/y/z",
+	url:      "https://::1/x/y/z",
 	expected: "https://[::1]:8443/x/y/z",
 }}
 
-func (s *fixAddrSuite) TestFixAddrTypical(c *gc.C) {
-	for i, test := range typicalAddrTests {
-		c.Logf("test %d: checking %q", i, test.addr)
+func (s *fixURLSuite) TestFixURLTypical(c *gc.C) {
+	for i, test := range typicalURLTests {
+		c.Logf("test %d: checking %q", i, test.url)
 		c.Assert(test.err, gc.Equals, "")
 
-		fixed, err := fixAddr(test.addr)
+		fixed, err := fixURL(test.url)
 
 		if !c.Check(err, jc.ErrorIsNil) {
 			continue
@@ -160,48 +160,48 @@ func (s *fixAddrSuite) TestFixAddrTypical(c *gc.C) {
 // TODO(ericsnow) Add failure tests for bad domain names
 // and IP addresses (v4/v6).
 
-var failureAddrTests = []addrTest{{
+var failureURLTests = []urlTest{{
 	// a malformed URL
-	addr: ":a.b.c",
-	err:  `.*`,
+	url: ":a.b.c",
+	err: `.*`,
 }, {
-	addr: "unix://",
-	err:  `.*unix socket URLs not supported.*`,
+	url: "unix://",
+	err: `.*unix socket URLs not supported.*`,
 }, {
-	addr: "unix:///x/y/z",
-	err:  `.*unix socket URLs not supported.*`,
+	url: "unix:///x/y/z",
+	err: `.*unix socket URLs not supported.*`,
 }, {
-	addr: "unix:/x/y/z",
-	err:  `.*unix socket URLs not supported.*`,
+	url: "unix:/x/y/z",
+	err: `.*unix socket URLs not supported.*`,
 }, {
-	addr: "/x/y/z",
-	err:  `.*unix socket URLs not supported.*`,
+	url: "/x/y/z",
+	err: `.*unix socket URLs not supported.*`,
 }, {
-	addr: "https://a.b.c:xyz",
-	err:  `.*invalid port.*`,
+	url: "https://a.b.c:xyz",
+	err: `.*invalid port.*`,
 }, {
-	addr: "https://a.b.c:0",
-	err:  `.*invalid port.*`,
+	url: "https://a.b.c:0",
+	err: `.*invalid port.*`,
 }, {
-	addr: "https://a.b.c:99999",
-	err:  `.*invalid port.*`,
+	url: "https://a.b.c:99999",
+	err: `.*invalid port.*`,
 }, {
-	addr: "spam://a.b.c",
-	err:  `.*unsupported URL scheme.*`,
+	url: "spam://a.b.c",
+	err: `.*unsupported URL scheme.*`,
 }, {
-	addr: "https://a.b.c?d=e",
-	err:  `.*URL queries not supported.*`,
+	url: "https://a.b.c?d=e",
+	err: `.*URL queries not supported.*`,
 }, {
-	addr: "https://a.b.c#d",
-	err:  `.*URL fragments not supported.*`,
+	url: "https://a.b.c#d",
+	err: `.*URL fragments not supported.*`,
 }}
 
-func (s *fixAddrSuite) TestFixAddrFailures(c *gc.C) {
-	for i, test := range failureAddrTests {
-		c.Logf("test %d: checking %q", i, test.addr)
+func (s *fixURLSuite) TestFixURLFailures(c *gc.C) {
+	for i, test := range failureURLTests {
+		c.Logf("test %d: checking %q", i, test.url)
 		c.Assert(test.err, gc.Not(gc.Equals), "")
 
-		_, err := fixAddr(test.addr)
+		_, err := fixURL(test.url)
 
 		c.Check(err, gc.ErrorMatches, test.err)
 	}

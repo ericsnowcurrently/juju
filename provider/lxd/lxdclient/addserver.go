@@ -20,8 +20,8 @@ import (
 // addServer adds the given remote info to the provided config.
 // The implementation is based loosely on:
 //  https://github.com/lxc/lxd/blob/master/lxc/remote.go
-func addServer(config *lxd.Config, server string, addr string) error {
-	addr, err := fixAddr(addr)
+func addServer(config *lxd.Config, server string, remoteURL string) error {
+	remoteURL, err := fixURL(remoteURL)
 	if err != nil {
 		return err
 	}
@@ -32,85 +32,83 @@ func addServer(config *lxd.Config, server string, addr string) error {
 
 	/* Actually add the remote */
 	// TODO(ericsnow) Fail on collision?
-	config.Remotes[server] = lxd.RemoteConfig{Addr: addr}
+	config.Remotes[server] = lxd.RemoteConfig{Addr: remoteURL}
 
 	return nil
 }
 
-// TODO(ericsnow) Rename addr -> remoteURL?
-
-func fixAddr(addr string) (string, error) {
-	if addr == "" {
+func fixURL(orig string) (string, error) {
+	if orig == "" {
 		// TODO(ericsnow) Return lxd.LocalRemote.Addr?
-		return addr, nil
+		return orig, nil
 	}
-	if strings.HasPrefix(addr, "unix:") {
-		return "", errors.NewNotValid(nil, fmt.Sprintf("unix socket URLs not supported (got %q)", addr))
+	if strings.HasPrefix(orig, "unix:") {
+		return "", errors.NewNotValid(nil, fmt.Sprintf("unix socket URLs not supported (got %q)", orig))
 	}
 
 	// Fix IPv6 URLs.
-	if strings.HasPrefix(addr, ":") {
-		parts := strings.SplitN(addr, "/", 2)
+	if strings.HasPrefix(orig, ":") {
+		parts := strings.SplitN(orig, "/", 2)
 		if net.ParseIP(parts[0]) != nil {
-			addr = fmt.Sprintf("[%s]", parts[0])
+			orig = fmt.Sprintf("[%s]", parts[0])
 			if len(parts) == 2 {
-				addr += "/" + parts[1]
+				orig += "/" + parts[1]
 			}
 		}
 	}
 
-	parsedURL, err := url.Parse(addr)
+	parsedURL, err := url.Parse(orig)
 	if err != nil {
 		return "", errors.Trace(err)
 	}
 	if parsedURL.RawQuery != "" {
-		return "", errors.NewNotValid(nil, fmt.Sprintf("URL queries not supported (got %q)", addr))
+		return "", errors.NewNotValid(nil, fmt.Sprintf("URL queries not supported (got %q)", orig))
 	}
 	if parsedURL.Fragment != "" {
-		return "", errors.NewNotValid(nil, fmt.Sprintf("URL fragments not supported (got %q)", addr))
+		return "", errors.NewNotValid(nil, fmt.Sprintf("URL fragments not supported (got %q)", orig))
 	}
 	if parsedURL.Opaque != "" {
 		if strings.Contains(parsedURL.Scheme, ".") {
-			addr, err := fixAddr("https://" + addr)
+			orig, err := fixURL("https://" + orig)
 			if err != nil {
 				return "", errors.Trace(err)
 			}
-			return addr, nil
+			return orig, nil
 		}
-		return "", errors.NewNotValid(nil, fmt.Sprintf("opaque URLs not supported (got %q)", addr))
+		return "", errors.NewNotValid(nil, fmt.Sprintf("opaque URLs not supported (got %q)", orig))
 	}
 
-	remoteURL := url.URL{
+	URL := url.URL{
 		Scheme: parsedURL.Scheme,
 		Host:   parsedURL.Host,
 		Path:   strings.TrimRight(parsedURL.Path, "/"),
 	}
 
 	// Fix the scheme.
-	remoteURL.Scheme = fixScheme(remoteURL)
-	if err := validateScheme(remoteURL); err != nil {
+	URL.Scheme = fixScheme(URL)
+	if err := validateScheme(URL); err != nil {
 		return "", errors.Trace(err)
 	}
 
 	// Fix the host.
-	if remoteURL.Host == "" {
-		if strings.HasPrefix(remoteURL.Path, "/") {
-			return "", errors.NewNotValid(nil, fmt.Sprintf("unix socket URLs not supported (got %q)", addr))
+	if URL.Host == "" {
+		if strings.HasPrefix(URL.Path, "/") {
+			return "", errors.NewNotValid(nil, fmt.Sprintf("unix socket URLs not supported (got %q)", orig))
 		}
-		addr = fmt.Sprintf("%s://%s%s", remoteURL.Scheme, remoteURL.Host, remoteURL.Path)
-		addr, err := fixAddr(addr)
+		orig = fmt.Sprintf("%s://%s%s", URL.Scheme, URL.Host, URL.Path)
+		orig, err := fixURL(orig)
 		if err != nil {
 			return "", errors.Trace(err)
 		}
-		return addr, nil
+		return orig, nil
 	}
-	remoteURL.Host = fixHost(remoteURL.Host, shared.DefaultPort)
-	if err := validateHost(remoteURL); err != nil {
+	URL.Host = fixHost(URL.Host, shared.DefaultPort)
+	if err := validateHost(URL); err != nil {
 		return "", errors.Trace(err)
 	}
 
-	// TODO(ericsnow) Use remoteUrl.String()
-	return fmt.Sprintf("%s://%s%s", remoteURL.Scheme, remoteURL.Host, remoteURL.Path), nil
+	// TODO(ericsnow) Use URL.String()
+	return fmt.Sprintf("%s://%s%s", URL.Scheme, URL.Host, URL.Path), nil
 }
 
 func fixScheme(url url.URL) string {
