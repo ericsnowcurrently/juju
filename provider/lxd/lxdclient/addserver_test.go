@@ -6,6 +6,9 @@
 package lxdclient
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
@@ -30,130 +33,107 @@ type urlTest struct {
 	err      string
 }
 
+func (t urlTest) checkValid(c *gc.C) {
+	c.Assert(t.err, gc.Equals, "")
+
+	fixed, err := fixURL(t.url)
+
+	if !c.Check(err, jc.ErrorIsNil) {
+		return
+	}
+	c.Logf("   fixed:  %q", fixed)
+	c.Check(fixed, gc.Equals, t.expected)
+}
+
 var typicalURLTests = []urlTest{{
 	url:      "a.b.c",
-	expected: "https://a.b.c:8443",
-}, {
-	url:      "https://a.b.c",
 	expected: "https://a.b.c:8443",
 }, {
 	url:      "https://a.b.c/",
 	expected: "https://a.b.c:8443",
 }, {
-	url:      "a.b.c:1234",
-	expected: "https://a.b.c:1234",
-}, {
-	url:      "https://a.b.c:1234",
-	expected: "https://a.b.c:1234",
-}, {
 	url:      "https://a.b.c:1234/",
 	expected: "https://a.b.c:1234",
-}, {
-	url:      "a.b.c/x/y/z",
-	expected: "https://a.b.c:8443/x/y/z",
 }, {
 	url:      "https://a.b.c/x/y/z",
 	expected: "https://a.b.c:8443/x/y/z",
 }, {
-	url:      "https://a.b.c:1234/x/y/z",
-	expected: "https://a.b.c:1234/x/y/z",
-}, {
-	url:      "http://a.b.c",
-	expected: "https://a.b.c:8443",
-}, {
 	url:      "1.2.3.4",
 	expected: "https://1.2.3.4:8443",
-}, {
-	url:      "1.2.3.4:1234",
-	expected: "https://1.2.3.4:1234",
-}, {
-	url:      "https://1.2.3.4",
-	expected: "https://1.2.3.4:8443",
-}, {
-	url:      "127.0.0.1",
-	expected: "https://127.0.0.1:8443",
-}, {
-	url:      "2001:db8::ff00:42:8329",
-	expected: "https://[2001:db8::ff00:42:8329]:8443",
-}, {
-	url:      "2001:db8::ff00:42:8329/",
-	expected: "https://[2001:db8::ff00:42:8329]:8443",
-}, {
-	url:      "[2001:db8::ff00:42:8329]:1234",
-	expected: "https://[2001:db8::ff00:42:8329]:1234",
-}, {
-	url:      "[2001:db8::ff00:42:8329]:1234/",
-	expected: "https://[2001:db8::ff00:42:8329]:1234",
-}, {
-	url:      "https://2001:db8::ff00:42:8329",
-	expected: "https://[2001:db8::ff00:42:8329]:8443",
-}, {
-	url:      "https://2001:db8::ff00:42:8329/",
-	expected: "https://[2001:db8::ff00:42:8329]:8443",
-}, {
-	url:      "https://[2001:db8::ff00:42:8329]:1234",
-	expected: "https://[2001:db8::ff00:42:8329]:1234",
-}, {
-	url:      "https://[2001:db8::ff00:42:8329]:1234/",
-	expected: "https://[2001:db8::ff00:42:8329]:1234",
-}, {
-	url:      "2001:db8::ff00:42:8329/x/y/z",
-	expected: "https://[2001:db8::ff00:42:8329]:8443/x/y/z",
-}, {
-	url:      "[2001:db8::ff00:42:8329]:1234/x/y/z",
-	expected: "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
-}, {
-	url:      "https://2001:db8::ff00:42:8329/x/y/z",
-	expected: "https://[2001:db8::ff00:42:8329]:8443/x/y/z",
-}, {
-	url:      "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
-	expected: "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
-}, {
-	url:      "::1",
-	expected: "https://[::1]:8443",
-}, {
-	url:      "::1/",
-	expected: "https://[::1]:8443",
-}, {
-	url:      "::1/x/y/z",
-	expected: "https://[::1]:8443/x/y/z",
-}, {
-	url:      "[::1]:1234",
-	expected: "https://[::1]:1234",
-}, {
-	url:      "[::1]:1234/",
-	expected: "https://[::1]:1234",
-}, {
-	url:      "[::1]/x/y/z",
-	expected: "https://[::1]:8443/x/y/z",
-}, {
-	url:      "[::1]:1234/x/y/z",
-	expected: "https://[::1]:1234/x/y/z",
-}, {
-	url:      "https://::1",
-	expected: "https://[::1]:8443",
-}, {
-	url:      "https://::1/",
-	expected: "https://[::1]:8443",
-}, {
-	url:      "::1/x/y/z",
-	expected: "https://[::1]:8443/x/y/z",
-}, {
-	url:      "https://::1/x/y/z",
-	expected: "https://[::1]:8443/x/y/z",
 }}
 
 func (s *fixURLSuite) TestFixURLTypical(c *gc.C) {
 	for i, test := range typicalURLTests {
 		c.Logf("test %d: checking %q", i, test.url)
-		c.Assert(test.err, gc.Equals, "")
+		test.checkValid(c)
+	}
+}
 
-		fixed, err := fixURL(test.url)
+type urlTestSpec struct {
+	host         string
+	path         string
+	port         string
+	expectedHost string
+}
 
-		if !c.Check(err, jc.ErrorIsNil) {
-			continue
+func (ts urlTestSpec) test(scheme, sep, trailer string) urlTest {
+	if scheme != "" {
+		scheme += ":"
+	}
+	host := ts.host
+	if ts.port != "" {
+		host += ":" + ts.port
+	}
+	expectedHost := ts.expectedHost
+	if expectedHost == "" {
+		expectedHost = ts.host
+	}
+	expectedPort := ts.port
+	if expectedPort == "" {
+		expectedPort = "8443"
+	}
+	return urlTest{
+		url:      fmt.Sprintf("%s%s%s%s%s", scheme, sep, host, ts.path, trailer),
+		expected: fmt.Sprintf("https://%s:%s%s", expectedHost, expectedPort, ts.path),
+	}
+}
+
+func (ts urlTestSpec) tests() []urlTest {
+	var tests []urlTest
+	for _, trailer := range []string{"", "/"} {
+		tests = append(tests, ts.test("", "", trailer))
+		for _, scheme := range []string{"", "https", "http"} {
+			tests = append(tests, ts.test(scheme, "//", trailer))
 		}
-		c.Check(fixed, gc.Equals, test.expected)
+	}
+	return tests
+}
+
+var validURLHosts = map[string]string{
+	"a.b.c":                    "",
+	"10.0.0.1":                 "",
+	"127.0.0.1":                "",
+	"2001:db8::ff00:42:8329":   "[2001:db8::ff00:42:8329]",
+	"[2001:db8::ff00:42:8329]": "",
+	"::1":   "[::1]",
+	"[::1]": "",
+}
+
+func (s *fixURLSuite) TestFixURLAllValid(c *gc.C) {
+	var specs []urlTestSpec
+	for host, expectedHost := range validURLHosts {
+		for _, path := range []string{"", "/x/y/z"} {
+			specs = append(specs, urlTestSpec{host, path, "", expectedHost})
+			if !strings.Contains(host, ":") || strings.HasPrefix(host, "[") {
+				specs = append(specs, urlTestSpec{host, path, "1234", expectedHost})
+			}
+		}
+	}
+	for i, spec := range specs {
+		for j, test := range spec.tests() {
+			c.Logf("test %d.%d: checking %q", i, j, test.url)
+			test.checkValid(c)
+		}
 	}
 }
 
