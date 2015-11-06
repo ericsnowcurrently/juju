@@ -54,7 +54,7 @@ func fixAddr(addr string) (string, error) {
 		if net.ParseIP(parts[0]) != nil {
 			addr = fmt.Sprintf("[%s]", parts[0])
 			if len(parts) == 2 {
-				addr = "/" + parts[1]
+				addr += "/" + parts[1]
 			}
 		}
 	}

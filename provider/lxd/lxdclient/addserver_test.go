@@ -17,6 +17,13 @@ type fixAddrSuite struct {
 	testing.IsolationSuite
 }
 
+func (s *fixAddrSuite) TestFixAddrLocal(c *gc.C) {
+	fixed, err := fixAddr("")
+	c.Assert(err, jc.ErrorIsNil)
+
+	c.Check(fixed, gc.Equals, "")
+}
+
 type addrTest struct {
 	addr     string
 	expected string
@@ -24,9 +31,6 @@ type addrTest struct {
 }
 
 var typicalAddrTests = []addrTest{{
-	addr:     "",
-	expected: "",
-}, {
 	addr:     "a.b.c",
 	expected: "https://a.b.c:8443",
 }, {
@@ -72,20 +76,71 @@ var typicalAddrTests = []addrTest{{
 	addr:     "2001:db8::ff00:42:8329",
 	expected: "https://[2001:db8::ff00:42:8329]:8443",
 }, {
+	addr:     "2001:db8::ff00:42:8329/",
+	expected: "https://[2001:db8::ff00:42:8329]:8443",
+}, {
 	addr:     "[2001:db8::ff00:42:8329]:1234",
+	expected: "https://[2001:db8::ff00:42:8329]:1234",
+}, {
+	addr:     "[2001:db8::ff00:42:8329]:1234/",
 	expected: "https://[2001:db8::ff00:42:8329]:1234",
 }, {
 	addr:     "https://2001:db8::ff00:42:8329",
 	expected: "https://[2001:db8::ff00:42:8329]:8443",
 }, {
+	addr:     "https://2001:db8::ff00:42:8329/",
+	expected: "https://[2001:db8::ff00:42:8329]:8443",
+}, {
 	addr:     "https://[2001:db8::ff00:42:8329]:1234",
 	expected: "https://[2001:db8::ff00:42:8329]:1234",
+}, {
+	addr:     "https://[2001:db8::ff00:42:8329]:1234/",
+	expected: "https://[2001:db8::ff00:42:8329]:1234",
+}, {
+	addr:     "2001:db8::ff00:42:8329/x/y/z",
+	expected: "https://[2001:db8::ff00:42:8329]:8443/x/y/z",
+}, {
+	addr:     "[2001:db8::ff00:42:8329]:1234/x/y/z",
+	expected: "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
+}, {
+	addr:     "https://2001:db8::ff00:42:8329/x/y/z",
+	expected: "https://[2001:db8::ff00:42:8329]:8443/x/y/z",
+}, {
+	addr:     "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
+	expected: "https://[2001:db8::ff00:42:8329]:1234/x/y/z",
 }, {
 	addr:     "::1",
 	expected: "https://[::1]:8443",
 }, {
-	addr:     "a.b.c",
-	expected: "https://a.b.c:8443",
+	addr:     "::1/",
+	expected: "https://[::1]:8443",
+}, {
+	addr:     "::1/x/y/z",
+	expected: "https://[::1]:8443/x/y/z",
+}, {
+	addr:     "[::1]:1234",
+	expected: "https://[::1]:1234",
+}, {
+	addr:     "[::1]:1234/",
+	expected: "https://[::1]:1234",
+}, {
+	addr:     "[::1]/x/y/z",
+	expected: "https://[::1]:8443/x/y/z",
+}, {
+	addr:     "[::1]:1234/x/y/z",
+	expected: "https://[::1]:1234/x/y/z",
+}, {
+	addr:     "https://::1",
+	expected: "https://[::1]:8443",
+}, {
+	addr:     "https://::1/",
+	expected: "https://[::1]:8443",
+}, {
+	addr:     "::1/x/y/z",
+	expected: "https://[::1]:8443/x/y/z",
+}, {
+	addr:     "https://::1/x/y/z",
+	expected: "https://[::1]:8443/x/y/z",
 }}
 
 func (s *fixAddrSuite) TestFixAddrTypical(c *gc.C) {
