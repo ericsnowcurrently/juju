@@ -57,6 +57,9 @@ type InstanceSpec struct {
 	// Name is the "name" of the instance.
 	Name string
 
+	// ImageName identifies the image to use from the image remote.
+	ImageName string
+
 	// Profiles are the names of the container profiles to apply to the
 	// new container, in order.
 	Profiles []string
@@ -67,9 +70,6 @@ type InstanceSpec struct {
 
 	// Metadata is the instance metadata.
 	Metadata map[string]string
-
-	// ImageName identifies the image to use from the image remote.
-	ImageName string
 
 	// Disks
 	// Networks
@@ -105,6 +105,18 @@ func (spec InstanceSpec) info(namespace string) *shared.ContainerState {
 func (spec InstanceSpec) Summary(namespace string) InstanceSummary {
 	info := spec.info(namespace)
 	return newInstanceSummary(info)
+}
+
+func (spec InstanceSpec) Validate() error {
+	if spec.Name == "" {
+		return errors.NotValidf("instance spec missing name")
+	}
+
+	if spec.ImageName == "" {
+		return errors.NotValidf("instance spec missing image name")
+	}
+
+	return nil
 }
 
 // InstanceHardware describes the hardware characteristics of a LXC container.
