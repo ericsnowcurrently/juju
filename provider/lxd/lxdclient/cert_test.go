@@ -80,13 +80,23 @@ func (s *certSuite) TestWithDefaultsNameError(c *gc.C) {
 
 func (s *certSuite) TestValidateOkay(c *gc.C) {
 	cert := lxdclient.NewCert(s.certPEM, s.keyPEM)
+	cert.Name = "a.b.c"
 	err := cert.Validate()
 
 	c.Check(err, jc.ErrorIsNil)
 }
 
+func (s *certSuite) TestValidateMissingName(c *gc.C) {
+	cert := lxdclient.NewCert(s.certPEM, s.keyPEM)
+	cert.Name = ""
+	err := cert.Validate()
+
+	c.Check(err, jc.Satisfies, errors.IsNotValid)
+}
+
 func (s *certSuite) TestValidateMissingCertPEM(c *gc.C) {
 	cert := lxdclient.NewCert(nil, s.keyPEM)
+	cert.Name = "a.b.c"
 	err := cert.Validate()
 
 	c.Check(err, jc.Satisfies, errors.IsNotValid)
@@ -94,6 +104,7 @@ func (s *certSuite) TestValidateMissingCertPEM(c *gc.C) {
 
 func (s *certSuite) TestValidateMissingKeyPEM(c *gc.C) {
 	cert := lxdclient.NewCert(s.certPEM, nil)
+	cert.Name = "a.b.c"
 	err := cert.Validate()
 
 	c.Check(err, jc.Satisfies, errors.IsNotValid)

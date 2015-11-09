@@ -72,7 +72,9 @@ func (cert Cert) withDefaults(osHostname func() (string, error)) (Cert, error) {
 
 // Validate ensures that the cert is valid.
 func (cert Cert) Validate() error {
-	// TODO(ericsnow) Ensure the name is set.
+	if cert.Name == "" {
+		return errors.NotValidf("missing cert name")
+	}
 
 	if len(cert.CertPEM) == 0 {
 		return errors.NotValidf("missing cert PEM")
