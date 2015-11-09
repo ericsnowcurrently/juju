@@ -68,6 +68,9 @@ type InstanceSpec struct {
 	// Metadata is the instance metadata.
 	Metadata map[string]string
 
+	// ImageName identifies the image to use from the image remote.
+	ImageName string
+
 	// Disks
 	// Networks
 	// Metadata
