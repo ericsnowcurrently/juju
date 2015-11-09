@@ -92,6 +92,8 @@ func (env *environ) finishInstanceConfig(args environs.StartInstanceParams) erro
 // provisioned, relative to the provided args and spec. Info for that
 // low-level instance is returned.
 func (env *environ) newRawInstance(args environs.StartInstanceParams) (*lxdclient.Instance, error) {
+	// TODO(ericsnow) Set up and use a template image?
+
 	machineID := common.MachineFullName(env, args.InstanceConfig.MachineId)
 
 	metadata, err := getMetadata(args)
@@ -107,7 +109,8 @@ func (env *environ) newRawInstance(args environs.StartInstanceParams) (*lxdclien
 	// TODO(ericsnow) Support multiple networks?
 	// TODO(ericsnow) Use a different net interface name? Configurable?
 	instSpec := lxdclient.InstanceSpec{
-		Name: machineID,
+		Name:      machineID,
+		ImageName: "ubuntu", // TODO(ericsnow) Support others?
 		//Type:              spec.InstanceType.Name,
 		//Disks:             getDisks(spec, args.Constraints),
 		//NetworkInterfaces: []string{"ExternalNAT"},

@@ -42,8 +42,8 @@ func (client *instanceClient) addInstance(spec InstanceSpec) error {
 	if imageRemote == "" {
 		imageRemote = client.remote
 	}
-	imageAlias := "ubuntu" // TODO(ericsnow) Do not hard-code.
-	//imageAlias := spec.Image
+
+	imageAlias := spec.ImageName
 	var profiles *[]string
 	if len(spec.Profiles) > 0 {
 		profiles = &spec.Profiles
