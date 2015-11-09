@@ -6,5 +6,6 @@
 package lxdclient
 
 var (
-	GenCertAndKey = genCertAndKey
+	GenCertAndKey    = genCertAndKey
+	CertWithDefaults = Cert.withDefaults
 )

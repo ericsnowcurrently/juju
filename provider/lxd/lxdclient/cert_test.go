@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/pem"
+	"os"
 
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
@@ -27,6 +28,8 @@ type certSuite struct {
 
 	certPEM []byte
 	keyPEM  []byte
+
+	hostname string
 }
 
 func (s *certSuite) SetUpTest(c *gc.C) {
@@ -36,10 +39,43 @@ func (s *certSuite) SetUpTest(c *gc.C) {
 	s.keyPEM = []byte("<a valid PEM-encoded x.509 key>")
 }
 
+func (s *certSuite) osHostname() (string, error) {
+	s.Stub.AddCall("osHostname")
+	if err := s.Stub.NextErr(); err != nil {
+		return "", errors.Trace(err)
+	}
+
+	return s.hostname, nil
+}
+
 func (s *certSuite) TestNewCert(c *gc.C) {
 	cert := lxdclient.NewCert(s.certPEM, s.keyPEM)
 
 	checkCert(c, cert, s.certPEM, s.keyPEM)
+}
+
+func (s *certSuite) TestWithDefaultsMissingName(c *gc.C) {
+	s.hostname = "a.b.c"
+
+	orig := lxdclient.NewCert(s.certPEM, s.keyPEM)
+	cert, err := lxdclient.CertWithDefaults(orig, s.osHostname)
+	c.Assert(err, jc.ErrorIsNil)
+
+	c.Check(cert, jc.DeepEquals, lxdclient.Cert{
+		Name:    s.hostname,
+		CertPEM: s.certPEM,
+		KeyPEM:  s.keyPEM,
+	})
+}
+
+func (s *certSuite) TestWithDefaultsNameError(c *gc.C) {
+	failure := errors.New("<failed>")
+	s.Stub.SetErrors(failure)
+
+	orig := lxdclient.NewCert(s.certPEM, s.keyPEM)
+	_, err := lxdclient.CertWithDefaults(orig, s.osHostname)
+
+	c.Check(errors.Cause(err), gc.Equals, failure)
 }
 
 func (s *certSuite) TestValidateOkay(c *gc.C) {
@@ -129,6 +165,22 @@ func (s *certSuite) TestX509BadPEM(c *gc.C) {
 
 type certFunctionalSuite struct {
 	lxdclient.BaseSuite
+}
+
+func (s *certFunctionalSuite) TestWithDefaultsMissingName(c *gc.C) {
+	hostname, err := os.Hostname()
+	c.Assert(err, jc.ErrorIsNil)
+
+	certPEM, keyPEM := []byte("a cert"), []byte("a key")
+	orig := lxdclient.NewCert(certPEM, keyPEM)
+	cert, err := orig.WithDefaults()
+	c.Assert(err, jc.ErrorIsNil)
+
+	c.Check(cert, jc.DeepEquals, lxdclient.Cert{
+		Name:    hostname,
+		CertPEM: certPEM,
+		KeyPEM:  keyPEM,
+	})
 }
 
 func (s *certFunctionalSuite) TestGenerateCert(c *gc.C) {

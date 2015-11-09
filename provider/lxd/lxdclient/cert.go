@@ -24,15 +24,13 @@ const (
 
 	pemBlockTypeCert = "CERTIFICATE"
 	pemBlockTypeKey  = "RSA PRIVATE KEY"
-
-	// TODO(ericsnow) Is this the right default?
-	certDefaultName = configCertFile
 )
 
 // Cert holds the information for a single certificate a client
 // may use to connect to a remote server.
 type Cert struct {
-	// Name is the name that LXD will use for the cert.
+	// Name is the name that LXD will use for the cert. Typically this
+	// is the name of the host from which the certificate originated.
 	Name string
 
 	// CertPEM is the PEM-encoded x.509 cert.
@@ -53,11 +51,18 @@ func NewCert(certPEM, keyPEM []byte) Cert {
 // WithDefaults updates a copy of the remote with default values
 // where needed.
 func (cert Cert) WithDefaults() (Cert, error) {
+	return cert.withDefaults(os.Hostname)
+}
+
+func (cert Cert) withDefaults(osHostname func() (string, error)) (Cert, error) {
 	// Note that cert is a value receiver, so it is an implicit copy.
 
 	if cert.Name == "" {
-		// TODO(ericsnow) Use x509.Certificate.Subject for the default?
-		cert.Name = certDefaultName
+		name, err := osHostname()
+		if err != nil {
+			return cert, errors.Trace(err)
+		}
+		cert.Name = name
 	}
 
 	// TODO(ericsnow) populate cert/key (use genCertAndKey)?
@@ -67,6 +72,8 @@ func (cert Cert) WithDefaults() (Cert, error) {
 
 // Validate ensures that the cert is valid.
 func (cert Cert) Validate() error {
+	// TODO(ericsnow) Ensure the name is set.
+
 	if len(cert.CertPEM) == 0 {
 		return errors.NotValidf("missing cert PEM")
 	}
