@@ -42,16 +42,19 @@ func (client *instanceClient) addInstance(spec InstanceSpec) error {
 	if imageRemote == "" {
 		imageRemote = client.remote
 	}
+	// TODO(ericsnow) ...else copy the image to client.remote?
+
+	if err := spec.Validate(); err != nil {
+		return errors.Trace(err)
+	}
 
 	imageAlias := spec.ImageName
 	var profiles *[]string
 	if len(spec.Profiles) > 0 {
 		profiles = &spec.Profiles
 	}
-
-	// TODO(ericsnow) Copy the image first?
-
 	config := spec.config()
+
 	resp, err := client.raw.Init(spec.Name, imageRemote, imageAlias, profiles, config, spec.Ephemeral)
 	if err != nil {
 		return errors.Trace(err)
