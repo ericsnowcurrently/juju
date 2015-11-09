@@ -107,8 +107,7 @@ func fixURL(orig string) (string, error) {
 		return "", errors.Trace(err)
 	}
 
-	// TODO(ericsnow) Use URL.String()
-	return fmt.Sprintf("%s://%s%s", URL.Scheme, URL.Host, URL.Path), nil
+	return URL.String(), nil
 }
 
 func fixScheme(url url.URL) string {
