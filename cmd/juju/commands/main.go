@@ -15,6 +15,7 @@ import (
 	"github.com/juju/juju/cmd/juju/action"
 	"github.com/juju/juju/cmd/juju/backups"
 	"github.com/juju/juju/cmd/juju/block"
+	"github.com/juju/juju/cmd/juju/bootstrap"
 	"github.com/juju/juju/cmd/juju/cachedimages"
 	"github.com/juju/juju/cmd/juju/common"
 	"github.com/juju/juju/cmd/juju/environment"
@@ -123,7 +124,7 @@ type commandRegistry interface {
 // registerCommands registers commands in the specified registry.
 func registerCommands(r commandRegistry, ctx *cmd.Context) {
 	// Creation commands.
-	r.Register(newBootstrapCommand())
+	r.Register(bootstrap.NewCommand())
 	r.Register(newDeployCommand())
 	r.Register(newAddRelationCommand())
 
