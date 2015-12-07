@@ -277,7 +277,7 @@ func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuA
 		return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
 	}
 
-	context, err := c.initVersions(client, cfg, agentVersion)
+	context, err := c.initVersions(client, agentVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuA
 // agent and client versions, and the list of currently available tools, will
 // always be accurate; the chosen version, and the flag indicating development
 // mode, may remain blank until uploadTools or validate is called.
-func (c *UpgradeJujuCommand) initVersions(client upgradeJujuAPI, cfg *config.Config, agentVersion version.Number) (*upgradeContext, error) {
+func (c *UpgradeJujuCommand) initVersions(client upgradeJujuAPI, agentVersion version.Number) (*upgradeContext, error) {
 	if c.Version == agentVersion {
 		return nil, errUpToDate
 	}
@@ -374,7 +374,6 @@ func (c *UpgradeJujuCommand) initVersions(client upgradeJujuAPI, cfg *config.Con
 		chosen:    c.Version,
 		tools:     findResult.List,
 		apiClient: client,
-		config:    cfg,
 	}, nil
 }
 
@@ -384,7 +383,6 @@ type upgradeContext struct {
 	client    version.Number
 	chosen    version.Number
 	tools     coretools.List
-	config    *config.Config
 	apiClient upgradeJujuAPI
 }
 
