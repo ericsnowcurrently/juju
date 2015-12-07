@@ -226,20 +226,28 @@ func (c *UpgradeJujuCommand) confirmResetPreviousUpgrade(ctx *cmd.Context) (bool
 	return answer == "y" || answer == "yes", nil
 }
 
-func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuAPI) (*upgradeContext, error) {
+func (c *UpgradeJujuCommand) agentVersion(client upgradeJujuAPI) (version.Number, error) {
 	attrs, err := client.EnvironmentGet()
 	if err != nil {
-		return nil, err
+		return version.Number{}, err
 	}
 	cfg, err := config.New(config.NoDefaults, attrs)
 	if err != nil {
-		return nil, err
+		return version.Number{}, err
 	}
 
 	agentVersion, ok := cfg.AgentVersion()
 	if !ok {
 		// Can't happen. In theory.
-		return nil, fmt.Errorf("incomplete environment configuration")
+		return version.Number{}, fmt.Errorf("incomplete environment configuration")
+	}
+	return agentVersion, nil
+}
+
+func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuAPI) (*upgradeContext, error) {
+	agentVersion, err := c.agentVersion(client)
+	if err != nil {
+		return nil, err
 	}
 
 	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
