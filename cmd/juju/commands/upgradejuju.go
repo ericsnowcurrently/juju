@@ -159,60 +159,11 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
 	}()
 
 	// Determine the version to upgrade to, uploading tools if necessary.
-	attrs, err := client.EnvironmentGet()
-	if err != nil {
-		return err
-	}
-	cfg, err := config.New(config.NoDefaults, attrs)
+	context, err := c.decideVersion(ctx, client)
 	if err != nil {
 		return err
 	}
 
-	agentVersion, ok := cfg.AgentVersion()
-	if !ok {
-		// Can't happen. In theory.
-		return fmt.Errorf("incomplete environment configuration")
-	}
-
-	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
-	if agentVersion.Major > version.Current.Major {
-		return fmt.Errorf("cannot upgrade a %s environment with a %s client", agentVersion, version.Current.Number)
-	}
-
-	if c.Version.Major > agentVersion.Major {
-		// We can only upgrade a major version if we're currently on 1.25.2 or later
-		// and we're going to 2.0.x, and the version was explicitly requested.
-		if agentVersion.Major != 1 {
-			return fmt.Errorf("cannot upgrade to version incompatible with CLI")
-		}
-		retErr := false
-		if c.Version.Major > 2 || c.Version.Minor > 0 {
-			ctx.Infof("Upgrades to %s must first go through juju 2.0.", c.Version)
-			retErr = true
-		}
-		if agentVersion.Minor < 25 || (agentVersion.Minor == 25 && agentVersion.Patch < 2) {
-			ctx.Infof("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
-			retErr = true
-		}
-		if retErr {
-			return fmt.Errorf("cannot upgrade to version incompatible with CLI")
-		}
-	} else if c.Version != version.Zero && c.Version.Major < agentVersion.Major {
-		return fmt.Errorf("cannot upgrade to version incompatible with CLI")
-	}
-
-	context, err := c.initVersions(client, cfg, agentVersion)
-	if err != nil {
-		return err
-	}
-	if c.UploadTools && !c.DryRun {
-		if err := context.uploadTools(); err != nil {
-			return block.ProcessBlockedError(err, block.BlockChange)
-		}
-	}
-	if err := context.validate(); err != nil {
-		return err
-	}
 	// TODO(fwereade): this list may be incomplete, pending envtools.Upload change.
 	ctx.Infof("available tools:\n%s", formatTools(context.tools))
 	ctx.Infof("best version:\n    %s", context.chosen)
@@ -267,6 +218,68 @@ func (c *UpgradeJujuCommand) confirmResetPreviousUpgrade(ctx *cmd.Context) (bool
 	}
 	answer := strings.ToLower(scanner.Text())
 	return answer == "y" || answer == "yes", nil
+}
+
+func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuAPI) (*upgradeContext, error) {
+	attrs, err := client.EnvironmentGet()
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := config.New(config.NoDefaults, attrs)
+	if err != nil {
+		return nil, err
+	}
+
+	agentVersion, ok := cfg.AgentVersion()
+	if !ok {
+		// Can't happen. In theory.
+		return nil, fmt.Errorf("incomplete environment configuration")
+	}
+
+	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
+	if agentVersion.Major > version.Current.Major {
+		return nil, fmt.Errorf("cannot upgrade a %s environment with a %s client", agentVersion, version.Current.Number)
+	}
+
+	if c.Version.Major > agentVersion.Major {
+		// We can only upgrade a major version if we're currently on 1.25.2 or later
+		// and we're going to 2.0.x, and the version was explicitly requested.
+		if agentVersion.Major != 1 {
+			return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
+		}
+		retErr := false
+		if c.Version.Major > 2 || c.Version.Minor > 0 {
+			ctx.Infof("Upgrades to %s must first go through juju 2.0.", c.Version)
+			retErr = true
+		}
+		if agentVersion.Minor < 25 || (agentVersion.Minor == 25 && agentVersion.Patch < 2) {
+			ctx.Infof("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
+			retErr = true
+		}
+		if retErr {
+			return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
+		}
+	} else if c.Version != version.Zero && c.Version.Major < agentVersion.Major {
+		return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
+	}
+
+	context, err := c.initVersions(client, cfg, agentVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO(ericsnow) Move the upload handling to Run().
+	if c.UploadTools && !c.DryRun {
+		if err := context.uploadTools(); err != nil {
+			return nil, block.ProcessBlockedError(err, block.BlockChange)
+		}
+	}
+
+	if err := context.validate(); err != nil {
+		return nil, err
+	}
+
+	return context, nil
 }
 
 // initVersions collects state relevant to an upgrade decision. The returned
