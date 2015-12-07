@@ -163,6 +163,12 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	if context.chosen == context.agent {
+		return errUpToDate
+	}
+	if err := context.validate(); err != nil {
+		return err
+	}
 
 	// TODO(fwereade): this list may be incomplete, pending envtools.Upload change.
 	ctx.Infof("available tools:\n%s", formatTools(context.tools))
@@ -275,8 +281,49 @@ func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuA
 		}
 	}
 
-	if err := context.validate(); err != nil {
-		return nil, err
+	if context.chosen == version.Zero {
+		// No explicitly specified version, so find the version to which we
+		// need to upgrade. If the CLI and agent major versions match, we find
+		// next available stable release to upgrade to by incrementing the
+		// minor version, starting from the current agent version and doing
+		// major.minor+1.patch=0. If the CLI has a greater major version,
+		// we just use the CLI version as is.
+		nextVersion := context.agent
+		if nextVersion.Major == context.client.Major {
+			nextVersion.Minor += 1
+			nextVersion.Patch = 0
+			// Explicitly skip 1.21 and 1.23.
+			if nextVersion.Major == 1 && (nextVersion.Minor == 21 || nextVersion.Minor == 23) {
+				nextVersion.Minor += 1
+			}
+		} else {
+			nextVersion = context.client
+		}
+
+		newestNextStable, found := context.tools.NewestCompatible(nextVersion)
+		if found {
+			logger.Debugf("found a more recent stable version %s", newestNextStable)
+			context.chosen = newestNextStable
+		} else {
+			newestCurrent, found := context.tools.NewestCompatible(context.agent)
+			if found {
+				logger.Debugf("found more recent current version %s", newestCurrent)
+				context.chosen = newestCurrent
+			} else {
+				if context.agent.Major != context.client.Major {
+					return nil, fmt.Errorf("no compatible tools available")
+				} else {
+					return nil, fmt.Errorf("no more recent supported versions available")
+				}
+			}
+		}
+	} else {
+		// If not completely specified already, pick a single tools version.
+		filter := coretools.Filter{Number: context.chosen}
+		if context.tools, err = context.tools.Match(filter); err != nil {
+			return nil, err
+		}
+		context.chosen, context.tools = context.tools.Newest()
 	}
 
 	return context, nil
@@ -386,54 +433,6 @@ func (context *upgradeContext) uploadTools() (err error) {
 // If validate returns no error, the environment agent-version can be set to
 // the value of the chosen field.
 func (context *upgradeContext) validate() (err error) {
-	if context.chosen == version.Zero {
-		// No explicitly specified version, so find the version to which we
-		// need to upgrade. If the CLI and agent major versions match, we find
-		// next available stable release to upgrade to by incrementing the
-		// minor version, starting from the current agent version and doing
-		// major.minor+1.patch=0. If the CLI has a greater major version,
-		// we just use the CLI version as is.
-		nextVersion := context.agent
-		if nextVersion.Major == context.client.Major {
-			nextVersion.Minor += 1
-			nextVersion.Patch = 0
-			// Explicitly skip 1.21 and 1.23.
-			if nextVersion.Major == 1 && (nextVersion.Minor == 21 || nextVersion.Minor == 23) {
-				nextVersion.Minor += 1
-			}
-		} else {
-			nextVersion = context.client
-		}
-
-		newestNextStable, found := context.tools.NewestCompatible(nextVersion)
-		if found {
-			logger.Debugf("found a more recent stable version %s", newestNextStable)
-			context.chosen = newestNextStable
-		} else {
-			newestCurrent, found := context.tools.NewestCompatible(context.agent)
-			if found {
-				logger.Debugf("found more recent current version %s", newestCurrent)
-				context.chosen = newestCurrent
-			} else {
-				if context.agent.Major != context.client.Major {
-					return fmt.Errorf("no compatible tools available")
-				} else {
-					return fmt.Errorf("no more recent supported versions available")
-				}
-			}
-		}
-	} else {
-		// If not completely specified already, pick a single tools version.
-		filter := coretools.Filter{Number: context.chosen}
-		if context.tools, err = context.tools.Match(filter); err != nil {
-			return err
-		}
-		context.chosen, context.tools = context.tools.Newest()
-	}
-	if context.chosen == context.agent {
-		return errUpToDate
-	}
-
 	// If the client is on a version before 1.20, they must upgrade
 	// through 1.20.14.
 	if context.agent.Major == 1 && context.agent.Minor < 20 &&
