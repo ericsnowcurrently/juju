@@ -151,26 +151,17 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
 		return err
 	}
 	defer client.Close()
-	defer func() {
-		if err == errUpToDate {
-			ctx.Infof(err.Error())
-			err = nil
-		}
-	}()
 
 	// Determine the version to upgrade to, uploading tools if necessary.
 	context, err := c.decideVersion(client)
-	if uerr, ok := err.(*unsupportedUpgrade); ok {
+	if errors.Cause(err) == errUpToDate {
+		ctx.Infof(err.Error())
+		return nil
+	}
+	if uerr, ok := errors.Cause(err).(*unsupportedUpgrade); ok {
 		uerr.print(ctx)
-		return err
 	}
 	if err != nil {
-		return err
-	}
-	if context.chosen == context.agent {
-		return errUpToDate
-	}
-	if err := context.validate(); err != nil {
 		return err
 	}
 
@@ -179,32 +170,52 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
 	ctx.Infof("best version:\n    %s", context.chosen)
 	if c.DryRun {
 		ctx.Infof("upgrade to this version by running\n    juju upgrade-juju --version=\"%s\"\n", context.chosen)
-	} else {
-		if c.ResetPrevious {
-			if ok, err := c.confirmResetPreviousUpgrade(ctx); !ok || err != nil {
-				const message = "previous upgrade not reset and no new upgrade triggered"
-				if err != nil {
-					return errors.Annotate(err, message)
-				}
-				return errors.New(message)
-			}
-			if err := client.AbortCurrentUpgrade(); err != nil {
-				return block.ProcessBlockedError(err, block.BlockChange)
-			}
-		}
-		if err := client.SetEnvironAgentVersion(context.chosen); err != nil {
-			if params.IsCodeUpgradeInProgress(err) {
-				return errors.Errorf("%s\n\n"+
-					"Please wait for the upgrade to complete or if there was a problem with\n"+
-					"the last upgrade that has been resolved, consider running the\n"+
-					"upgrade-juju command with the --reset-previous-upgrade flag.", err,
-				)
-			} else {
-				return block.ProcessBlockedError(err, block.BlockChange)
-			}
-		}
-		logger.Infof("started upgrade to %s", context.chosen)
+		return nil
 	}
+
+	if c.ResetPrevious {
+		if err := c.resetPreviousUpgrade(ctx, client); err != nil {
+			return err
+		}
+	}
+
+	if err := c.startUpgrade(context.chosen, client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *UpgradeJujuCommand) startUpgrade(ver version.Number, client upgradeJujuAPI) error {
+	if err := client.SetEnvironAgentVersion(ver); err != nil {
+		if params.IsCodeUpgradeInProgress(err) {
+			return errors.Errorf("%s\n\n"+
+				"Please wait for the upgrade to complete or if there was a problem with\n"+
+				"the last upgrade that has been resolved, consider running the\n"+
+				"upgrade-juju command with the --reset-previous-upgrade flag.", err,
+			)
+		} else {
+			return block.ProcessBlockedError(err, block.BlockChange)
+		}
+	}
+	logger.Infof("started upgrade to %s", ver)
+
+	return nil
+}
+
+func (c *UpgradeJujuCommand) resetPreviousUpgrade(ctx *cmd.Context, client upgradeJujuAPI) error {
+	if ok, err := c.confirmResetPreviousUpgrade(ctx); !ok || err != nil {
+		const message = "previous upgrade not reset and no new upgrade triggered"
+		if err != nil {
+			return errors.Annotate(err, message)
+		}
+		return errors.New(message)
+	}
+
+	if err := client.AbortCurrentUpgrade(); err != nil {
+		return block.ProcessBlockedError(err, block.BlockChange)
+	}
+
 	return nil
 }
 
@@ -261,17 +272,17 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 	}
 
 	if err := context.preValidate(); err != nil {
-		return nil, err
+		return context, err
 	}
 
 	if err := context.loadTools(c.UploadTools); err != nil {
-		return nil, err
+		return context, err
 	}
 
 	// TODO(ericsnow) Move the upload handling to Run().
 	if c.UploadTools && !c.DryRun {
 		if err := context.uploadTools(); err != nil {
-			return nil, block.ProcessBlockedError(err, block.BlockChange)
+			return context, block.ProcessBlockedError(err, block.BlockChange)
 		}
 	}
 
@@ -305,9 +316,9 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 				context.chosen = newestCurrent
 			} else {
 				if context.agent.Major != context.client.Major {
-					return nil, fmt.Errorf("no compatible tools available")
+					return context, fmt.Errorf("no compatible tools available")
 				} else {
-					return nil, fmt.Errorf("no more recent supported versions available")
+					return context, fmt.Errorf("no more recent supported versions available")
 				}
 			}
 		}
@@ -315,9 +326,16 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 		// If not completely specified already, pick a single tools version.
 		filter := coretools.Filter{Number: context.chosen}
 		if context.tools, err = context.tools.Match(filter); err != nil {
-			return nil, err
+			return context, err
 		}
 		context.chosen, context.tools = context.tools.Newest()
+	}
+
+	if context.chosen == context.agent {
+		return context, errUpToDate
+	}
+	if err := context.validate(); err != nil {
+		return context, err
 	}
 
 	return context, nil
