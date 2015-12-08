@@ -275,15 +275,8 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 		return context, err
 	}
 
-	if err := context.loadTools(c.UploadTools); err != nil {
+	if err := context.loadTools(c.UploadTools, c.DryRun); err != nil {
 		return context, err
-	}
-
-	// TODO(ericsnow) Move the upload handling to Run().
-	if c.UploadTools && !c.DryRun {
-		if err := context.uploadTools(); err != nil {
-			return context, block.ProcessBlockedError(err, block.BlockChange)
-		}
 	}
 
 	if context.chosen == version.Zero {
@@ -351,7 +344,7 @@ type upgradeContext struct {
 }
 
 // loadTools sets the available tools relevant to the upgrade.
-func (context *upgradeContext) loadTools(upload bool) error {
+func (context *upgradeContext) loadTools(upload, dryRun bool) error {
 	filterVersion := version.Current.Number
 	if context.chosen != version.Zero {
 		filterVersion = context.chosen
@@ -376,6 +369,15 @@ func (context *upgradeContext) loadTools(upload bool) error {
 	}
 
 	context.tools = findResult.List
+
+	if upload && !dryRun {
+		tools, err := context.uploadTools()
+		if err != nil {
+			return block.ProcessBlockedError(err, block.BlockChange)
+		}
+		context.tools = coretools.List{tools}
+	}
+
 	return nil
 }
 
@@ -386,7 +388,7 @@ func (context *upgradeContext) loadTools(upload bool) error {
 // than that of any otherwise-matching available envtools.
 // uploadTools resets the chosen version and replaces the available tools
 // with the ones just uploaded.
-func (context *upgradeContext) uploadTools() (err error) {
+func (context *upgradeContext) uploadTools() (*coretools.Tools, error) {
 	// TODO(fwereade): this is kinda crack: we should not assume that
 	// version.Current matches whatever source happens to be built. The
 	// ideal would be:
@@ -406,7 +408,7 @@ func (context *upgradeContext) uploadTools() (err error) {
 
 	builtTools, err := sync.BuildToolsTarball(&context.chosen, "upgrade")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer os.RemoveAll(builtTools.Dir)
 
@@ -415,16 +417,15 @@ func (context *upgradeContext) uploadTools() (err error) {
 	logger.Infof("uploading tools %v (%dkB) to Juju state server", builtTools.Version, (builtTools.Size+512)/1024)
 	f, err := os.Open(toolsPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 	additionalSeries := version.OSSupportedSeries(builtTools.Version.OS)
 	uploaded, err = context.apiClient.UploadTools(f, builtTools.Version, additionalSeries...)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	context.tools = coretools.List{uploaded}
-	return nil
+	return uploaded, nil
 }
 
 var (
