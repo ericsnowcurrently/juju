@@ -253,34 +253,18 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 	if err != nil {
 		return nil, err
 	}
-
-	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
-	if agentVersion.Major > version.Current.Major {
-		return nil, fmt.Errorf("cannot upgrade a %s environment with a %s client", agentVersion, version.Current.Number)
+	context := &upgradeContext{
+		agent:     agentVersion,
+		client:    version.Current.Number,
+		chosen:    c.Version,
+		apiClient: client,
 	}
 
-	if c.Version.Major > agentVersion.Major {
-		// We can only upgrade a major version if we're currently on 1.25.2 or later
-		// and we're going to 2.0.x, and the version was explicitly requested.
-		if agentVersion.Major != 1 {
-			return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
-		}
-		if c.Version.Major > 2 || c.Version.Minor > 0 {
-			output := fmt.Sprintf("Upgrades to %s must first go through juju 2.0.", c.Version)
-			if agentVersion.Minor < 25 || (agentVersion.Minor == 25 && agentVersion.Patch < 2) {
-				output += "\nUpgrades to juju 2.0 must first go through juju 1.25.2 or higher."
-			}
-			return nil, newUnsupportedUpgrade(output)
-		}
-		if agentVersion.Minor < 25 || (agentVersion.Minor == 25 && agentVersion.Patch < 2) {
-			return nil, newUnsupportedUpgrade("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
-		}
-	} else if c.Version != version.Zero && c.Version.Major < agentVersion.Major {
-		return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
+	if err := context.preValidate(); err != nil {
+		return nil, err
 	}
 
-	context, err := c.initVersions(client, agentVersion)
-	if err != nil {
+	if err := context.loadTools(c.UploadTools); err != nil {
 		return nil, err
 	}
 
@@ -339,46 +323,6 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 	return context, nil
 }
 
-// initVersions collects state relevant to an upgrade decision. The returned
-// agent and client versions, and the list of currently available tools, will
-// always be accurate; the chosen version, and the flag indicating development
-// mode, may remain blank until uploadTools or validate is called.
-func (c *UpgradeJujuCommand) initVersions(client upgradeJujuAPI, agentVersion version.Number) (*upgradeContext, error) {
-	if c.Version == agentVersion {
-		return nil, errUpToDate
-	}
-
-	filterVersion := version.Current.Number
-	if c.Version != version.Zero {
-		filterVersion = c.Version
-	}
-	findResult, err := client.FindTools(filterVersion.Major, -1, "", "")
-	if err != nil {
-		return nil, err
-	}
-	err = findResult.Error
-	if findResult.Error != nil {
-		if !params.IsCodeNotFound(err) {
-			return nil, err
-		}
-		if !c.UploadTools {
-			// No tools found and we shouldn't upload any, so if we are not asking for a
-			// major upgrade, pretend there is no more recent version available.
-			if c.Version == version.Zero && agentVersion.Major == filterVersion.Major {
-				return nil, errUpToDate
-			}
-			return nil, err
-		}
-	}
-	return &upgradeContext{
-		agent:     agentVersion,
-		client:    version.Current.Number,
-		chosen:    c.Version,
-		tools:     findResult.List,
-		apiClient: client,
-	}, nil
-}
-
 // upgradeContext holds the version information for making upgrade decisions.
 type upgradeContext struct {
 	agent     version.Number
@@ -386,6 +330,35 @@ type upgradeContext struct {
 	chosen    version.Number
 	tools     coretools.List
 	apiClient upgradeJujuAPI
+}
+
+// loadTools sets the available tools relevant to the upgrade.
+func (context *upgradeContext) loadTools(upload bool) error {
+	filterVersion := version.Current.Number
+	if context.chosen != version.Zero {
+		filterVersion = context.chosen
+	}
+	findResult, err := context.apiClient.FindTools(filterVersion.Major, -1, "", "")
+	if err != nil {
+		return err
+	}
+
+	if findResult.Error != nil {
+		if !params.IsCodeNotFound(findResult.Error) {
+			return findResult.Error
+		}
+		if !upload {
+			// No tools found and we shouldn't upload any, so if we are not asking for a
+			// major upgrade, pretend there is no more recent version available.
+			if context.chosen == version.Zero && context.agent.Major == filterVersion.Major {
+				return errUpToDate
+			}
+			return findResult.Error
+		}
+	}
+
+	context.tools = findResult.List
+	return nil
 }
 
 // uploadTools compiles jujud from $GOPATH and uploads it into the supplied
@@ -446,11 +419,46 @@ func errUnsupportedUpgrade(ver version.Number) error {
 		"    juju upgrade-juju --version=%s", ver, ver)
 }
 
+func (context *upgradeContext) preValidate() error {
+	if context.chosen == context.agent {
+		return errUpToDate
+	}
+
+	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
+	if context.agent.Major > version.Current.Major {
+		return fmt.Errorf("cannot upgrade a %s environment with a %s client", context.agent, version.Current.Number)
+	}
+
+	if context.chosen.Major > context.agent.Major {
+		// We can only upgrade a major version if we're currently on 1.25.2 or later
+		// and we're going to 2.0.x, and the version was explicitly requested.
+		if context.agent.Major != 1 {
+			return fmt.Errorf("cannot upgrade to version incompatible with CLI")
+		}
+		if context.chosen.Major > 2 || context.chosen.Minor > 0 {
+			output := fmt.Sprintf("Upgrades to %s must first go through juju 2.0.", context.chosen)
+			if context.agent.Minor < 25 || (context.agent.Minor == 25 && context.agent.Patch < 2) {
+				output += "\nUpgrades to juju 2.0 must first go through juju 1.25.2 or higher."
+			}
+			return newUnsupportedUpgrade(output)
+		}
+		if context.agent.Minor < 25 || (context.agent.Minor == 25 && context.agent.Patch < 2) {
+			return newUnsupportedUpgrade("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
+		}
+	} else if context.chosen != version.Zero && context.chosen.Major < context.agent.Major {
+		return fmt.Errorf("cannot upgrade to version incompatible with CLI")
+	}
+
+	return nil
+}
+
 // validate chooses an upgrade version, if one has not already been chosen,
 // and ensures the tools list contains no entries that do not have that version.
 // If validate returns no error, the environment agent-version can be set to
 // the value of the chosen field.
 func (context *upgradeContext) validate() error {
+	// TODO(ericsnow) Merge in prevalidate() here.
+
 	// Disallow major.minor version downgrades.
 	if context.chosen.Major < context.agent.Major ||
 		context.chosen.Major == context.agent.Major && context.chosen.Minor < context.agent.Minor {
