@@ -159,7 +159,11 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
 	}()
 
 	// Determine the version to upgrade to, uploading tools if necessary.
-	context, err := c.decideVersion(ctx, client)
+	context, err := c.decideVersion(client)
+	if uerr, ok := err.(*unsupportedUpgrade); ok {
+		uerr.print(ctx)
+		return err
+	}
 	if err != nil {
 		return err
 	}
@@ -244,7 +248,7 @@ func (c *UpgradeJujuCommand) agentVersion(client upgradeJujuAPI) (version.Number
 	return agentVersion, nil
 }
 
-func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuAPI) (*upgradeContext, error) {
+func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeContext, error) {
 	agentVersion, err := c.agentVersion(client)
 	if err != nil {
 		return nil, err
@@ -261,17 +265,15 @@ func (c *UpgradeJujuCommand) decideVersion(ctx *cmd.Context, client upgradeJujuA
 		if agentVersion.Major != 1 {
 			return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
 		}
-		retErr := false
 		if c.Version.Major > 2 || c.Version.Minor > 0 {
-			ctx.Infof("Upgrades to %s must first go through juju 2.0.", c.Version)
-			retErr = true
+			output := fmt.Sprintf("Upgrades to %s must first go through juju 2.0.", c.Version)
+			if agentVersion.Minor < 25 || (agentVersion.Minor == 25 && agentVersion.Patch < 2) {
+				output += "\nUpgrades to juju 2.0 must first go through juju 1.25.2 or higher."
+			}
+			return nil, newUnsupportedUpgrade(output)
 		}
 		if agentVersion.Minor < 25 || (agentVersion.Minor == 25 && agentVersion.Patch < 2) {
-			ctx.Infof("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
-			retErr = true
-		}
-		if retErr {
-			return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
+			return nil, newUnsupportedUpgrade("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
 		}
 	} else if c.Version != version.Zero && c.Version.Major < agentVersion.Major {
 		return nil, fmt.Errorf("cannot upgrade to version incompatible with CLI")
@@ -499,4 +501,27 @@ func uploadVersion(vers version.Number, existing coretools.List) version.Number 
 		}
 	}
 	return vers
+}
+
+type unsupportedUpgrade struct {
+	output  string
+	message string
+}
+
+func newUnsupportedUpgrade(output string, args ...interface{}) *unsupportedUpgrade {
+	return &unsupportedUpgrade{
+		output:  fmt.Sprintf(output, args...),
+		message: "cannot upgrade to version incompatible with CLI",
+	}
+}
+
+// Error returns the error string.
+func (err unsupportedUpgrade) Error() string {
+	return err.message
+}
+
+func (err unsupportedUpgrade) print(ctx *cmd.Context) {
+	if err.output != "" {
+		ctx.Infof(err.output)
+	}
 }
