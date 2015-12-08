@@ -434,30 +434,21 @@ func (context *upgradeContext) uploadTools() (err error) {
 	return nil
 }
 
+var (
+	pre120 = version.MustParse("1.20.14")
+)
+
+func errUnsupportedUpgrade(ver version.Number) error {
+	return errors.Errorf("unsupported upgrade\n\n"+
+		"Environment must first be upgraded to %s or higher.\n"+
+		"    juju upgrade-juju --version=%s", ver, ver)
+}
+
 // validate chooses an upgrade version, if one has not already been chosen,
 // and ensures the tools list contains no entries that do not have that version.
 // If validate returns no error, the environment agent-version can be set to
 // the value of the chosen field.
-func (context *upgradeContext) validate() (err error) {
-	// If the client is on a version before 1.20, they must upgrade
-	// through 1.20.14.
-	if context.agent.Major == 1 && context.agent.Minor < 20 &&
-		(context.chosen.Major > 1 ||
-			(context.chosen.Major == 1 && context.chosen.Minor > 20)) {
-		return errors.New("unsupported upgrade\n\n" +
-			"Environment must first be upgraded to 1.20.14.\n" +
-			"    juju upgrade-juju --version=1.20.14")
-	}
-
-	// Skip 1.21 and 1.23 if the agents are not already on them.
-	if context.agent.Major == 1 && context.chosen.Major == 1 &&
-		context.agent.Minor != context.chosen.Minor &&
-		(context.chosen.Minor == 21 || context.chosen.Minor == 23) {
-		return errors.Errorf("unsupported upgrade\n\n"+
-			"Upgrading to %s is not supported. Please upgrade to the latest 1.25 release.",
-			context.chosen.String())
-	}
-
+func (context *upgradeContext) validate() error {
 	// Disallow major.minor version downgrades.
 	if context.chosen.Major < context.agent.Major ||
 		context.chosen.Major == context.agent.Major && context.chosen.Minor < context.agent.Minor {
@@ -468,6 +459,28 @@ func (context *upgradeContext) validate() (err error) {
 		// minimize damage: the CLI should abort politely, and the agents should
 		// run an Upgrader but no other tasks.
 		return fmt.Errorf("cannot change version from %s to %s", context.agent, context.chosen)
+	}
+
+	// Short-circuit for patch-level upgrades.
+	if context.agent.Major == context.chosen.Major && context.agent.Minor == context.chosen.Minor {
+		return nil
+	}
+
+	if context.chosen.Major == 1 {
+		// Skip 1.21 and 1.23 if the agents are not already on them.
+		if context.chosen.Minor == 21 || context.chosen.Minor == 23 {
+			return errors.Errorf("unsupported upgrade\n\n"+
+				"Upgrading to %s is not supported. Please upgrade to the latest 1.25 release.",
+				context.chosen.String())
+		}
+
+		// If the client is on a version before 1.20, they must upgrade
+		// through 1.20.14.
+		if context.chosen.Minor > 20 {
+			if context.agent.Major == 1 && context.agent.Minor < 20 {
+				return errUnsupportedUpgrade(pre120)
+			}
+		}
 	}
 
 	return nil
