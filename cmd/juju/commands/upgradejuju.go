@@ -298,12 +298,29 @@ func (context *upgradeContext) Close() error {
 	return nil
 }
 
+func (context upgradeContext) validate() error {
+	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
+	if context.agent.Major > context.client.Major {
+		return fmt.Errorf("cannot upgrade a %s environment with a %s client", context.agent, context.client)
+	}
+
+	return nil
+}
+
 func (context upgradeContext) decideVersion(desired version.Number) (targetVersion, error) {
 	target := targetVersion{
 		version: desired,
 	}
 
-	if err := context.preValidate(target); err != nil {
+	if target.version == context.agent {
+		return target, errUpToDate
+	}
+
+	if err := context.validate(); err != nil {
+		return target, err
+	}
+
+	if err := target.preCheckAgent(context.agent); err != nil {
 		return target, err
 	}
 
@@ -360,7 +377,7 @@ func (context upgradeContext) decideVersion(desired version.Number) (targetVersi
 	if target.version == context.agent {
 		return target, errUpToDate
 	}
-	if err := context.validate(target); err != nil {
+	if err := target.checkAgent(context.agent); err != nil {
 		return target, err
 	}
 
@@ -457,93 +474,6 @@ func (context *upgradeContext) uploadTools(ver version.Number) (*coretools.Tools
 	return uploadedTools, nil
 }
 
-var (
-	pre120 = version.MustParse("1.20.14")
-)
-
-func errUnsupportedUpgrade(ver version.Number) error {
-	return errors.Errorf("unsupported upgrade\n\n"+
-		"Environment must first be upgraded to %s or higher.\n"+
-		"    juju upgrade-juju --version=%s", ver, ver)
-}
-
-func (context *upgradeContext) preValidate(target targetVersion) error {
-	if target.version == context.agent {
-		return errUpToDate
-	}
-
-	// Do not allow an upgrade if the agent is on a greater major version than the CLI.
-	if context.agent.Major > context.client.Major {
-		return fmt.Errorf("cannot upgrade a %s environment with a %s client", context.agent, context.client)
-	}
-
-	if target.version.Major > context.agent.Major {
-		// We can only upgrade a major version if we're currently on 1.25.2 or later
-		// and we're going to 2.0.x, and the version was explicitly requested.
-		if context.agent.Major != 1 {
-			return fmt.Errorf("cannot upgrade to version incompatible with CLI")
-		}
-		if target.version.Major > 2 || target.version.Minor > 0 {
-			output := fmt.Sprintf("Upgrades to %s must first go through juju 2.0.", target.version)
-			if context.agent.Minor < 25 || (context.agent.Minor == 25 && context.agent.Patch < 2) {
-				output += "\nUpgrades to juju 2.0 must first go through juju 1.25.2 or higher."
-			}
-			return newUnsupportedUpgrade(output)
-		}
-		if context.agent.Minor < 25 || (context.agent.Minor == 25 && context.agent.Patch < 2) {
-			return newUnsupportedUpgrade("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
-		}
-	} else if target.version != version.Zero && target.version.Major < context.agent.Major {
-		return fmt.Errorf("cannot upgrade to version incompatible with CLI")
-	}
-
-	return nil
-}
-
-// validate chooses an upgrade version, if one has not already been chosen,
-// and ensures the tools list contains no entries that do not have that version.
-// If validate returns no error, the environment agent-version can be set to
-// the value of the chosen field.
-func (context *upgradeContext) validate(target targetVersion) error {
-	// TODO(ericsnow) Merge in prevalidate() here.
-
-	// Disallow major.minor version downgrades.
-	if target.version.Major < context.agent.Major ||
-		target.version.Major == context.agent.Major && target.version.Minor < context.agent.Minor {
-		// TODO(fwereade): I'm a bit concerned about old agent/CLI tools even
-		// *connecting* to environments with higher agent-versions; but ofc they
-		// have to connect in order to discover they shouldn't. However, once
-		// any of our tools detect an incompatible version, they should act to
-		// minimize damage: the CLI should abort politely, and the agents should
-		// run an Upgrader but no other tasks.
-		return fmt.Errorf("cannot change version from %s to %s", context.agent, target.version)
-	}
-
-	// Short-circuit for patch-level upgrades.
-	if context.agent.Major == target.version.Major && context.agent.Minor == target.version.Minor {
-		return nil
-	}
-
-	if target.version.Major == 1 {
-		// Skip 1.21 and 1.23 if the agents are not already on them.
-		if target.version.Minor == 21 || target.version.Minor == 23 {
-			return errors.Errorf("unsupported upgrade\n\n"+
-				"Upgrading to %s is not supported. Please upgrade to the latest 1.25 release.",
-				target.version)
-		}
-
-		// If the client is on a version before 1.20, they must upgrade
-		// through 1.20.14.
-		if target.version.Minor > 20 {
-			if context.agent.Major == 1 && context.agent.Minor < 20 {
-				return errUnsupportedUpgrade(pre120)
-			}
-		}
-	}
-
-	return nil
-}
-
 type targetVersion struct {
 	version version.Number
 	tools   coretools.List
@@ -579,6 +509,84 @@ func (t targetVersion) newest() (targetVersion, error) {
 	newest.version, newest.tools = tools.Newest()
 
 	return newest, nil
+}
+
+var (
+	pre120 = version.MustParse("1.20.14")
+)
+
+func errUnsupportedUpgrade(ver version.Number) error {
+	return errors.Errorf("unsupported upgrade\n\n"+
+		"Environment must first be upgraded to %s or higher.\n"+
+		"    juju upgrade-juju --version=%s", ver, ver)
+}
+
+func (t targetVersion) preCheckAgent(agent version.Number) error {
+	if t.version.Major > agent.Major {
+		// We can only upgrade a major version if we're currently on 1.25.2 or later
+		// and we're going to 2.0.x, and the version was explicitly requested.
+		if agent.Major != 1 {
+			return fmt.Errorf("cannot upgrade to version incompatible with CLI")
+		}
+		if t.version.Major > 2 || t.version.Minor > 0 {
+			output := fmt.Sprintf("Upgrades to %s must first go through juju 2.0.", t.version)
+			if agent.Minor < 25 || (agent.Minor == 25 && agent.Patch < 2) {
+				output += "\nUpgrades to juju 2.0 must first go through juju 1.25.2 or higher."
+			}
+			return newUnsupportedUpgrade(output)
+		}
+		if agent.Minor < 25 || (agent.Minor == 25 && agent.Patch < 2) {
+			return newUnsupportedUpgrade("Upgrades to juju 2.0 must first go through juju 1.25.2 or higher.")
+		}
+	} else if t.version != version.Zero && t.version.Major < agent.Major {
+		return fmt.Errorf("cannot upgrade to version incompatible with CLI")
+	}
+
+	return nil
+}
+
+// checkAgent chooses an upgrade version, if one has not already been chosen,
+// and ensures the tools list contains no entries that do not have that version.
+// If validate returns no error, the environment agent-version can be set to
+// the value of the chosen field.
+func (t targetVersion) checkAgent(agent version.Number) error {
+	// TODO(ericsnow) Merge in preCheckAgent() here.
+
+	// Disallow major.minor version downgrades.
+	if t.version.Major < agent.Major ||
+		t.version.Major == agent.Major && t.version.Minor < agent.Minor {
+		// TODO(fwereade): I'm a bit concerned about old agent/CLI tools even
+		// *connecting* to environments with higher agent-versions; but ofc they
+		// have to connect in order to discover they shouldn't. However, once
+		// any of our tools detect an incompatible version, they should act to
+		// minimize damage: the CLI should abort politely, and the agents should
+		// run an Upgrader but no other tasks.
+		return fmt.Errorf("cannot change version from %s to %s", agent, t.version)
+	}
+
+	// Short-circuit for patch-level upgrades.
+	if agent.Major == t.version.Major && agent.Minor == t.version.Minor {
+		return nil
+	}
+
+	if t.version.Major == 1 {
+		// Skip 1.21 and 1.23 if the agents are not already on them.
+		if t.version.Minor == 21 || t.version.Minor == 23 {
+			return errors.Errorf("unsupported upgrade\n\n"+
+				"Upgrading to %s is not supported. Please upgrade to the latest 1.25 release.",
+				t.version)
+		}
+
+		// If the client is on a version before 1.20, they must upgrade
+		// through 1.20.14.
+		if t.version.Minor > 20 {
+			if agent.Major == 1 && agent.Minor < 20 {
+				return errUnsupportedUpgrade(pre120)
+			}
+		}
+	}
+
+	return nil
 }
 
 type unsupportedUpgrade struct {
