@@ -141,19 +141,19 @@ var getUpgradeJujuAPI = func(c *UpgradeJujuCommand) (upgradeJujuAPI, error) {
 }
 
 // Run changes the version proposed for the juju envtools.
-func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
+func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) error {
 	if len(c.Series) > 0 {
 		fmt.Fprintln(ctx.Stderr, "Use of --series is obsolete. --upload-tools now expands to all supported series of the same operating system.")
 	}
 
-	client, err := getUpgradeJujuAPI(c)
+	context, err := c.newUpgradeContext()
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer context.Close()
 
 	// Determine the version to upgrade to, uploading tools if necessary.
-	context, err := c.decideVersion(client)
+	decided, err := c.decideVersion(context)
 	if errors.Cause(err) == errUpToDate {
 		ctx.Infof(err.Error())
 		return nil
@@ -166,20 +166,20 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) (err error) {
 	}
 
 	// TODO(fwereade): this list may be incomplete, pending envtools.Upload change.
-	ctx.Infof("available tools:\n%s", formatTools(context.tools))
-	ctx.Infof("best version:\n    %s", context.chosen)
+	ctx.Infof("available tools:\n%s", formatTools(decided.tools))
+	ctx.Infof("best version:\n    %s", decided.chosen)
 	if c.DryRun {
-		ctx.Infof("upgrade to this version by running\n    juju upgrade-juju --version=\"%s\"\n", context.chosen)
+		ctx.Infof("upgrade to this version by running\n    juju upgrade-juju --version=\"%s\"\n", decided.chosen)
 		return nil
 	}
 
 	if c.ResetPrevious {
-		if err := c.resetPreviousUpgrade(ctx, client); err != nil {
+		if err := c.resetPreviousUpgrade(ctx, decided.apiClient); err != nil {
 			return err
 		}
 	}
 
-	if err := c.startUpgrade(context.chosen, client); err != nil {
+	if err := c.startUpgrade(decided.chosen, decided.apiClient); err != nil {
 		return err
 	}
 
@@ -241,6 +241,26 @@ func (c *UpgradeJujuCommand) confirmResetPreviousUpgrade(ctx *cmd.Context) (bool
 	return answer == "y" || answer == "yes", nil
 }
 
+func (c *UpgradeJujuCommand) newUpgradeContext() (*upgradeContext, error) {
+	client, err := getUpgradeJujuAPI(c)
+	if err != nil {
+		return nil, err
+	}
+
+	agentVersion, err := c.agentVersion(client)
+	if err != nil {
+		return nil, err
+	}
+
+	context := &upgradeContext{
+		agent:     agentVersion,
+		client:    version.Current.Number,
+		apiClient: client,
+	}
+
+	return context, nil
+}
+
 func (c *UpgradeJujuCommand) agentVersion(client upgradeJujuAPI) (version.Number, error) {
 	attrs, err := client.EnvironmentGet()
 	if err != nil {
@@ -259,17 +279,10 @@ func (c *UpgradeJujuCommand) agentVersion(client upgradeJujuAPI) (version.Number
 	return agentVersion, nil
 }
 
-func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeContext, error) {
-	agentVersion, err := c.agentVersion(client)
-	if err != nil {
-		return nil, err
-	}
-	context := &upgradeContext{
-		agent:     agentVersion,
-		client:    version.Current.Number,
-		chosen:    c.Version,
-		apiClient: client,
-	}
+func (c *UpgradeJujuCommand) decideVersion(initial *upgradeContext) (*upgradeContext, error) {
+	copied := *initial
+	context := &copied
+	context.chosen = c.Version
 
 	if err := context.preValidate(); err != nil {
 		return context, err
@@ -318,10 +331,11 @@ func (c *UpgradeJujuCommand) decideVersion(client upgradeJujuAPI) (*upgradeConte
 	} else {
 		// If not completely specified already, pick a single tools version.
 		filter := coretools.Filter{Number: context.chosen}
-		if context.tools, err = context.tools.Match(filter); err != nil {
+		filtered, err := context.tools.Match(filter)
+		if err != nil {
 			return context, err
 		}
-		context.chosen, context.tools = context.tools.Newest()
+		context.chosen, context.tools = filtered.Newest()
 	}
 
 	if context.chosen == context.agent {
@@ -341,6 +355,14 @@ type upgradeContext struct {
 	chosen    version.Number
 	tools     coretools.List
 	apiClient upgradeJujuAPI
+}
+
+// Close cleans up the upgrade context.
+func (context *upgradeContext) Close() error {
+	if err := context.apiClient.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // loadTools sets the available tools relevant to the upgrade.
