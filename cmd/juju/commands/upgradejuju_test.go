@@ -323,7 +323,7 @@ var upgradeJujuTests = []struct {
 	currentVersion: "1.22.1-quantal-amd64",
 	agentVersion:   "1.18.0",
 	args:           []string{"--version=1.22.1"},
-	expectErr:      "unsupported upgrade\n\nEnvironment must first be upgraded to 1.20.14 or higher.\n    juju upgrade-juju --version=1.20.14",
+	expectErr:      "unsupported upgrade\n\nEnvironment must first be upgraded to 1.20.14.\n    juju upgrade-juju --version=1.20.14",
 }, {
 	about:          "latest supported stable release, skips 1.21",
 	tools:          []string{"1.21.3-quantal-amd64", "1.22.1-quantal-amd64"},
