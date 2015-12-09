@@ -153,7 +153,7 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) error {
 	defer context.Close()
 
 	// Determine the version to upgrade to, uploading tools if necessary.
-	context, err = c.decideVersion(context)
+	decided, err := context.decideVersion(c.Version, c.UploadTools, c.DryRun)
 	if errors.Cause(err) == errUpToDate {
 		ctx.Infof(err.Error())
 		return nil
@@ -163,10 +163,6 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) error {
 	}
 	if err != nil {
 		return err
-	}
-	var decided targetVersion
-	if context.chosen != nil {
-		decided = *context.chosen
 	}
 
 	// TODO(fwereade): this list may be incomplete, pending envtools.Upload change.
@@ -283,24 +279,34 @@ func (c *UpgradeJujuCommand) agentVersion(client upgradeJujuAPI) (version.Number
 	return agentVersion, nil
 }
 
-func (c *UpgradeJujuCommand) decideVersion(initial *upgradeContext) (*upgradeContext, error) {
-	copied := *initial
-	context := &copied
+// upgradeContext holds the version information for making upgrade decisions.
+type upgradeContext struct {
+	agent     version.Number
+	client    version.Number
+	apiClient upgradeJujuAPI
+}
 
+// Close cleans up the upgrade context.
+func (context *upgradeContext) Close() error {
+	if err := context.apiClient.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (context upgradeContext) decideVersion(desired version.Number, upload, dryRun bool) (targetVersion, error) {
 	target := targetVersion{
-		version: c.Version,
-	}
-	context.chosen = &target
-
-	if err := context.preValidate(); err != nil {
-		return context, err
+		version: desired,
 	}
 
-	target, err := context.loadTools(c.UploadTools, c.DryRun)
+	if err := context.preValidate(target); err != nil {
+		return target, err
+	}
+
+	target, err := context.loadTools(target, upload, dryRun)
 	if err != nil {
-		return context, err
+		return target, err
 	}
-	context.chosen = &target
 
 	if target.version == version.Zero {
 		// No explicitly specified version, so find the version to which we
@@ -332,9 +338,9 @@ func (c *UpgradeJujuCommand) decideVersion(initial *upgradeContext) (*upgradeCon
 				target.version = newestCurrent
 			} else {
 				if context.agent.Major != context.client.Major {
-					return context, fmt.Errorf("no compatible tools available")
+					return target, fmt.Errorf("no compatible tools available")
 				} else {
-					return context, fmt.Errorf("no more recent supported versions available")
+					return target, fmt.Errorf("no more recent supported versions available")
 				}
 			}
 		}
@@ -342,45 +348,23 @@ func (c *UpgradeJujuCommand) decideVersion(initial *upgradeContext) (*upgradeCon
 		// If not completely specified already, pick a single tools version.
 		newestTarget, err := target.newest()
 		if err != nil {
-			return context, err
+			return target, err
 		}
 		target = newestTarget
-		context.chosen = &target
 	}
 
 	if target.version == context.agent {
-		return context, errUpToDate
+		return target, errUpToDate
 	}
-	if err := context.validate(); err != nil {
-		return context, err
+	if err := context.validate(target); err != nil {
+		return target, err
 	}
 
-	return context, nil
-}
-
-// upgradeContext holds the version information for making upgrade decisions.
-type upgradeContext struct {
-	agent     version.Number
-	client    version.Number
-	chosen    *targetVersion
-	apiClient upgradeJujuAPI
-}
-
-// Close cleans up the upgrade context.
-func (context *upgradeContext) Close() error {
-	if err := context.apiClient.Close(); err != nil {
-		return err
-	}
-	return nil
+	return target, nil
 }
 
 // loadTools sets the available tools relevant to the upgrade.
-func (context *upgradeContext) loadTools(upload, dryRun bool) (targetVersion, error) {
-	var target targetVersion
-	if context.chosen != nil {
-		target = *context.chosen
-	}
-
+func (context *upgradeContext) loadTools(target targetVersion, upload, dryRun bool) (targetVersion, error) {
 	filterVersion := context.client
 	if target.version != version.Zero {
 		filterVersion = target.version
@@ -479,12 +463,7 @@ func errUnsupportedUpgrade(ver version.Number) error {
 		"    juju upgrade-juju --version=%s", ver, ver)
 }
 
-func (context *upgradeContext) preValidate() error {
-	var target targetVersion
-	if context.chosen != nil {
-		target = *context.chosen
-	}
-
+func (context *upgradeContext) preValidate(target targetVersion) error {
 	if target.version == context.agent {
 		return errUpToDate
 	}
@@ -521,12 +500,7 @@ func (context *upgradeContext) preValidate() error {
 // and ensures the tools list contains no entries that do not have that version.
 // If validate returns no error, the environment agent-version can be set to
 // the value of the chosen field.
-func (context *upgradeContext) validate() error {
-	var target targetVersion
-	if context.chosen != nil {
-		target = *context.chosen
-	}
-
+func (context *upgradeContext) validate(target targetVersion) error {
 	// TODO(ericsnow) Merge in prevalidate() here.
 
 	// Disallow major.minor version downgrades.
