@@ -153,7 +153,7 @@ func (c *UpgradeJujuCommand) Run(ctx *cmd.Context) error {
 	defer context.Close()
 
 	// Determine the version to upgrade to, uploading tools if necessary.
-	decided, err := context.decideVersion(c.Version, c.UploadTools, c.DryRun)
+	decided, err := context.decideVersion(c.Version)
 	if errors.Cause(err) == errUpToDate {
 		ctx.Infof(err.Error())
 		return nil
@@ -256,6 +256,8 @@ func (c *UpgradeJujuCommand) newUpgradeContext() (*upgradeContext, error) {
 		agent:     agentVersion,
 		client:    version.Current.Number,
 		apiClient: client,
+		upload:    c.UploadTools,
+		dryRun:    c.DryRun,
 	}
 
 	return context, nil
@@ -284,6 +286,8 @@ type upgradeContext struct {
 	agent     version.Number
 	client    version.Number
 	apiClient upgradeJujuAPI
+	upload    bool
+	dryRun    bool
 }
 
 // Close cleans up the upgrade context.
@@ -294,7 +298,7 @@ func (context *upgradeContext) Close() error {
 	return nil
 }
 
-func (context upgradeContext) decideVersion(desired version.Number, upload, dryRun bool) (targetVersion, error) {
+func (context upgradeContext) decideVersion(desired version.Number) (targetVersion, error) {
 	target := targetVersion{
 		version: desired,
 	}
@@ -303,7 +307,7 @@ func (context upgradeContext) decideVersion(desired version.Number, upload, dryR
 		return target, err
 	}
 
-	target, err := context.loadTools(target, upload, dryRun)
+	target, err := context.loadTools(target)
 	if err != nil {
 		return target, err
 	}
@@ -364,7 +368,7 @@ func (context upgradeContext) decideVersion(desired version.Number, upload, dryR
 }
 
 // loadTools sets the available tools relevant to the upgrade.
-func (context *upgradeContext) loadTools(target targetVersion, upload, dryRun bool) (targetVersion, error) {
+func (context *upgradeContext) loadTools(target targetVersion) (targetVersion, error) {
 	filterVersion := context.client
 	if target.version != version.Zero {
 		filterVersion = target.version
@@ -378,7 +382,7 @@ func (context *upgradeContext) loadTools(target targetVersion, upload, dryRun bo
 		if !params.IsCodeNotFound(findResult.Error) {
 			return target, findResult.Error
 		}
-		if !upload {
+		if !context.upload {
 			// No tools found and we shouldn't upload any, so if we are not asking for a
 			// major upgrade, pretend there is no more recent version available.
 			if target.version == version.Zero && context.agent.Major == filterVersion.Major {
@@ -389,10 +393,10 @@ func (context *upgradeContext) loadTools(target targetVersion, upload, dryRun bo
 	}
 	target.tools = findResult.List
 
-	if !upload {
+	if !context.upload {
 		return target, nil
 	}
-	if dryRun {
+	if context.dryRun {
 		return target, nil
 	}
 
