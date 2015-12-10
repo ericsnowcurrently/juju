@@ -149,8 +149,8 @@ var upgradeJujuTests = []struct {
 	agentVersion:   "2.8.2",
 	expectErr:      "no matching tools available",
 }, {
-	about:          "latest current release matching CLI, major version, no matching tools",
-	tools:          []string{"3.3.0-quantal-amd64"},
+	about: "latest current release matching CLI, major version, no matching tools",
+	[]string{"3.3.0-quantal-amd64"},
 	currentVersion: "3.2.0-quantal-amd64",
 	agentVersion:   "2.8.2",
 	expectErr:      "no compatible tools available",
