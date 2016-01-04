@@ -31,6 +31,16 @@ import (
 	"github.com/juju/juju/state/storage"
 )
 
+var charmsHandlerSpec = common.HTTPHandlerSpec{
+	//Methods:  []string{"GET", "POST"},
+	AuthKind: names.UserTagKind,
+	NewHTTPHandler: func(args NewHTTPHandlerArgs) http.Handler {
+		return &backupHandler{
+			connect: args.Connect,
+		}
+	},
+}
+
 // charmsHandler handles charm upload through HTTPS in the API server.
 type charmsHandler struct {
 	ctxt    httpContext

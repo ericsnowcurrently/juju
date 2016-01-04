@@ -304,6 +304,53 @@ func (n *requestNotifier) ClientRequest(hdr *rpc.Header, body interface{}) {
 func (n *requestNotifier) ClientReply(req rpc.Request, hdr *rpc.Header, body interface{}) {
 }
 
+func (srv *Server) HTTPEndpointSpecs() []common.HTTPEndpointSpec {
+	// for pat based handlers, they are matched in-order of being
+	// registered, first match wins. So more specific ones have to be
+	// registered first.
+
+	var endpoints []common.HTTPEndpointSpec
+	add := func(pat string, spec HTTPHandlerSpec) {
+		endpoint := common.NewHTTPEndpointSpec(pat, spec)
+		endpoint.Pattern = "/environment/:envuuid" + endpoint.Pattern
+		endpoints = append(endpoints, endpoint)
+	}
+
+	// TODO: We can switch from handling all HTTP methods to more
+	// specific ones (e.g. POST/GET) for endpoints where we only want
+	// to support those specific request methods. However, our tests
+	// currently assert that errors come back as application/json and
+	// the "pat" package only does "text/plain" responses.
+
+	// Add endpoints for logging.
+	if feature.IsDbLogEnabled() {
+		add("/logsink", logSinkHandlerSpec)
+		add("/log", debugLogDBHandlerSpec)
+	} else {
+		add("/log", debugLogFileHandlerSpec)
+	}
+
+	// Add endpoints for charm upload/download.
+	add("/charms", charmsHandlerSpec)
+
+	// Add endpoints for tools.
+	add("/tools", toolsUploadHandlerSpec)
+	add("/tools/:version", toolsDownloadHandlerSpec)
+
+	// Add endpoints for backups.
+	add("/backups", backupsHandlerSpec)
+
+	// Add endpoints for images.
+	add("/images/:kind/:series/:arch/:filename", imagesDownloadHandlerSpec)
+
+	// Add the top-level API endpoint.
+	add("/api", common.HTTPHandlerSpec{
+		NewHTTPHandler: func(NewHTTPHandlerArgs) http.Handler {
+			return http.HandlerFunc(srv.apiHandler())
+		},
+	})
+}
+
 // HTTPEndpoints returns the list of HTTP endpoints that the server
 // should serve.
 func (srv *Server) HTTPEndpoints() []common.HTTPEndpoint {
@@ -323,6 +370,8 @@ func (srv *Server) HTTPEndpoints() []common.HTTPEndpoint {
 	httpCtxt := httpContext{
 		srv: srv,
 	}
+
+	//handler := spec.NewHTTPHandler(args)
 
 	// TODO: We can switch from handling all HTTP methods to more
 	// specific ones (e.g. POST/GET) for endpoints where we only want
@@ -379,7 +428,6 @@ func (srv *Server) HTTPEndpoints() []common.HTTPEndpoint {
 		&imagesDownloadHandler{
 			ctxt:    httpCtxt,
 			dataDir: srv.dataDir,
-			state:   srv.state,
 		},
 	)
 
@@ -389,6 +437,34 @@ func (srv *Server) HTTPEndpoints() []common.HTTPEndpoint {
 	)
 
 	return endpoints
+}
+
+func (srv *Server) newHandlerArgs(spec common.HTTPHandlerSpec) common.NewHTTPHandlerArgs {
+	ctxt := httpContext{
+		strictValidation:   spec.StrictValidation,
+		stateServerEnvOnly: spec.StateServerEnvOnly,
+		srv:                srv,
+	}
+
+	args := NewHTTPHandlerArgs{
+		DataDir: srv.dataDir,
+		LogDir:  srv.logDir,
+	}
+
+	switch spec.AuthKind {
+	case names.UserTagKind:
+		args.Connect = func(req *http.Request) (*state.State, error) {
+			st, _, err := ctxt.stateForRequestAuthenticatedUser(req)
+			return st, err
+		}
+	case "":
+		args.Connect = ctxt.stateForRequestUnauthenticated
+	default:
+		// TODO(ericsnow) Log a warning? Return an error?
+		args.Connect = ctxt.stateForRequestUnauthenticated
+	}
+
+	return args
 }
 
 func (srv *Server) run(lis net.Listener) {

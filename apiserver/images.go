@@ -16,6 +16,7 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/utils/fslock"
 
+	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/container"
 	"github.com/juju/juju/instance"
@@ -23,15 +24,29 @@ import (
 	"github.com/juju/juju/state/imagestorage"
 )
 
+var imagesDownloadHandlerSpec = common.HTTPHandlerSpec{
+	//Methods:  []string{"GET"},
+	AuthKind: "", // unauthenticated
+	NewHTTPHandler: func(args NewHTTPHandlerArgs) http.Handler {
+		return &imagesDownloadHandler{
+			connect: args.Connect,
+			dataDir: args.DataDir,
+		}
+	},
+}
+
 // imagesDownloadHandler handles image download through HTTPS in the API server.
 type imagesDownloadHandler struct {
-	ctxt    httpContext
+	connect func(*http.Request) (*state.State, error)
 	dataDir string
-	state   *state.State
+}
+
+func newImagesDownloadHandler() common.HTTPHandlerSpec {
+	return common.HTTPHandlerSpec{}
 }
 
 func (h *imagesDownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	st, err := h.ctxt.stateForRequestUnauthenticated(r)
+	st, err := h.connect(r)
 	if err != nil {
 		sendError(w, err)
 		return
@@ -95,7 +110,7 @@ func (h *imagesDownloadHandler) loadImage(st *state.State, envuuid, kind, series
 	metadata, imageReader, err := storage.Image(kind, series, arch)
 	// Not in storage, so go fetch it.
 	if errors.IsNotFound(err) {
-		if err := h.fetchAndCacheLxcImage(storage, envuuid, series, arch); err != nil {
+		if err := h.fetchAndCacheLxcImage(st, storage, envuuid, series, arch); err != nil {
 			return nil, nil, errors.Annotate(err, "error fetching and caching image")
 		}
 		err = networkOperationWitDefaultRetries(func() error {
@@ -111,8 +126,8 @@ func (h *imagesDownloadHandler) loadImage(st *state.State, envuuid, kind, series
 
 // fetchAndCacheLxcImage fetches an lxc image tarball from http://cloud-images.ubuntu.com
 // and caches it in the state blobstore.
-func (h *imagesDownloadHandler) fetchAndCacheLxcImage(storage imagestorage.Storage, envuuid, series, arch string) error {
-	cfg, err := h.state.EnvironConfig()
+func (h *imagesDownloadHandler) fetchAndCacheLxcImage(st *state.State, storage imagestorage.Storage, envuuid, series, arch string) error {
+	cfg, err := st.EnvironConfig()
 	if err != nil {
 		return errors.Trace(err)
 	}

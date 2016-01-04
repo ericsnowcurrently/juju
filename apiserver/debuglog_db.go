@@ -13,8 +13,16 @@ import (
 	"github.com/juju/juju/state"
 )
 
-func newDebugLogDBHandler(ctxt httpContext, stop <-chan struct{}) http.Handler {
-	return newDebugLogHandler(ctxt, stop, handleDebugLogDBRequest)
+var debugLogDBHandlerSpec = common.HTTPHandlerSpec{
+	//Methods: ...
+	AuthKind: names.UserTagKind,
+	NewHTTPHandler: func(args NewHTTPHandlerArgs) http.Handler {
+		return &debugLogHandler{
+			connect: args.Connect,
+			stop:    args.Stop,
+			handle:  handleDebugLogDBRequest,
+		}
+	},
 }
 
 func handleDebugLogDBRequest(

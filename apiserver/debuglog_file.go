@@ -19,9 +19,19 @@ import (
 	"github.com/juju/juju/state"
 )
 
-func newDebugLogFileHandler(ctxt httpContext, stop <-chan struct{}, logDir string) http.Handler {
-	fileHandler := &debugLogFileHandler{logDir: logDir}
-	return newDebugLogHandler(ctxt, stop, fileHandler.handle)
+var debugLogFileHandlerSpec = common.HTTPHandlerSpec{
+	//Methods: ...
+	AuthKind: names.UserTagKind,
+	NewHTTPHandler: func(args NewHTTPHandlerArgs) http.Handler {
+		fileHandler := &debugLogFileHandler{
+			logDir: args.LogDir,
+		}
+		return &debugLogHandler{
+			connect: args.Connect,
+			stop:    args.Stop,
+			handle:  fileHandler.handle,
+		}
+	},
 }
 
 // debugLogFileHandler handles requests to watch all-machines.log.

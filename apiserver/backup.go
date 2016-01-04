@@ -20,6 +20,16 @@ import (
 	"github.com/juju/juju/state/backups"
 )
 
+var backupsHandlerSpec = common.HTTPHandlerSpec{
+	//Methods:  []string{"GET", "PUT"},
+	AuthKind: names.UserTagKind,
+	NewHTTPHandler: func(args NewHTTPHandlerArgs) http.Handler {
+		return &backupHandler{
+			connect: args.Connect,
+		}
+	},
+}
+
 var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
 	stor := backups.NewStorage(st)
 	return backups.NewBackups(stor), stor
@@ -27,13 +37,13 @@ var newBackups = func(st *state.State) (backups.Backups, io.Closer) {
 
 // backupHandler handles backup requests.
 type backupHandler struct {
-	ctxt httpContext
+	connect func(*http.Request) (*state.State, error)
 }
 
 func (h *backupHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	// Validate before authenticate because the authentication is dependent
 	// on the state connection that is determined during the validation.
-	st, _, err := h.ctxt.stateForRequestAuthenticatedUser(req)
+	st, err := h.connect(req)
 	if err != nil {
 		h.sendError(resp, err)
 		return

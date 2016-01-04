@@ -21,8 +21,18 @@ import (
 	"github.com/juju/juju/state"
 )
 
-func newLogSinkHandler(h httpContext, logDir string) http.Handler {
+var logSinkHandlerSpec = common.HTTPHandlerSpec{
+	//Methods: ...
+	AuthKind: names.AgentTagKind,
+	NewHTTPHandler: func(args NewHTTPHandlerArgs) http.Handler {
+		return &logSinkHandler{
+			connect:    args.Connect,
+			fileLogger: newFileLogger(args.LogDir),
+		}
+	},
+}
 
+func newFileLogger(logdir string) io.WriteCloser {
 	logPath := filepath.Join(logDir, "logsink.log")
 	if err := primeLogFile(logPath); err != nil {
 		// This isn't a fatal error so log and continue if priming
@@ -30,13 +40,10 @@ func newLogSinkHandler(h httpContext, logDir string) http.Handler {
 		logger.Errorf("Unable to prime %s (proceeding anyway): %v", logPath, err)
 	}
 
-	return &logSinkHandler{
-		ctxt: h,
-		fileLogger: &lumberjack.Logger{
-			Filename:   logPath,
-			MaxSize:    300, // MB
-			MaxBackups: 2,
-		},
+	return &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    300, // MB
+		MaxBackups: 2,
 	}
 }
 
@@ -53,7 +60,7 @@ func primeLogFile(path string) error {
 }
 
 type logSinkHandler struct {
-	ctxt       httpContext
+	connect    func(*http.Request) (*state.State, error)
 	fileLogger io.WriteCloser
 }
 
@@ -62,7 +69,7 @@ func (h *logSinkHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	server := websocket.Server{
 		Handler: func(socket *websocket.Conn) {
 			defer socket.Close()
-			st, entity, err := h.ctxt.stateForRequestAuthenticatedAgent(req)
+			st, entity, err := h.connect(req)
 			if err != nil {
 				h.sendError(socket, req, err)
 				return
