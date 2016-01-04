@@ -387,31 +387,6 @@ func (srv *Server) run(lis net.Listener) {
 			state:   srv.state,
 		},
 	)
-	// For backwards compatibility we register all the old paths
-
-	if feature.IsDbLogEnabled() {
-		handleAll(mux, "/log", newDebugLogDBHandler(httpCtxt, srvDying))
-	} else {
-		handleAll(mux, "/log", newDebugLogFileHandler(httpCtxt, srvDying, srv.logDir))
-	}
-
-	handleAll(mux, "/charms",
-		&charmsHandler{
-			ctxt:    httpCtxt,
-			dataDir: srv.dataDir,
-		},
-	)
-	handleAll(mux, "/tools",
-		&toolsUploadHandler{
-			ctxt: httpCtxt,
-		},
-	)
-	handleAll(mux, "/tools/:version",
-		&toolsDownloadHandler{
-			ctxt: httpCtxt,
-		},
-	)
-	handleAll(mux, "/", http.HandlerFunc(srv.apiHandler))
 
 	go func() {
 		// The error from http.Serve is not interesting.
