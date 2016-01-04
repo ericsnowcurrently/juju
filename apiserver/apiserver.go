@@ -304,13 +304,91 @@ func (n *requestNotifier) ClientRequest(hdr *rpc.Header, body interface{}) {
 func (n *requestNotifier) ClientReply(req rpc.Request, hdr *rpc.Header, body interface{}) {
 }
 
-func handleAll(mux *pat.PatternServeMux, pattern string, handler http.Handler) {
-	mux.Get(pattern, handler)
-	mux.Post(pattern, handler)
-	mux.Head(pattern, handler)
-	mux.Put(pattern, handler)
-	mux.Del(pattern, handler)
-	mux.Options(pattern, handler)
+// HTTPEndpoints returns the list of HTTP endpoints that the server
+// should serve.
+func (srv *Server) HTTPEndpoints() []common.HTTPEndpoint {
+	// for pat based handlers, they are matched in-order of being
+	// registered, first match wins. So more specific ones have to be
+	// registered first.
+
+	var endpoints []common.HTTPEndpoint
+	add := func(pat string, handler http.Handler) {
+		endpoints = append(endpoints, common.HTTPEndpoint{
+			Pattern: pat,
+			Handler: handler,
+		})
+	}
+
+	srvDying := srv.tomb.Dying()
+	httpCtxt := httpContext{
+		srv: srv,
+	}
+
+	// TODO: We can switch from handling all HTTP methods to more
+	// specific ones (e.g. POST/GET) for endpoints where we only want
+	// to support those specific request methods. However, our tests
+	// currently assert that errors come back as application/json and
+	// the "pat" package only does "text/plain" responses.
+
+	// Add endpoints for logging.
+	if feature.IsDbLogEnabled() {
+		add("/environment/:envuuid/logsink",
+			newLogSinkHandler(httpCtxt, srv.logDir),
+		)
+		add("/environment/:envuuid/log",
+			newDebugLogDBHandler(httpCtxt, srvDying),
+		)
+	} else {
+		add("/environment/:envuuid/log",
+			newDebugLogFileHandler(httpCtxt, srvDying, srv.logDir),
+		)
+	}
+
+	// Add endpoints for charm upload/download.
+	add("/environment/:envuuid/charms",
+		&charmsHandler{
+			ctxt:    httpCtxt,
+			dataDir: srv.dataDir,
+		},
+	)
+
+	// Add endpoints for tools.
+	add("/environment/:envuuid/tools",
+		&toolsUploadHandler{
+			ctxt: httpCtxt,
+		},
+	)
+	add("/environment/:envuuid/tools/:version",
+		&toolsDownloadHandler{
+			ctxt: httpCtxt,
+		},
+	)
+
+	// Add endpoints for backups.
+	strictCtxt := httpCtxt
+	strictCtxt.strictValidation = true
+	strictCtxt.stateServerEnvOnly = true
+	add("/environment/:envuuid/backups",
+		&backupHandler{
+			ctxt: strictCtxt,
+		},
+	)
+
+	// Add endpoints for images.
+	add("/environment/:envuuid/images/:kind/:series/:arch/:filename",
+		&imagesDownloadHandler{
+			ctxt:    httpCtxt,
+			dataDir: srv.dataDir,
+			state:   srv.state,
+		},
+	)
+
+	// Add the top-level API endpoint.
+	add("/environment/:envuuid/api",
+		http.HandlerFunc(srv.apiHandler),
+	)
+
+	return endpoints
 }
 
 func (srv *Server) run(lis net.Listener) {
@@ -333,61 +411,15 @@ func (srv *Server) run(lis net.Listener) {
 		srv.wg.Done()
 	}()
 
-	// for pat based handlers, they are matched in-order of being
-	// registered, first match wins. So more specific ones have to be
-	// registered first.
 	mux := pat.New()
 
-	srvDying := srv.tomb.Dying()
-	httpCtxt := httpContext{
-		srv: srv,
+	// Register the HTTP endpoints.
+	endpoints := srv.HTTPEndpoints()
+	for _, ep := range endpoints {
+		ep.Register(mux)
 	}
-	if feature.IsDbLogEnabled() {
-		handleAll(mux, "/environment/:envuuid/logsink",
-			newLogSinkHandler(httpCtxt, srv.logDir))
-		handleAll(mux, "/environment/:envuuid/log",
-			newDebugLogDBHandler(httpCtxt, srvDying))
-	} else {
-		handleAll(mux, "/environment/:envuuid/log",
-			newDebugLogFileHandler(httpCtxt, srvDying, srv.logDir))
-	}
-	handleAll(mux, "/environment/:envuuid/charms",
-		&charmsHandler{
-			ctxt:    httpCtxt,
-			dataDir: srv.dataDir},
-	)
-	// TODO: We can switch from handleAll to mux.Post/Get/etc for entries
-	// where we only want to support specific request methods. However, our
-	// tests currently assert that errors come back as application/json and
-	// pat only does "text/plain" responses.
-	handleAll(mux, "/environment/:envuuid/tools",
-		&toolsUploadHandler{
-			ctxt: httpCtxt,
-		},
-	)
-	handleAll(mux, "/environment/:envuuid/tools/:version",
-		&toolsDownloadHandler{
-			ctxt: httpCtxt,
-		},
-	)
-	strictCtxt := httpCtxt
-	strictCtxt.strictValidation = true
-	strictCtxt.stateServerEnvOnly = true
-	handleAll(mux, "/environment/:envuuid/backups",
-		&backupHandler{
-			ctxt: strictCtxt,
-		},
-	)
-	handleAll(mux, "/environment/:envuuid/api", http.HandlerFunc(srv.apiHandler))
 
-	handleAll(mux, "/environment/:envuuid/images/:kind/:series/:arch/:filename",
-		&imagesDownloadHandler{
-			ctxt:    httpCtxt,
-			dataDir: srv.dataDir,
-			state:   srv.state,
-		},
-	)
-
+	// Start the server.
 	go func() {
 		// The error from http.Serve is not interesting.
 		http.Serve(lis, mux)
