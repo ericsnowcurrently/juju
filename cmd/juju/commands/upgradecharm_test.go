@@ -6,17 +6,19 @@ package commands
 import (
 	"bytes"
 	"io/ioutil"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
+	"path/filepath"
 
 	jc "github.com/juju/testing/checkers"
+	"github.com/juju/utils"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/juju/charm.v6-unstable"
-	"gopkg.in/juju/charmrepo.v1"
+	"gopkg.in/juju/charmrepo.v2-unstable"
 	"gopkg.in/juju/charmstore.v5-unstable"
 
-	"github.com/juju/juju/cmd/envcmd"
 	jujutesting "github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/testcharms"
@@ -42,11 +44,10 @@ func (s *UpgradeCharmErrorsSuite) SetUpTest(c *gc.C) {
 
 	s.PatchValue(&charmrepo.CacheDir, c.MkDir())
 	original := newCharmStoreClient
-	s.PatchValue(&newCharmStoreClient, func() (*csClient, error) {
-		csclient, err := original()
-		c.Assert(err, jc.ErrorIsNil)
+	s.PatchValue(&newCharmStoreClient, func(httpClient *http.Client) *csClient {
+		csclient := original(httpClient)
 		csclient.params.URL = s.srv.URL
-		return csclient, nil
+		return csclient
 	})
 }
 
@@ -59,7 +60,7 @@ func (s *UpgradeCharmErrorsSuite) TearDownTest(c *gc.C) {
 var _ = gc.Suite(&UpgradeCharmErrorsSuite{})
 
 func runUpgradeCharm(c *gc.C, args ...string) error {
-	_, err := testing.RunCommand(c, envcmd.Wrap(&UpgradeCharmCommand{}), args...)
+	_, err := testing.RunCommand(c, newUpgradeCharmCommand(), args...)
 	return err
 }
 
@@ -100,7 +101,7 @@ func (s *UpgradeCharmErrorsSuite) deployService(c *gc.C) {
 func (s *UpgradeCharmErrorsSuite) TestInvalidSwitchURL(c *gc.C) {
 	s.deployService(c)
 	err := runUpgradeCharm(c, "riak", "--switch=blah")
-	c.Assert(err, gc.ErrorMatches, `cannot resolve URL "cs:trusty/blah": charm not found`)
+	c.Assert(err, gc.ErrorMatches, `cannot resolve URL "cs:blah": charm or bundle not found`)
 	err = runUpgradeCharm(c, "riak", "--switch=cs:missing/one")
 	c.Assert(err, gc.ErrorMatches, `cannot resolve URL "cs:missing/one": charm not found`)
 	// TODO(dimitern): add tests with incompatible charms
@@ -110,6 +111,18 @@ func (s *UpgradeCharmErrorsSuite) TestSwitchAndRevisionFails(c *gc.C) {
 	s.deployService(c)
 	err := runUpgradeCharm(c, "riak", "--switch=riak", "--revision=2")
 	c.Assert(err, gc.ErrorMatches, "--switch and --revision are mutually exclusive")
+}
+
+func (s *UpgradeCharmErrorsSuite) TestPathAndRevisionFails(c *gc.C) {
+	s.deployService(c)
+	err := runUpgradeCharm(c, "riak", "--path=foo", "--revision=2")
+	c.Assert(err, gc.ErrorMatches, "--path and --revision are mutually exclusive")
+}
+
+func (s *UpgradeCharmErrorsSuite) TestSwitchAndPathFails(c *gc.C) {
+	s.deployService(c)
+	err := runUpgradeCharm(c, "riak", "--switch=riak", "--path=foo")
+	c.Assert(err, gc.ErrorMatches, "--switch and --path are mutually exclusive")
 }
 
 func (s *UpgradeCharmErrorsSuite) TestInvalidRevision(c *gc.C) {
@@ -223,18 +236,49 @@ func (s *UpgradeCharmSuccessSuite) TestBlockUpgradesWithBundle(c *gc.C) {
 	s.AssertBlocked(c, err, ".*TestBlockUpgradesWithBundle.*")
 }
 
-func (s *UpgradeCharmSuccessSuite) TestForcedUpgrade(c *gc.C) {
-	err := runUpgradeCharm(c, "riak", "--force")
+func (s *UpgradeCharmSuccessSuite) TestForcedSeriesUpgrade(c *gc.C) {
+	path := testcharms.Repo.ClonedDirPath(c.MkDir(), "multi-series")
+	err := runDeploy(c, path, "multi-series", "--series", "precise")
+	c.Assert(err, jc.ErrorIsNil)
+	service, err := s.State.Service("multi-series")
+	c.Assert(err, jc.ErrorIsNil)
+	ch, _, err := service.Charm()
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(ch.Revision(), gc.Equals, 1)
+
+	// Copy files from a charm supporting a different set of series
+	// so we can try an upgrade requiring --force-series.
+	for _, f := range []string{"metadata.yaml", "revision"} {
+		err = utils.CopyFile(
+			filepath.Join(path, f),
+			filepath.Join(testcharms.Repo.CharmDirPath("multi-series2"), f))
+		c.Assert(err, jc.ErrorIsNil)
+	}
+	err = runUpgradeCharm(c, "multi-series", "--path", path, "--force-series")
+	c.Assert(err, jc.ErrorIsNil)
+
+	err = service.Refresh()
+	c.Assert(err, jc.ErrorIsNil)
+	ch, force, err := service.Charm()
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(ch.Revision(), gc.Equals, 8)
+	c.Assert(force, gc.Equals, false)
+	s.AssertCharmUploaded(c, ch.URL())
+	c.Assert(ch.URL().String(), gc.Equals, "local:precise/multi-series2-8")
+}
+
+func (s *UpgradeCharmSuccessSuite) TestForcedUnitsUpgrade(c *gc.C) {
+	err := runUpgradeCharm(c, "riak", "--force-units")
 	c.Assert(err, jc.ErrorIsNil)
 	s.assertUpgraded(c, 8, true)
 	// Local revision is not changed.
 	s.assertLocalRevision(c, 7, s.path)
 }
 
-func (s *UpgradeCharmSuccessSuite) TestBlockForcedUpgrade(c *gc.C) {
+func (s *UpgradeCharmSuccessSuite) TestBlockForcedUnitsUpgrade(c *gc.C) {
 	// Block operation
 	s.BlockAllChanges(c, "TestBlockForcedUpgrade")
-	err := runUpgradeCharm(c, "riak", "--force")
+	err := runUpgradeCharm(c, "riak", "--force-units")
 	c.Assert(err, jc.ErrorIsNil)
 	s.assertUpgraded(c, 8, true)
 	// Local revision is not changed.
@@ -281,6 +325,35 @@ func (s *UpgradeCharmSuccessSuite) TestSwitch(c *gc.C) {
 	s.assertLocalRevision(c, 42, myriakPath)
 }
 
+func (s *UpgradeCharmSuccessSuite) TestCharmPath(c *gc.C) {
+	myriakPath := testcharms.Repo.ClonedDirPath(c.MkDir(), "riak")
+
+	// Change the revision to 42 and upgrade to it with explicit revision.
+	err := ioutil.WriteFile(path.Join(myriakPath, "revision"), []byte("42"), 0644)
+	c.Assert(err, jc.ErrorIsNil)
+	err = runUpgradeCharm(c, "riak", "--path", myriakPath)
+	c.Assert(err, jc.ErrorIsNil)
+	curl := s.assertUpgraded(c, 42, false)
+	c.Assert(curl.String(), gc.Equals, "local:trusty/riak-42")
+	s.assertLocalRevision(c, 42, myriakPath)
+}
+
+func (s *UpgradeCharmSuccessSuite) TestCharmPathNoRevUpgrade(c *gc.C) {
+	// Revision 7 is running to start with.
+	myriakPath := testcharms.Repo.ClonedDirPath(c.MkDir(), "riak")
+	s.assertLocalRevision(c, 7, myriakPath)
+	err := runUpgradeCharm(c, "riak", "--path", myriakPath)
+	c.Assert(err, jc.ErrorIsNil)
+	curl := s.assertUpgraded(c, 8, false)
+	c.Assert(curl.String(), gc.Equals, "local:trusty/riak-8")
+}
+
+func (s *UpgradeCharmSuccessSuite) TestCharmPathDifferentNameFails(c *gc.C) {
+	myriakPath := testcharms.Repo.RenamedClonedDirPath(s.SeriesPath, "riak", "myriak")
+	err := runUpgradeCharm(c, "riak", "--path", myriakPath)
+	c.Assert(err, gc.ErrorMatches, `cannot upgrade "riak" to "myriak"`)
+}
+
 type UpgradeCharmCharmStoreSuite struct {
 	charmStoreSuite
 }
@@ -316,13 +389,13 @@ var upgradeCharmAuthorizationTests = []struct {
 	uploadURL:    "cs:~bob/trusty/wordpress5-10",
 	switchURL:    "cs:~bob/trusty/wordpress5",
 	readPermUser: "bob",
-	expectError:  `cannot resolve charm URL "cs:~bob/trusty/wordpress5": cannot get "/~bob/trusty/wordpress5/meta/any\?include=id": unauthorized: access denied for user "client-username"`,
+	expectError:  `cannot resolve charm URL "cs:~bob/trusty/wordpress5": cannot get "/~bob/trusty/wordpress5/meta/any\?include=id&include=supported-series": unauthorized: access denied for user "client-username"`,
 }, {
 	about:        "non-public charm, fully resolved, access denied",
 	uploadURL:    "cs:~bob/trusty/wordpress6-47",
 	switchURL:    "cs:~bob/trusty/wordpress6-47",
 	readPermUser: "bob",
-	expectError:  `cannot retrieve charm "cs:~bob/trusty/wordpress6-47": cannot get archive: unauthorized: access denied for user "client-username"`,
+	expectError:  `cannot resolve charm URL "cs:~bob/trusty/wordpress6-47": cannot get "/~bob/trusty/wordpress6-47/meta/any\?include=id&include=supported-series": unauthorized: access denied for user "client-username"`,
 }}
 
 func (s *UpgradeCharmCharmStoreSuite) TestUpgradeCharmAuthorization(c *gc.C) {

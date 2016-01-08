@@ -362,9 +362,7 @@ func (s *upgradeSuite) TestAreUpgradesDefined(c *gc.C) {
 		if test.toVersion != "" {
 			toVersion = version.MustParse(test.toVersion)
 		}
-		vers := version.Current
-		vers.Number = toVersion
-		s.PatchValue(&version.Current, vers)
+		s.PatchValue(&version.Current, toVersion)
 		result := upgrades.AreUpgradesDefined(fromVersion)
 		c.Check(result, gc.Equals, test.expected)
 	}
@@ -550,9 +548,7 @@ func (s *upgradeSuite) TestPerformUpgrade(c *gc.C) {
 		if test.toVersion != "" {
 			toVersion = version.MustParse(test.toVersion)
 		}
-		vers := version.Current
-		vers.Number = toVersion
-		s.PatchValue(&version.Current, vers)
+		s.PatchValue(&version.Current, toVersion)
 		err := upgrades.PerformUpgrade(fromVersion, test.targets, ctx)
 		if test.err == "" {
 			c.Check(err, jc.ErrorIsNil)
@@ -619,7 +615,7 @@ func (s *upgradeSuite) TestApiStepsGetRestrictedContext(c *gc.C) {
 func (s *upgradeSuite) checkContextRestriction(c *gc.C, expectedPanic string) {
 	fromVersion := version.MustParse("1.20.0")
 	type fakeAgentConfigSetter struct{ agent.ConfigSetter }
-	ctx := upgrades.NewContext(fakeAgentConfigSetter{}, new(api.State), new(state.State))
+	ctx := upgrades.NewContext(fakeAgentConfigSetter{}, nil, new(state.State))
 	c.Assert(
 		func() { upgrades.PerformUpgrade(fromVersion, targets(upgrades.StateServer), ctx) },
 		gc.PanicMatches, expectedPanic,
@@ -672,13 +668,17 @@ func (s *upgradeSuite) TestUpgradeOperationsOrdered(c *gc.C) {
 func (s *upgradeSuite) TestStateUpgradeOperationsVersions(c *gc.C) {
 	versions := extractUpgradeVersions(c, (*upgrades.StateUpgradeOperations)())
 	c.Assert(versions, gc.DeepEquals, []string{
-		"1.18.0", "1.21.0", "1.22.0", "1.23.0", "1.24.0", "1.24.4", "1.25.0", "1.26.0",
+		// TODO(axw) change to 2.0 when we update version
+		"1.26.0",
 	})
 }
 
 func (s *upgradeSuite) TestUpgradeOperationsVersions(c *gc.C) {
 	versions := extractUpgradeVersions(c, (*upgrades.UpgradeOperations)())
-	c.Assert(versions, gc.DeepEquals, []string{"1.18.0", "1.22.0", "1.23.0", "1.24.0", "1.25.0", "1.26.0"})
+	c.Assert(versions, gc.DeepEquals, []string{
+		// TODO(axw) change to 2.0 when we update version
+		"1.26.0",
+	})
 }
 
 func extractUpgradeVersions(c *gc.C, ops []upgrades.Operation) []string {

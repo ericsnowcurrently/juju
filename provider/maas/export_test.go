@@ -6,9 +6,9 @@ package maas
 import (
 	"strings"
 
+	"github.com/juju/gomaasapi"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
-	"launchpad.net/gomaasapi"
 
 	"github.com/juju/juju/cloudconfig/cloudinit"
 	"github.com/juju/juju/environs"
@@ -32,6 +32,8 @@ func GetMAASClient(env environs.Environ) *gomaasapi.MAASObject {
 func NewCloudinitConfig(env environs.Environ, hostname, iface, series string) (cloudinit.CloudConfig, error) {
 	return env.(*maasEnviron).newCloudinitConfig(hostname, iface, series)
 }
+
+var RenderEtcNetworkInterfacesScript = renderEtcNetworkInterfacesScript
 
 var indexData = `
 {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
+	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -18,15 +19,15 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
-	"github.com/juju/utils"
 	"github.com/juju/utils/os"
 	"github.com/juju/utils/proxy"
-	"github.com/juju/utils/series"
 	goyaml "gopkg.in/yaml.v2"
 
+	"github.com/juju/juju/agent"
 	"github.com/juju/juju/cloudconfig/cloudinit"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/imagemetadata"
+	"github.com/juju/juju/environs/simplestreams"
 	"github.com/juju/juju/service"
 	"github.com/juju/juju/service/systemd"
 	"github.com/juju/juju/service/upstart"
@@ -57,6 +58,17 @@ for n in $(seq {{.ToolsDownloadAttempts}}); do
     fi
     sleep {{.ToolsDownloadWaitTime}}
 done`
+)
+
+var (
+	// UbuntuGroups is the set of unix groups to add the "ubuntu" user to
+	// when initializing an Ubuntu system.
+	UbuntuGroups = []string{"adm", "audio", "cdrom", "dialout", "dip",
+		"floppy", "netdev", "plugdev", "sudo", "video"}
+
+	// CentOSGroups is the set of unix groups to add the "ubuntu" user to
+	// when initializing a CentOS system.
+	CentOSGroups = []string{"adm", "systemd-journal", "wheel"}
 )
 
 type unixConfigure struct {
@@ -92,7 +104,6 @@ func (w *unixConfigure) ConfigureBasic() error {
 	)
 	switch w.os {
 	case os.Ubuntu:
-		w.conf.AddSSHAuthorizedKeys(w.icfg.AuthorizedKeys)
 		if w.icfg.Tools != nil {
 			initSystem, err := service.VersionInitSystem(w.icfg.Series)
 			if err != nil {
@@ -100,15 +111,8 @@ func (w *unixConfigure) ConfigureBasic() error {
 			}
 			w.addCleanShutdownJob(initSystem)
 		}
-	// On unix systems that are not ubuntu we create an ubuntu user so that we
-	// are able to ssh in the machine and have all the functionality dependant
-	// on having an ubuntu user there.
-	// Hopefully in the future we are going to move all the distirbutions to
-	// having a "juju" user
 	case os.CentOS:
 		w.conf.AddScripts(
-			fmt.Sprintf(initUbuntuScript, utils.ShQuote(w.icfg.AuthorizedKeys)),
-
 			// Mask and stop firewalld, if enabled, so it cannot start. See
 			// http://pad.lv/1492066. firewalld might be missing, in which case
 			// is-enabled and is-active prints an error, which is why the output
@@ -120,6 +124,7 @@ func (w *unixConfigure) ConfigureBasic() error {
 		)
 		w.addCleanShutdownJob(service.InitSystemSystemd)
 	}
+	SetUbuntuUser(w.conf, w.icfg.AuthorizedKeys)
 	w.conf.SetOutput(cloudinit.OutAll, "| tee -a "+w.icfg.CloudInitOutputLog, "")
 	// Create a file in a well-defined location containing the machine's
 	// nonce. The presence and contents of this file will be verified
@@ -146,9 +151,8 @@ func (w *unixConfigure) addCleanShutdownJob(initSystem string) {
 }
 
 func (w *unixConfigure) setDataDirPermissions() string {
-	seriesos, _ := series.GetOSFromSeries(w.icfg.Series)
 	var user string
-	switch seriesos {
+	switch w.os {
 	case os.CentOS:
 		user = "root"
 	default:
@@ -202,6 +206,11 @@ func (w *unixConfigure) ConfigureJuju() error {
 			fmt.Sprintf(
 				`(id ubuntu &> /dev/null) && (printf '%%s\n' %s > /home/ubuntu/.juju-proxy && chown ubuntu:ubuntu /home/ubuntu/.juju-proxy)`,
 				shquote(w.icfg.ProxySettings.AsScriptEnvironment())))
+	}
+
+	if w.icfg.PublicImageSigningKey != "" {
+		keyFile := filepath.Join(agent.DefaultPaths.ConfDir, simplestreams.SimplestreamsPublicKeyFile)
+		w.conf.AddRunTextFile(keyFile, w.icfg.PublicImageSigningKey, 0644)
 	}
 
 	// Make the lock dir and change the ownership of the lock dir itself to
@@ -377,17 +386,3 @@ func base64yaml(m *config.Config) string {
 	}
 	return base64.StdEncoding.EncodeToString(data)
 }
-
-const initUbuntuScript = `
-set -e
-(id ubuntu &> /dev/null) || useradd -m ubuntu -s /bin/bash
-umask 0077
-temp=$(mktemp)
-echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' > $temp
-install -m 0440 $temp /etc/sudoers.d/90-juju-ubuntu
-rm $temp
-su ubuntu -c 'install -D -m 0600 /dev/null ~/.ssh/authorized_keys'
-export authorized_keys=%s
-if [ ! -z "$authorized_keys" ]; then
-    su ubuntu -c 'printf "%%s\n" "$authorized_keys" >> ~/.ssh/authorized_keys'
-fi`

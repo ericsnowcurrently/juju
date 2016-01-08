@@ -84,7 +84,7 @@ func (s *kvmBrokerSuite) SetUpTest(c *gc.C) {
 		agent.AgentConfigParams{
 			Paths:             agent.NewPathsWithDefaults(agent.Paths{DataDir: "/not/used/here"}),
 			Tag:               names.NewUnitTag("ubuntu/1"),
-			UpgradedToVersion: version.Current.Number,
+			UpgradedToVersion: version.Current,
 			Password:          "dummy-secret",
 			Nonce:             "nonce",
 			APIAddresses:      []string{"10.0.0.1:1234"},
@@ -104,7 +104,7 @@ func (s *kvmBrokerSuite) instanceConfig(c *gc.C, machineId string) *instancecfg.
 	s.PatchValue(&arch.HostArch, func() string { return arch.AMD64 })
 	stateInfo := jujutesting.FakeStateInfo(machineId)
 	apiInfo := jujutesting.FakeAPIInfo(machineId)
-	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, "released", "quantal", true, nil, stateInfo, apiInfo)
+	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, "released", "quantal", "", true, nil, stateInfo, apiInfo)
 	c.Assert(err, jc.ErrorIsNil)
 	return instanceConfig
 }
@@ -129,7 +129,7 @@ func (s *kvmBrokerSuite) maintainInstance(c *gc.C, machineId string) {
 	machineNonce := "fake-nonce"
 	stateInfo := jujutesting.FakeStateInfo(machineId)
 	apiInfo := jujutesting.FakeAPIInfo(machineId)
-	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, "released", "quantal", true, nil, stateInfo, apiInfo)
+	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, "released", "quantal", "", true, nil, stateInfo, apiInfo)
 	c.Assert(err, jc.ErrorIsNil)
 	cons := constraints.Value{}
 	possibleTools := coretools.List{&coretools.Tools{
@@ -162,6 +162,9 @@ func (s *kvmBrokerSuite) TestStartInstanceAddressAllocationDisabled(c *gc.C) {
 	machineId := "1/kvm/0"
 	kvm := s.startInstance(c, machineId)
 	s.api.CheckCalls(c, []gitjujutesting.StubCall{{
+		FuncName: "PrepareContainerInterfaceInfo",
+		Args:     []interface{}{names.NewMachineTag("1-kvm-0")},
+	}, {
 		FuncName: "ContainerConfig",
 	}})
 	c.Assert(kvm.Id(), gc.Equals, instance.Id("juju-machine-1-kvm-0"))

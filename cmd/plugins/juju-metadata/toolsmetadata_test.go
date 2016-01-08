@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -55,31 +56,28 @@ func (s *ToolsMetadataSuite) SetUpTest(c *gc.C) {
 
 var currentVersionStrings = []string{
 	// only these ones will make it into the JSON files.
-	version.Current.Number.String() + "-quantal-amd64",
-	version.Current.Number.String() + "-quantal-armhf",
-	version.Current.Number.String() + "-quantal-i386",
+	version.Current.String() + "-quantal-amd64",
+	version.Current.String() + "-quantal-armhf",
+	version.Current.String() + "-quantal-i386",
 }
 
 var versionStrings = append([]string{
-	"1.12.0-precise-amd64",
-	"1.12.0-precise-i386",
-	"1.12.0-raring-amd64",
-	"1.12.0-raring-i386",
-	"1.13.0-precise-amd64",
+	fmt.Sprintf("%d.12.0-precise-amd64", version.Current.Major),
+	fmt.Sprintf("%d.12.0-precise-i386", version.Current.Major),
+	fmt.Sprintf("%d.12.0-raring-amd64", version.Current.Major),
+	fmt.Sprintf("%d.12.0-raring-i386", version.Current.Major),
+	fmt.Sprintf("%d.13.0-precise-amd64", version.Current.Major),
 }, currentVersionStrings...)
 
 var expectedOutputCommon = makeExpectedOutputCommon()
 
 func makeExpectedOutputCommon() string {
-	expected := `Finding tools in .*
-.*Fetching tools from dir "{{.ToolsDir}}" to generate hash: 1\.12\.0-precise-amd64
-.*Fetching tools from dir "{{.ToolsDir}}" to generate hash: 1\.12\.0-precise-i386
-.*Fetching tools from dir "{{.ToolsDir}}" to generate hash: 1\.12\.0-raring-amd64
-.*Fetching tools from dir "{{.ToolsDir}}" to generate hash: 1\.12\.0-raring-i386
-.*Fetching tools from dir "{{.ToolsDir}}" to generate hash: 1\.13\.0-precise-amd64
-`
+	expected := "Finding tools in .*\n"
 	f := `.*Fetching tools from dir "{{.ToolsDir}}" to generate hash: %s` + "\n"
-	for _, v := range currentVersionStrings {
+
+	// Sort the global versionStrings
+	sort.Strings(versionStrings)
+	for _, v := range versionStrings {
 		expected += fmt.Sprintf(f, regexp.QuoteMeta(v))
 	}
 	return strings.TrimSpace(expected)
@@ -123,7 +121,7 @@ func (s *ToolsMetadataSuite) TestGenerateLegacyRelease(c *gc.C) {
 	metadataDir := osenv.JujuHome() // default metadata dir
 	toolstesting.MakeTools(c, metadataDir, "releases", versionStrings)
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, nil)
+	code := cmd.Main(newToolsMetadataCommand(), ctx, nil)
 	c.Assert(code, gc.Equals, 0)
 	output := ctx.Stdout.(*bytes.Buffer).String()
 	c.Assert(output, gc.Matches, expectedOutputDirectoryLegacyReleased)
@@ -141,7 +139,7 @@ func (s *ToolsMetadataSuite) TestGenerateToDirectory(c *gc.C) {
 	metadataDir := c.MkDir()
 	toolstesting.MakeTools(c, metadataDir, "releases", versionStrings)
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir})
 	c.Assert(code, gc.Equals, 0)
 	output := ctx.Stdout.(*bytes.Buffer).String()
 	c.Assert(output, gc.Matches, expectedOutputDirectoryLegacyReleased)
@@ -159,7 +157,7 @@ func (s *ToolsMetadataSuite) TestGenerateStream(c *gc.C) {
 	metadataDir := c.MkDir()
 	toolstesting.MakeTools(c, metadataDir, "proposed", versionStrings)
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "proposed"})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "proposed"})
 	c.Assert(code, gc.Equals, 0)
 	output := ctx.Stdout.(*bytes.Buffer).String()
 	c.Assert(output, gc.Matches, makeExpectedOutput(expectedOutputDirectoryTemplate, "proposed", "proposed"))
@@ -179,9 +177,9 @@ func (s *ToolsMetadataSuite) TestGenerateMultipleStreams(c *gc.C) {
 	toolstesting.MakeTools(c, metadataDir, "released", currentVersionStrings)
 
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "proposed"})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "proposed"})
 	c.Assert(code, gc.Equals, 0)
-	code = cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "released"})
+	code = cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "released"})
 	c.Assert(code, gc.Equals, 0)
 
 	metadata := toolstesting.ParseMetadataFromDir(c, metadataDir, "proposed", false)
@@ -219,9 +217,9 @@ func (s *ToolsMetadataSuite) TestGenerateDeleteExisting(c *gc.C) {
 	toolstesting.MakeTools(c, metadataDir, "released", currentVersionStrings)
 
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "proposed"})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "proposed"})
 	c.Assert(code, gc.Equals, 0)
-	code = cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "released"})
+	code = cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "released"})
 	c.Assert(code, gc.Equals, 0)
 
 	// Remove existing proposed tarballs, and create some different ones.
@@ -230,7 +228,7 @@ func (s *ToolsMetadataSuite) TestGenerateDeleteExisting(c *gc.C) {
 	toolstesting.MakeTools(c, metadataDir, "proposed", currentVersionStrings)
 
 	// Generate proposed metadata again, using --clean.
-	code = cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "proposed", "--clean"})
+	code = cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "proposed", "--clean"})
 	c.Assert(code, gc.Equals, 0)
 
 	// Proposed metadata should just list the tarballs that were there, not the merged set.
@@ -261,7 +259,7 @@ func (s *ToolsMetadataSuite) TestGenerateWithPublicFallback(c *gc.C) {
 	// Run the command with no local metadata.
 	ctx := coretesting.Context(c)
 	metadataDir := c.MkDir()
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"-d", metadataDir, "--stream", "released"})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"-d", metadataDir, "--stream", "released"})
 	c.Assert(code, gc.Equals, 0)
 	metadata := toolstesting.ParseMetadataFromDir(c, metadataDir, "released", false)
 	c.Assert(metadata, gc.HasLen, len(versionStrings))
@@ -277,7 +275,7 @@ func (s *ToolsMetadataSuite) TestGenerateWithMirrors(c *gc.C) {
 	metadataDir := c.MkDir()
 	toolstesting.MakeTools(c, metadataDir, "released", versionStrings)
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"--public", "-d", metadataDir, "--stream", "released"})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"--public", "-d", metadataDir, "--stream", "released"})
 	c.Assert(code, gc.Equals, 0)
 	output := ctx.Stdout.(*bytes.Buffer).String()
 	c.Assert(output, gc.Matches, expectedOutputMirrorsReleased)
@@ -293,7 +291,7 @@ func (s *ToolsMetadataSuite) TestGenerateWithMirrors(c *gc.C) {
 
 func (s *ToolsMetadataSuite) TestNoTools(c *gc.C) {
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, nil)
+	code := cmd.Main(newToolsMetadataCommand(), ctx, nil)
 	c.Assert(code, gc.Equals, 1)
 	stdout := ctx.Stdout.(*bytes.Buffer).String()
 	c.Assert(stdout, gc.Matches, ".*\nFinding tools in .*\n")
@@ -302,7 +300,7 @@ func (s *ToolsMetadataSuite) TestNoTools(c *gc.C) {
 }
 
 func (s *ToolsMetadataSuite) TestPatchLevels(c *gc.C) {
-	currentVersion := version.Current.Number
+	currentVersion := version.Current
 	currentVersion.Build = 0
 	versionStrings := []string{
 		currentVersion.String() + "-precise-amd64",
@@ -311,7 +309,7 @@ func (s *ToolsMetadataSuite) TestPatchLevels(c *gc.C) {
 	metadataDir := osenv.JujuHome() // default metadata dir
 	toolstesting.MakeTools(c, metadataDir, "released", versionStrings)
 	ctx := coretesting.Context(c)
-	code := cmd.Main(envcmd.Wrap(&ToolsMetadataCommand{}), ctx, []string{"--stream", "released"})
+	code := cmd.Main(newToolsMetadataCommand(), ctx, []string{"--stream", "released"})
 	c.Assert(code, gc.Equals, 0)
 	output := ctx.Stdout.(*bytes.Buffer).String()
 	expectedOutput := fmt.Sprintf(`

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
-	"launchpad.net/gomaasapi"
+	"github.com/juju/gomaasapi"
 
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/network"
@@ -19,6 +19,11 @@ type maasInstance struct {
 }
 
 var _ instance.Instance = (*maasInstance)(nil)
+
+// Override for testing.
+var resolveHostnames = func(addrs []network.Address) []network.Address {
+	return network.ResolvableHostnames(addrs)
+}
 
 func (mi *maasInstance) String() string {
 	hostname, err := mi.hostname()
@@ -67,7 +72,10 @@ func (mi *maasInstance) Addresses() ([]network.Address, error) {
 	}
 	addrs = append(addrs, network.NewAddresses(ips...)...)
 
-	return addrs, nil
+	// Although we would prefer a DNS name there's no point
+	// returning unresolvable names because activities like 'juju
+	// ssh 0' will instantly fail.
+	return resolveHostnames(addrs), nil
 }
 
 func (mi *maasInstance) ipAddresses() ([]string, error) {

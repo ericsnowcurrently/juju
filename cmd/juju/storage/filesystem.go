@@ -10,7 +10,6 @@ import (
 
 	"github.com/juju/juju/apiserver/params"
 	jujucmd "github.com/juju/juju/cmd"
-	"github.com/juju/juju/cmd/envcmd"
 	"github.com/juju/juju/cmd/juju/common"
 )
 
@@ -30,7 +29,7 @@ func NewFilesystemSuperCommand() cmd.Command {
 		UsagePrefix: "juju storage",
 		Purpose:     filesystemCmdPurpose,
 	})
-	supercmd.Register(envcmd.Wrap(&FilesystemListCommand{}))
+	supercmd.Register(newFilesystemListCommand())
 	return supercmd
 }
 
@@ -72,7 +71,7 @@ type MachineFilesystemAttachment struct {
 }
 
 // convertToFilesystemInfo returns a map of filesystem IDs to filesystem info.
-func convertToFilesystemInfo(all []params.FilesystemDetailsResult) (map[string]FilesystemInfo, error) {
+func convertToFilesystemInfo(all []params.FilesystemDetails) (map[string]FilesystemInfo, error) {
 	result := make(map[string]FilesystemInfo)
 	for _, one := range all {
 		filesystemTag, info, err := createFilesystemInfo(one)
@@ -84,9 +83,7 @@ func convertToFilesystemInfo(all []params.FilesystemDetailsResult) (map[string]F
 	return result, nil
 }
 
-func createFilesystemInfo(result params.FilesystemDetailsResult) (names.FilesystemTag, FilesystemInfo, error) {
-	details := result.Result
-
+func createFilesystemInfo(details params.FilesystemDetails) (names.FilesystemTag, FilesystemInfo, error) {
 	filesystemTag, err := names.ParseFilesystemTag(details.FilesystemTag)
 	if err != nil {
 		return names.FilesystemTag{}, FilesystemInfo{}, errors.Trace(err)

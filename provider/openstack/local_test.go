@@ -20,6 +20,7 @@ import (
 	jc "github.com/juju/testing/checkers"
 	"github.com/juju/utils/arch"
 	"github.com/juju/utils/series"
+	"github.com/juju/utils/ssh"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/goose.v1/client"
 	"gopkg.in/goose.v1/identity"
@@ -37,6 +38,7 @@ import (
 	"github.com/juju/juju/environs/configstore"
 	"github.com/juju/juju/environs/filestorage"
 	"github.com/juju/juju/environs/imagemetadata"
+	imagetesting "github.com/juju/juju/environs/imagemetadata/testing"
 	"github.com/juju/juju/environs/jujutest"
 	"github.com/juju/juju/environs/simplestreams"
 	"github.com/juju/juju/environs/storage"
@@ -49,7 +51,6 @@ import (
 	"github.com/juju/juju/provider/openstack"
 	"github.com/juju/juju/storage/provider/registry"
 	coretesting "github.com/juju/juju/testing"
-	"github.com/juju/juju/utils/ssh"
 	"github.com/juju/juju/version"
 )
 
@@ -187,7 +188,7 @@ func (s *localLiveSuite) TearDownSuite(c *gc.C) {
 func (s *localLiveSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
 	s.LiveTests.SetUpTest(c)
-	s.PatchValue(&imagemetadata.DefaultBaseURL, "")
+	imagetesting.PatchOfficialDataSources(&s.CleanupSuite, "")
 }
 
 func (s *localLiveSuite) TearDownTest(c *gc.C) {
@@ -230,7 +231,7 @@ func (s *localServerSuite) SetUpTest(c *gc.C) {
 		"image-metadata-url": containerURL + "/juju-dist-test",
 		"auth-url":           s.cred.URL,
 	})
-	s.PatchValue(&version.Current.Number, coretesting.FakeVersionNumber)
+	s.PatchValue(&version.Current, coretesting.FakeVersionNumber)
 	s.Tests.SetUpTest(c)
 	// For testing, we create a storage instance to which is uploaded tools and image metadata.
 	s.env = s.Prepare(c)
@@ -380,8 +381,10 @@ func (s *localServerSuite) TestStartInstanceWithoutPublicIP(c *gc.C) {
 
 func (s *localServerSuite) TestStartInstanceHardwareCharacteristics(c *gc.C) {
 	// Ensure amd64 tools are available, to ensure an amd64 image.
-	amd64Version := version.Current
-	amd64Version.Arch = arch.AMD64
+	amd64Version := version.Binary{
+		Number: version.Current,
+		Arch:   arch.AMD64,
+	}
 	for _, series := range series.SupportedSeries() {
 		amd64Version.Series = series
 		envtesting.AssertUploadFakeToolsVersions(
@@ -481,12 +484,12 @@ func (s *localServerSuite) TestStopInstance(c *gc.C) {
 	// Openstack now has three security groups for the server, the default
 	// group, one group for the entire environment, and another for the
 	// new instance.
-	name := env.Config().Name()
-	assertSecurityGroups(c, env, []string{"default", fmt.Sprintf("juju-%v", name), fmt.Sprintf("juju-%v-%v", name, instanceName)})
+	eUUID, _ := env.Config().UUID()
+	assertSecurityGroups(c, env, []string{"default", fmt.Sprintf("juju-%v", eUUID), fmt.Sprintf("juju-%v-%v", eUUID, instanceName)})
 	err = env.StopInstances(inst.Id())
 	c.Assert(err, jc.ErrorIsNil)
 	// The security group for this instance is now removed.
-	assertSecurityGroups(c, env, []string{"default", fmt.Sprintf("juju-%v", name)})
+	assertSecurityGroups(c, env, []string{"default", fmt.Sprintf("juju-%v", eUUID)})
 }
 
 // Due to bug #1300755 it can happen that the security group intended for
@@ -511,8 +514,8 @@ func (s *localServerSuite) TestStopInstanceSecurityGroupNotDeleted(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	instanceName := "100"
 	inst, _ := testing.AssertStartInstance(c, env, instanceName)
-	name := env.Config().Name()
-	allSecurityGroups := []string{"default", fmt.Sprintf("juju-%v", name), fmt.Sprintf("juju-%v-%v", name, instanceName)}
+	eUUID, _ := env.Config().UUID()
+	allSecurityGroups := []string{"default", fmt.Sprintf("juju-%v", eUUID), fmt.Sprintf("juju-%v-%v", eUUID, instanceName)}
 	assertSecurityGroups(c, env, allSecurityGroups)
 	err = env.StopInstances(inst.Id())
 	c.Assert(err, jc.ErrorIsNil)
@@ -527,8 +530,8 @@ func (s *localServerSuite) TestDestroyEnvironmentDeletesSecurityGroupsFWModeInst
 	c.Assert(err, jc.ErrorIsNil)
 	instanceName := "100"
 	testing.AssertStartInstance(c, env, instanceName)
-	name := env.Config().Name()
-	allSecurityGroups := []string{"default", fmt.Sprintf("juju-%v", name), fmt.Sprintf("juju-%v-%v", name, instanceName)}
+	eUUID, _ := env.Config().UUID()
+	allSecurityGroups := []string{"default", fmt.Sprintf("juju-%v", eUUID), fmt.Sprintf("juju-%v-%v", eUUID, instanceName)}
 	assertSecurityGroups(c, env, allSecurityGroups)
 	err = env.Destroy()
 	c.Check(err, jc.ErrorIsNil)
@@ -543,8 +546,8 @@ func (s *localServerSuite) TestDestroyEnvironmentDeletesSecurityGroupsFWModeGlob
 	c.Assert(err, jc.ErrorIsNil)
 	instanceName := "100"
 	testing.AssertStartInstance(c, env, instanceName)
-	name := env.Config().Name()
-	allSecurityGroups := []string{"default", fmt.Sprintf("juju-%v", name), fmt.Sprintf("juju-%v-global", name)}
+	eUUID, _ := env.Config().UUID()
+	allSecurityGroups := []string{"default", fmt.Sprintf("juju-%v", eUUID), fmt.Sprintf("juju-%v-global", eUUID)}
 	assertSecurityGroups(c, env, allSecurityGroups)
 	err = env.Destroy()
 	c.Check(err, jc.ErrorIsNil)
@@ -797,12 +800,6 @@ func (s *localServerSuite) TestBootstrapInstanceUserDataAndState(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(ids, gc.HasLen, 1)
 
-	// Storage should be empty; it is not used anymore.
-	stor := env.(environs.EnvironStorage).Storage()
-	entries, err := stor.List("")
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(entries, gc.HasLen, 0)
-
 	insts, err := env.AllInstances()
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(insts, gc.HasLen, 1)
@@ -831,7 +828,7 @@ func (s *localServerSuite) assertGetImageMetadataSources(c *gc.C, stream, offici
 	c.Assert(err, jc.ErrorIsNil)
 	sources, err := environs.ImageMetadataSources(env)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(sources, gc.HasLen, 3)
+	c.Assert(sources, gc.HasLen, 4)
 	var urls = make([]string, len(sources))
 	for i, source := range sources {
 		url, err := source.URL("")
@@ -842,7 +839,8 @@ func (s *localServerSuite) assertGetImageMetadataSources(c *gc.C, stream, offici
 	c.Check(strings.HasSuffix(urls[0], "/juju-dist-test/"), jc.IsTrue)
 	// The product-streams URL ends with "/imagemetadata".
 	c.Check(strings.HasSuffix(urls[1], "/imagemetadata/"), jc.IsTrue)
-	c.Assert(urls[2], gc.Equals, fmt.Sprintf("http://cloud-images.ubuntu.com/%s/", officialSourcePath))
+	c.Assert(urls[2], gc.Equals, fmt.Sprintf("https://streams.canonical.com/juju/images/%s/", officialSourcePath))
+	c.Assert(urls[3], gc.Equals, fmt.Sprintf("http://cloud-images.ubuntu.com/%s/", officialSourcePath))
 }
 
 func (s *localServerSuite) TestGetImageMetadataSources(c *gc.C) {
@@ -858,11 +856,12 @@ func (s *localServerSuite) TestGetImageMetadataSourcesNoProductStreams(c *gc.C) 
 	env := s.Open(c)
 	sources, err := environs.ImageMetadataSources(env)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(sources, gc.HasLen, 2)
+	c.Assert(sources, gc.HasLen, 3)
 
 	// Check that data sources are in the right order
 	c.Check(sources[0].Description(), gc.Equals, "image-metadata-url")
 	c.Check(sources[1].Description(), gc.Equals, "default cloud images")
+	c.Check(sources[2].Description(), gc.Equals, "default ubuntu cloud images")
 }
 
 func (s *localServerSuite) TestGetToolsMetadataSources(c *gc.C) {
@@ -899,9 +898,7 @@ func (s *localServerSuite) TestSupportsNetworking(c *gc.C) {
 }
 
 func (s *localServerSuite) TestFindImageBadDefaultImage(c *gc.C) {
-	// Prevent falling over to the public datasource.
-	s.BaseSuite.PatchValue(&imagemetadata.DefaultBaseURL, "")
-
+	imagetesting.PatchOfficialDataSources(&s.CleanupSuite, "")
 	env := s.Open(c)
 
 	// An error occurs if no suitable image is found.
@@ -943,9 +940,7 @@ func (s *localServerSuite) TestConstraintsMerge(c *gc.C) {
 }
 
 func (s *localServerSuite) TestFindImageInstanceConstraint(c *gc.C) {
-	// Prevent falling over to the public datasource.
-	s.BaseSuite.PatchValue(&imagemetadata.DefaultBaseURL, "")
-
+	imagetesting.PatchOfficialDataSources(&s.CleanupSuite, "")
 	env := s.Open(c)
 	spec, err := openstack.FindInstanceSpec(env, coretesting.FakeDefaultSeries, "amd64", "instance-type=m1.tiny")
 	c.Assert(err, jc.ErrorIsNil)
@@ -953,9 +948,7 @@ func (s *localServerSuite) TestFindImageInstanceConstraint(c *gc.C) {
 }
 
 func (s *localServerSuite) TestFindImageInvalidInstanceConstraint(c *gc.C) {
-	// Prevent falling over to the public datasource.
-	s.BaseSuite.PatchValue(&imagemetadata.DefaultBaseURL, "")
-
+	imagetesting.PatchOfficialDataSources(&s.CleanupSuite, "")
 	env := s.Open(c)
 	_, err := openstack.FindInstanceSpec(env, coretesting.FakeDefaultSeries, "amd64", "instance-type=m1.large")
 	c.Assert(err, gc.ErrorMatches, `no instance types in some-region matching constraints "instance-type=m1.large"`)
@@ -1030,52 +1023,8 @@ func (s *localServerSuite) TestImageMetadataSourceOrder(c *gc.C) {
 	for _, s := range sources {
 		sourceIds = append(sourceIds, s.Description())
 	}
-	c.Assert(sourceIds, jc.DeepEquals, []string{"image-metadata-url", "my datasource", "keystone catalog", "default cloud images"})
-}
-
-func (s *localServerSuite) TestRemoveAll(c *gc.C) {
-	env := s.Prepare(c)
-	stor := env.(environs.EnvironStorage).Storage()
-	for _, a := range []byte("abcdefghijklmnopqrstuvwxyz") {
-		content := []byte{a}
-		name := string(content)
-		err := stor.Put(name, bytes.NewBuffer(content),
-			int64(len(content)))
-		c.Assert(err, jc.ErrorIsNil)
-	}
-	reader, err := storage.Get(stor, "a")
-	c.Assert(err, jc.ErrorIsNil)
-	allContent, err := ioutil.ReadAll(reader)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(string(allContent), gc.Equals, "a")
-	err = stor.RemoveAll()
-	c.Assert(err, jc.ErrorIsNil)
-	_, err = storage.Get(stor, "a")
-	c.Assert(err, gc.NotNil)
-}
-
-func (s *localServerSuite) TestDeleteMoreThan100(c *gc.C) {
-	env := s.Prepare(c)
-	stor := env.(environs.EnvironStorage).Storage()
-	// 6*26 = 156 items
-	for _, a := range []byte("abcdef") {
-		for _, b := range []byte("abcdefghijklmnopqrstuvwxyz") {
-			content := []byte{a, b}
-			name := string(content)
-			err := stor.Put(name, bytes.NewBuffer(content),
-				int64(len(content)))
-			c.Assert(err, jc.ErrorIsNil)
-		}
-	}
-	reader, err := storage.Get(stor, "ab")
-	c.Assert(err, jc.ErrorIsNil)
-	allContent, err := ioutil.ReadAll(reader)
-	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(string(allContent), gc.Equals, "ab")
-	err = stor.RemoveAll()
-	c.Assert(err, jc.ErrorIsNil)
-	_, err = storage.Get(stor, "ab")
-	c.Assert(err, gc.NotNil)
+	c.Assert(sourceIds, jc.DeepEquals, []string{
+		"image-metadata-url", "my datasource", "keystone catalog", "default cloud images", "default ubuntu cloud images"})
 }
 
 // TestEnsureGroup checks that when creating a duplicate security group, the existing group is
@@ -1159,7 +1108,7 @@ func (s *localHTTPSServerSuite) createConfigAttrs(c *gc.C) map[string]interface{
 
 func (s *localHTTPSServerSuite) SetUpTest(c *gc.C) {
 	s.BaseSuite.SetUpTest(c)
-	s.PatchValue(&version.Current.Number, coretesting.FakeVersionNumber)
+	s.PatchValue(&version.Current, coretesting.FakeVersionNumber)
 	s.srv.UseTLS = true
 	cred := &identity.Credentials{
 		User:       "fred",
@@ -1202,17 +1151,8 @@ func (s *localHTTPSServerSuite) TestMustDisableSSLVerify(c *gc.C) {
 	newattrs["ssl-hostname-verification"] = true
 	env, err := environs.NewFromAttrs(newattrs)
 	c.Assert(err, jc.ErrorIsNil)
-	err = env.(environs.EnvironStorage).Storage().Put("test-name", strings.NewReader("content"), 7)
+	_, err = env.AllInstances()
 	c.Assert(err, gc.ErrorMatches, "(.|\n)*x509: certificate signed by unknown authority")
-	// However, it works just fine if you use the one with the credentials set
-	err = s.env.(environs.EnvironStorage).Storage().Put("test-name", strings.NewReader("content"), 7)
-	c.Assert(err, jc.ErrorIsNil)
-	_, err = env.(environs.EnvironStorage).Storage().Get("test-name")
-	c.Assert(err, gc.ErrorMatches, "(.|\n)*x509: certificate signed by unknown authority")
-	reader, err := s.env.(environs.EnvironStorage).Storage().Get("test-name")
-	c.Assert(err, jc.ErrorIsNil)
-	contents, err := ioutil.ReadAll(reader)
-	c.Assert(string(contents), gc.Equals, "content")
 }
 
 func (s *localHTTPSServerSuite) TestCanBootstrap(c *gc.C) {
@@ -1248,7 +1188,7 @@ func (s *localHTTPSServerSuite) TestFetchFromImageMetadataSources(c *gc.C) {
 	c.Assert(err, jc.ErrorIsNil)
 	sources, err := environs.ImageMetadataSources(s.env)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(sources, gc.HasLen, 3)
+	c.Assert(sources, gc.HasLen, 4)
 
 	// Make sure there is something to download from each location
 	metadata := "metadata-content"
@@ -1763,7 +1703,6 @@ func (s *noSwiftSuite) SetUpTest(c *gc.C) {
 		"name":            "sample-no-swift",
 		"type":            "openstack",
 		"auth-mode":       "userpass",
-		"control-bucket":  "juju-test-no-swift",
 		"username":        s.cred.User,
 		"password":        s.cred.Secrets,
 		"region":          s.cred.Region,
@@ -1772,7 +1711,7 @@ func (s *noSwiftSuite) SetUpTest(c *gc.C) {
 		"agent-version":   coretesting.FakeVersionNumber.String(),
 		"authorized-keys": "fakekey",
 	})
-	s.PatchValue(&version.Current.Number, coretesting.FakeVersionNumber)
+	s.PatchValue(&version.Current, coretesting.FakeVersionNumber)
 	// Serve fake tools and image metadata using "filestorage",
 	// rather than Swift as the rest of the tests do.
 	storageDir := c.MkDir()
@@ -1788,7 +1727,7 @@ func (s *noSwiftSuite) SetUpTest(c *gc.C) {
 	s.PatchValue(&tools.DefaultBaseURL, storageDir)
 	imageStorage, err := filestorage.NewFileStorageWriter(imagesDir)
 	openstack.UseTestImageData(imageStorage, s.cred)
-	s.PatchValue(&imagemetadata.DefaultBaseURL, storageDir)
+	imagetesting.PatchOfficialDataSources(&s.CleanupSuite, storageDir)
 
 	cfg, err := config.New(config.NoDefaults, attrs)
 	c.Assert(err, jc.ErrorIsNil)

@@ -36,12 +36,12 @@ type environ struct {
 }
 
 // Name returns the Environ's name.
-func (env environ) Name() string {
+func (env *environ) Name() string {
 	return env.name
 }
 
 // Provider returns the EnvironProvider that created this Environ.
-func (environ) Provider() environs.EnvironProvider {
+func (*environ) Provider() environs.EnvironProvider {
 	return providerInstance
 }
 
@@ -93,7 +93,7 @@ func (env *environ) Config() *config.Config {
 // Bootstrap is responsible for selecting the appropriate tools,
 // and setting the agent-version configuration attribute prior to
 // bootstrapping the environment.
-func (env *environ) Bootstrap(ctx environs.BootstrapContext, params environs.BootstrapParams) (string, string, environs.BootstrapFinalizer, error) {
+func (env *environ) Bootstrap(ctx environs.BootstrapContext, params environs.BootstrapParams) (*environs.BootstrapResult, error) {
 	return common.Bootstrap(ctx, env, params)
 }
 

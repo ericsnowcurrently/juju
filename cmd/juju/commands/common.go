@@ -6,17 +6,15 @@ package commands
 import (
 	"fmt"
 	"net/http"
-	"path"
+	"net/url"
+	"strings"
 
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
-	"github.com/juju/persistent-cookiejar"
-	"github.com/juju/utils"
-	"golang.org/x/net/publicsuffix"
 	"gopkg.in/juju/charm.v6-unstable"
-	"gopkg.in/juju/charmrepo.v1"
-	"gopkg.in/juju/charmrepo.v1/csclient"
+	"gopkg.in/juju/charmrepo.v2-unstable"
+	"gopkg.in/juju/charmrepo.v2-unstable/csclient"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
 
@@ -112,60 +110,94 @@ func environFromNameProductionFunc(
 	return env, cleanup, err
 }
 
-// resolveCharmURL resolves the given charm URL string
-// by looking it up in the appropriate charm repository.
-// If it is a charm store charm URL, the given csParams will
-// be used to access the charm store repository.
-// If it is a local charm URL, the local charm repository at
-// the given repoPath will be used. The given configuration
-// will be used to add any necessary attributes to the repo
-// and to resolve the default series if possible.
-//
-// resolveCharmURL also returns the charm repository holding
-// the charm.
-func resolveCharmURL(curlStr string, csParams charmrepo.NewCharmStoreParams, repoPath string, conf *config.Config) (*charm.URL, charmrepo.Interface, error) {
-	ref, err := charm.ParseReference(curlStr)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	repo, err := charmrepo.InferRepository(ref, csParams, repoPath)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	repo = config.SpecializeCharmRepo(repo, conf)
-	if ref.Series == "" {
-		if defaultSeries, ok := conf.DefaultSeries(); ok {
-			ref.Series = defaultSeries
-		}
-	}
-	if ref.Schema == "local" && ref.Series == "" {
-		possibleURL := *ref
-		possibleURL.Series = "trusty"
-		logger.Errorf("The series is not specified in the environment (default-series) or with the charm. Did you mean:\n\t%s", &possibleURL)
-		return nil, nil, errors.Errorf("cannot resolve series for charm: %q", ref)
-	}
-	if ref.Series != "" && ref.Revision != -1 {
-		// The URL is already fully resolved; do not
-		// bother with an unnecessary round-trip to the
-		// charm store.
-		curl, err := ref.URL("")
-		if err != nil {
-			panic(err)
-		}
-		return curl, repo, nil
-	}
-	curl, err := repo.Resolve(ref)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	return curl, repo, nil
+type resolveCharmStoreEntityParams struct {
+	urlStr          string
+	requestedSeries string
+	forceSeries     bool
+	csParams        charmrepo.NewCharmStoreParams
+	repoPath        string
+	conf            *config.Config
 }
 
-// addCharmViaAPI calls the appropriate client API calls to add the
+// resolveCharmStoreEntityURL resolves the given charm or bundle URL string
+// by looking it up in the appropriate charm repository.
+// If it is a charm store URL, the given csParams will
+// be used to access the charm store repository.
+// If it is a local charm or bundle URL, the local charm repository at
+// the given repoPath will be used. The given configuration
+// will be used to add any necessary attributes to the repo
+// and to return the charm's supported series if possible.
+//
+// resolveCharmStoreEntityURL also returns the charm repository holding
+// the charm or bundle.
+func resolveCharmStoreEntityURL(args resolveCharmStoreEntityParams) (*charm.URL, []string, charmrepo.Interface, error) {
+	url, err := charm.ParseURL(args.urlStr)
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+	repo, err := charmrepo.InferRepository(url, args.csParams, args.repoPath)
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+	repo = config.SpecializeCharmRepo(repo, args.conf)
+
+	if url.Schema == "local" && url.Series == "" {
+		if defaultSeries, ok := args.conf.DefaultSeries(); ok {
+			url.Series = defaultSeries
+		}
+		if url.Series == "" {
+			possibleURL := *url
+			possibleURL.Series = config.LatestLtsSeries()
+			logger.Errorf("The series is not specified in the environment (default-series) or with the charm. Did you mean:\n\t%s", &possibleURL)
+			return nil, nil, nil, errors.Errorf("cannot resolve series for charm: %q", url)
+		}
+	}
+	resultUrl, supportedSeries, err := repo.Resolve(url)
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+	return resultUrl, supportedSeries, repo, nil
+}
+
+func isSeriesSupported(requestedSeries string, supportedSeries []string) bool {
+	for _, series := range supportedSeries {
+		if series == requestedSeries {
+			return true
+		}
+	}
+	return false
+}
+
+// maybeTermsAgreementError returns err as a *termsAgreementError
+// if it has a "terms agreement required" error code, otherwise
+// it returns err unchanged.
+func maybeTermsAgreementError(err error) error {
+	const code = "term agreement required"
+	e, ok := errors.Cause(err).(*httpbakery.DischargeError)
+	if !ok || e.Reason == nil || e.Reason.Code != code {
+		return err
+	}
+	magicMarker := code + ":"
+	index := strings.LastIndex(e.Reason.Message, magicMarker)
+	if index == -1 {
+		return err
+	}
+	return &termsRequiredError{strings.Fields(e.Reason.Message[index+len(magicMarker):])}
+}
+
+type termsRequiredError struct {
+	Terms []string
+}
+
+func (e *termsRequiredError) Error() string {
+	return fmt.Sprintf("please agree to terms %q", strings.Join(e.Terms, " "))
+}
+
+// addCharmFromURL calls the appropriate client API calls to add the
 // given charm URL to state. For non-public charm URLs, this function also
 // handles the macaroon authorization process using the given csClient.
 // The resulting charm URL of the added charm is displayed on stdout.
-func addCharmViaAPI(client *api.Client, ctx *cmd.Context, curl *charm.URL, repo charmrepo.Interface, csclient *csClient) (*charm.URL, error) {
+func addCharmFromURL(client *api.Client, curl *charm.URL, repo charmrepo.Interface, csclient *csClient) (*charm.URL, error) {
 	switch curl.Schema {
 	case "local":
 		ch, err := repo.Get(curl)
@@ -180,27 +212,25 @@ func addCharmViaAPI(client *api.Client, ctx *cmd.Context, curl *charm.URL, repo 
 	case "cs":
 		if err := client.AddCharm(curl); err != nil {
 			if !params.IsCodeUnauthorized(err) {
-				return nil, errors.Mask(err)
+				return nil, errors.Trace(err)
 			}
 			m, err := csclient.authorize(curl)
 			if err != nil {
-				return nil, errors.Mask(err)
+				return nil, maybeTermsAgreementError(err)
 			}
 			if err := client.AddCharmWithAuthorization(curl, m); err != nil {
-				return nil, errors.Mask(err)
+				return nil, errors.Trace(err)
 			}
 		}
 	default:
 		return nil, fmt.Errorf("unsupported charm URL schema: %q", curl.Schema)
 	}
-	ctx.Infof("Added charm %q to the environment.", curl)
 	return curl, nil
 }
 
 // csClient gives access to the charm store server and provides parameters
 // for connecting to the charm store.
 type csClient struct {
-	jar    *cookiejar.Jar
 	params charmrepo.NewCharmStoreParams
 }
 
@@ -209,34 +239,13 @@ type csClient struct {
 // helpers to save the local authorization cookies and to authorize
 // non-public charm deployments. It is defined as a variable so it can
 // be changed for testing purposes.
-var newCharmStoreClient = func() (*csClient, error) {
-	jar, client, err := newHTTPClient()
-	if err != nil {
-		return nil, errors.Mask(err)
-	}
+var newCharmStoreClient = func(client *http.Client) *csClient {
 	return &csClient{
-		jar: jar,
 		params: charmrepo.NewCharmStoreParams{
 			HTTPClient:   client,
 			VisitWebPage: httpbakery.OpenWebBrowser,
 		},
-	}, nil
-}
-
-func newHTTPClient() (*cookiejar.Jar, *http.Client, error) {
-	cookieFile := path.Join(utils.Home(), ".go-cookies")
-	jar, err := cookiejar.New(&cookiejar.Options{
-		PublicSuffixList: publicsuffix.List,
-	})
-	if err != nil {
-		panic(err)
 	}
-	if err := jar.Load(cookieFile); err != nil {
-		return nil, nil, err
-	}
-	client := httpbakery.NewHTTPClient()
-	client.Jar = jar
-	return jar, client, nil
 }
 
 // authorize acquires and return the charm store delegatable macaroon to be
@@ -244,17 +253,31 @@ func newHTTPClient() (*cookiejar.Jar, *http.Client, error) {
 // The macaroon is properly attenuated so that it can only be used to deploy
 // the given charm URL.
 func (c *csClient) authorize(curl *charm.URL) (*macaroon.Macaroon, error) {
+	if curl == nil {
+		return nil, errors.New("empty charm url not allowed")
+	}
+
 	client := csclient.New(csclient.Params{
 		URL:          c.params.URL,
 		HTTPClient:   c.params.HTTPClient,
 		VisitWebPage: c.params.VisitWebPage,
 	})
+	endpoint := "/delegatable-macaroon"
+	endpoint += "?id=" + url.QueryEscape(curl.String())
+
 	var m *macaroon.Macaroon
-	if err := client.Get("/delegatable-macaroon", &m); err != nil {
+	if err := client.Get(endpoint, &m); err != nil {
 		return nil, errors.Trace(err)
 	}
+
+	// We need to add the is-entity first party caveat to the
+	// delegatable macaroon in case we're talking to the old
+	// version of the charmstore.
+	// TODO (ashipika) - remove this once the new charmstore
+	// is deployed.
 	if err := m.AddFirstPartyCaveat("is-entity " + curl.String()); err != nil {
 		return nil, errors.Trace(err)
 	}
+
 	return m, nil
 }

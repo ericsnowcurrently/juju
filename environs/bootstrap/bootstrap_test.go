@@ -5,9 +5,10 @@ package bootstrap_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"runtime"
 	"strings"
-	stdtesting "testing"
 
 	"github.com/juju/errors"
 	jc "github.com/juju/testing/checkers"
@@ -32,10 +33,6 @@ import (
 	"github.com/juju/juju/version"
 )
 
-func TestPackage(t *stdtesting.T) {
-	gc.TestingT(t)
-}
-
 const (
 	useDefaultKeys = true
 	noKeysDefined  = false
@@ -56,7 +53,7 @@ func (s *bootstrapSuite) SetUpTest(c *gc.C) {
 	s.PatchValue(&envtools.DefaultBaseURL, storageDir)
 	stor, err := filestorage.NewFileStorageWriter(storageDir)
 	c.Assert(err, jc.ErrorIsNil)
-	s.PatchValue(&version.Current.Number, coretesting.FakeVersionNumber)
+	s.PatchValue(&version.Current, coretesting.FakeVersionNumber)
 	envtesting.UploadFakeTools(c, stor, "released", "released")
 }
 
@@ -204,7 +201,7 @@ func (s *bootstrapSuite) TestSetBootstrapTools(c *gc.C) {
 		c.Assert(err, jc.ErrorIsNil)
 		err = env.SetConfig(cfg)
 		c.Assert(err, jc.ErrorIsNil)
-		s.PatchValue(&version.Current.Number, t.currentVersion)
+		s.PatchValue(&version.Current, t.currentVersion)
 		bootstrapTools, err := bootstrap.SetBootstrapTools(env, availableTools)
 		c.Assert(err, jc.ErrorIsNil)
 		c.Assert(bootstrapTools.Version.Number, gc.Equals, t.expectedTools)
@@ -254,11 +251,22 @@ func (s *bootstrapSuite) TestBootstrapMetadata(c *gc.C) {
 
 	datasources, err := environs.ImageMetadataSources(env)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(datasources, gc.HasLen, 2)
+	c.Assert(datasources, gc.HasLen, 3)
 	c.Assert(datasources[0].Description(), gc.Equals, "bootstrap metadata")
 	c.Assert(env.instanceConfig, gc.NotNil)
 	c.Assert(env.instanceConfig.CustomImageMetadata, gc.HasLen, 1)
 	c.Assert(env.instanceConfig.CustomImageMetadata[0], gc.DeepEquals, metadata[0])
+}
+
+func (s *bootstrapSuite) TestPublicKeyEnvVar(c *gc.C) {
+	path := filepath.Join(c.MkDir(), "key")
+	ioutil.WriteFile(path, []byte("publickey"), 0644)
+	s.PatchEnvironment("JUJU_STREAMS_PUBLICKEY_FILE", path)
+
+	env := newEnviron("foo", useDefaultKeys, nil)
+	err := bootstrap.Bootstrap(envtesting.BootstrapContext(c), env, bootstrap.BootstrapParams{})
+	c.Assert(err, jc.ErrorIsNil)
+	c.Assert(env.instanceConfig.PublicImageSigningKey, gc.Equals, "publickey")
 }
 
 func (s *bootstrapSuite) TestBootstrapMetadataImagesMissing(c *gc.C) {
@@ -279,18 +287,15 @@ func (s *bootstrapSuite) TestBootstrapMetadataImagesMissing(c *gc.C) {
 
 	datasources, err := environs.ImageMetadataSources(env)
 	c.Assert(err, jc.ErrorIsNil)
-	c.Assert(datasources, gc.HasLen, 1)
+	c.Assert(datasources, gc.HasLen, 2)
 	c.Assert(datasources[0].Description(), gc.Equals, "default cloud images")
+	c.Assert(datasources[1].Description(), gc.Equals, "default ubuntu cloud images")
 }
 
-func (s *bootstrapSuite) setupBootstrapSpecificVersion(
-	c *gc.C, clientMajor, clientMinor int, toolsVersion *version.Number,
-) (error, int, version.Number) {
+func (s *bootstrapSuite) setupBootstrapSpecificVersion(c *gc.C, clientMajor, clientMinor int, toolsVersion *version.Number) (error, int, version.Number) {
 	currentVersion := version.Current
 	currentVersion.Major = clientMajor
 	currentVersion.Minor = clientMinor
-	currentVersion.Series = "incorrect" // callers should be consulting series.HostSeries
-	currentVersion.Arch = "amd64"
 	currentVersion.Tag = ""
 	s.PatchValue(&version.Current, currentVersion)
 	s.PatchValue(&series.HostSeries, func() string { return "trusty" })
@@ -419,7 +424,7 @@ func (s *bootstrapSuite) setDummyStorage(c *gc.C, env *bootstrapEnviron) {
 	s.AddCleanup(func(c *gc.C) { closer.Close() })
 }
 
-func (e *bootstrapEnviron) Bootstrap(ctx environs.BootstrapContext, args environs.BootstrapParams) (string, string, environs.BootstrapFinalizer, error) {
+func (e *bootstrapEnviron) Bootstrap(ctx environs.BootstrapContext, args environs.BootstrapParams) (*environs.BootstrapResult, error) {
 	e.bootstrapCount++
 	e.args = args
 	finalizer := func(_ environs.BootstrapContext, icfg *instancecfg.InstanceConfig) error {
@@ -427,7 +432,7 @@ func (e *bootstrapEnviron) Bootstrap(ctx environs.BootstrapContext, args environ
 		e.instanceConfig = icfg
 		return nil
 	}
-	return arch.HostArch(), series.HostSeries(), finalizer, nil
+	return &environs.BootstrapResult{Arch: arch.HostArch(), Series: series.HostSeries(), Finalize: finalizer}, nil
 }
 
 func (e *bootstrapEnviron) Config() *config.Config {

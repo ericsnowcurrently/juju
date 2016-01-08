@@ -91,7 +91,7 @@ func (s *lxcBrokerSuite) SetUpTest(c *gc.C) {
 		agent.AgentConfigParams{
 			Paths:             agent.NewPathsWithDefaults(agent.Paths{DataDir: "/not/used/here"}),
 			Tag:               names.NewMachineTag("1"),
-			UpgradedToVersion: version.Current.Number,
+			UpgradedToVersion: version.Current,
 			Password:          "dummy-secret",
 			Nonce:             "nonce",
 			APIAddresses:      []string{"10.0.0.1:1234"},
@@ -115,7 +115,7 @@ func (s *lxcBrokerSuite) instanceConfig(c *gc.C, machineId string) *instancecfg.
 	s.PatchValue(&arch.HostArch, func() string { return arch.AMD64 })
 	stateInfo := jujutesting.FakeStateInfo(machineId)
 	apiInfo := jujutesting.FakeAPIInfo(machineId)
-	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, "released", "quantal", true, nil, stateInfo, apiInfo)
+	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, "released", "quantal", "", true, nil, stateInfo, apiInfo)
 	c.Assert(err, jc.ErrorIsNil)
 	// Ensure the <rootfs>/etc/network path exists.
 	containertesting.EnsureLXCRootFSEtcNetwork(c, "juju-"+names.NewMachineTag(machineId).String())
@@ -190,6 +190,9 @@ func (s *lxcBrokerSuite) TestStartInstanceAddressAllocationDisabled(c *gc.C) {
 	machineId := "1/lxc/0"
 	lxc := s.startInstance(c, machineId, nil)
 	s.api.CheckCalls(c, []gitjujutesting.StubCall{{
+		FuncName: "PrepareContainerInterfaceInfo",
+		Args:     []interface{}{names.NewMachineTag("1-lxc-0")},
+	}, {
 		FuncName: "ContainerConfig",
 	}})
 	c.Assert(lxc.Id(), gc.Equals, instance.Id("juju-machine-1-lxc-0"))
@@ -311,6 +314,9 @@ func (s *lxcBrokerSuite) TestStartInstanceWithBridgeEnviron(c *gc.C) {
 	machineId := "1/lxc/0"
 	lxc := s.startInstance(c, machineId, nil)
 	s.api.CheckCalls(c, []gitjujutesting.StubCall{{
+		FuncName: "PrepareContainerInterfaceInfo",
+		Args:     []interface{}{names.NewMachineTag("1-lxc-0")},
+	}, {
 		FuncName: "ContainerConfig",
 	}})
 	c.Assert(lxc.Id(), gc.Equals, instance.Id("juju-machine-1-lxc-0"))
@@ -1160,4 +1166,12 @@ func (f *fakeAPI) GetContainerInterfaceInfo(tag names.MachineTag) ([]network.Int
 		return nil, err
 	}
 	return []network.InterfaceInfo{f.fakeInterfaceInfo}, nil
+}
+
+func (f *fakeAPI) ReleaseContainerAddresses(tag names.MachineTag) error {
+	f.MethodCall(f, "ReleaseContainerAddresses", tag)
+	if err := f.NextErr(); err != nil {
+		return err
+	}
+	return nil
 }

@@ -5,7 +5,7 @@ package local
 
 import (
 	"fmt"
-	"net"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,9 +30,6 @@ import (
 	"github.com/juju/juju/container/factory"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/config"
-	"github.com/juju/juju/environs/filestorage"
-	"github.com/juju/juju/environs/httpstorage"
-	"github.com/juju/juju/environs/storage"
 	"github.com/juju/juju/instance"
 	"github.com/juju/juju/juju/osenv"
 	"github.com/juju/juju/mongo"
@@ -59,8 +56,6 @@ type localEnviron struct {
 	config           *environConfig
 	name             string
 	bridgeAddress    string
-	localStorage     storage.Storage
-	storageListener  net.Listener
 	containerManager container.Manager
 }
 
@@ -89,9 +84,9 @@ func ensureNotRoot() error {
 }
 
 // Bootstrap is specified in the Environ interface.
-func (env *localEnviron) Bootstrap(ctx environs.BootstrapContext, args environs.BootstrapParams) (string, string, environs.BootstrapFinalizer, error) {
+func (env *localEnviron) Bootstrap(ctx environs.BootstrapContext, args environs.BootstrapParams) (*environs.BootstrapResult, error) {
 	if err := ensureNotRoot(); err != nil {
-		return "", "", nil, err
+		return nil, err
 	}
 
 	// Make sure there are tools available for the
@@ -100,7 +95,7 @@ func (env *localEnviron) Bootstrap(ctx environs.BootstrapContext, args environs.
 		Arch:   arch.HostArch(),
 		Series: series.HostSeries(),
 	}); err != nil {
-		return "", "", nil, err
+		return nil, err
 	}
 
 	cfg, err := env.Config().Apply(map[string]interface{}{
@@ -112,9 +107,15 @@ func (env *localEnviron) Bootstrap(ctx environs.BootstrapContext, args environs.
 	}
 	if err != nil {
 		logger.Errorf("failed to apply bootstrap-ip to config: %v", err)
-		return "", "", nil, err
+		return nil, err
 	}
-	return arch.HostArch(), series.HostSeries(), env.finishBootstrap, nil
+
+	result := &environs.BootstrapResult{
+		Arch:     arch.HostArch(),
+		Series:   series.HostSeries(),
+		Finalize: env.finishBootstrap,
+	}
+	return result, nil
 }
 
 // finishBootstrap converts the machine config to cloud-config,
@@ -131,10 +132,8 @@ func (env *localEnviron) finishBootstrap(ctx environs.BootstrapContext, icfg *in
 
 	icfg.MachineAgentServiceName = env.machineAgentServiceName()
 	icfg.AgentEnvironment = map[string]string{
-		agent.Namespace:   env.config.namespace(),
-		agent.StorageDir:  env.config.storageDir(),
-		agent.StorageAddr: env.config.storageAddr(),
-		agent.LxcBridge:   env.config.networkBridge(),
+		agent.Namespace: env.config.namespace(),
+		agent.LxcBridge: env.config.networkBridge(),
 
 		// The local provider only supports a single state server,
 		// so we make the oplog size to a small value. This makes
@@ -268,7 +267,16 @@ func (env *localEnviron) SetConfig(cfg *config.Config) error {
 			if cert, ok := cfg.CACert(); ok {
 				caCert = []byte(cert)
 			}
-			imageURLGetter = container.NewImageURLGetter(ecfg.stateServerAddr(), uuid, caCert)
+			baseUrl := ecfg.CloudImageBaseURL()
+
+			imageURLGetter = container.NewImageURLGetter(
+				// Explicitly call the non-named constructor so if anyone
+				// adds additional fields, this fails.
+				container.ImageURLGetterConfig{
+					ecfg.stateServerAddr(), uuid, caCert, baseUrl,
+					container.ImageDownloadURL,
+				})
+
 		}
 	}
 	env.containerManager, err = factory.NewContainerManager(
@@ -282,10 +290,6 @@ func (env *localEnviron) SetConfig(cfg *config.Config) error {
 	// because it is only set *within* the running
 	// environment, not in the configuration created by
 	// Prepare.
-	//
-	// When bootstrapIPAddress returns a non-empty string,
-	// we know we are running server-side and thus must use
-	// httpstorage.
 	if addr := ecfg.bootstrapIPAddress(); addr != "" {
 		env.bridgeAddress = addr
 		return nil
@@ -301,7 +305,7 @@ func (env *localEnviron) SetConfig(cfg *config.Config) error {
 	if err := env.resolveBridgeAddress(cfg); err != nil {
 		return errors.Trace(err)
 	}
-	return env.setLocalStorage()
+	return nil
 }
 
 // resolveBridgeAddress finishes up the setup of the environment in
@@ -321,18 +325,6 @@ func (env *localEnviron) resolveBridgeAddress(cfg *config.Config) error {
 	}
 	logger.Debugf("found %q as address for %q", bridgeAddress, networkBridge)
 	env.bridgeAddress = bridgeAddress
-	return nil
-}
-
-// setLocalStorage creates a filestorage so tools can
-// be synced and so forth without having a machine agent
-// running.
-func (env *localEnviron) setLocalStorage() error {
-	storage, err := filestorage.NewFileStorageWriter(env.config.storageDir())
-	if err != nil {
-		return err
-	}
-	env.localStorage = storage
 	return nil
 }
 
@@ -463,15 +455,6 @@ func (env *localEnviron) AllInstances() (instances []instance.Instance, err erro
 	return instances, nil
 }
 
-// Storage is specified in the Environ interface.
-func (env *localEnviron) Storage() storage.Storage {
-	// localStorage is non-nil if we're running from the CLI
-	if env.localStorage != nil {
-		return env.localStorage
-	}
-	return httpstorage.Client(env.config.storageAddr())
-}
-
 // Destroy is specified in the Environ interface.
 func (env *localEnviron) Destroy() error {
 	// If bootstrap failed, for example because the user
@@ -510,6 +493,10 @@ func (env *localEnviron) Destroy() error {
 		if err := env.containerManager.DestroyContainer(inst.Id()); err != nil {
 			return err
 		}
+	}
+	uninstallFile := filepath.Join(env.config.rootDir(), agent.UninstallAgentFile)
+	if err := ioutil.WriteFile(uninstallFile, nil, 0644); err != nil {
+		logger.Debugf("could not write uninstall file: %s", err)
 	}
 	cmd := exec.Command(
 		"pkill",

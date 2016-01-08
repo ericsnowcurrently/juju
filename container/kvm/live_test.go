@@ -86,7 +86,7 @@ func createContainer(c *gc.C, manager container.Manager, machineId string) insta
 	machineNonce := "fake-nonce"
 	stateInfo := jujutesting.FakeStateInfo(machineId)
 	apiInfo := jujutesting.FakeAPIInfo(machineId)
-	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, imagemetadata.ReleasedStream, "quantal", true, nil, stateInfo, apiInfo)
+	instanceConfig, err := instancecfg.NewInstanceConfig(machineId, machineNonce, imagemetadata.ReleasedStream, "quantal", "", true, nil, stateInfo, apiInfo)
 	c.Assert(err, jc.ErrorIsNil)
 	network := container.BridgeNetworkConfig("virbr0", 0, nil)
 
@@ -138,7 +138,7 @@ func dummyConfig(c *gc.C) *config.Config {
 	testConfig, err = testConfig.Apply(map[string]interface{}{
 		"type":          "dummy",
 		"state-server":  false,
-		"agent-version": version.Current.Number.String(),
+		"agent-version": version.Current.String(),
 	})
 	c.Assert(err, jc.ErrorIsNil)
 	return testConfig

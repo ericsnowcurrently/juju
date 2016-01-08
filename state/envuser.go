@@ -31,6 +31,7 @@ type envUserDoc struct {
 	DisplayName string    `bson:"displayname"`
 	CreatedBy   string    `bson:"createdby"`
 	DateCreated time.Time `bson:"datecreated"`
+	ReadOnly    bool      `bson:"readonly"`
 }
 
 // envUserLastConnectionDoc is updated by the apiserver whenever the user
@@ -78,6 +79,12 @@ func (e *EnvironmentUser) CreatedBy() string {
 // DateCreated returns the date the environment user was created in UTC.
 func (e *EnvironmentUser) DateCreated() time.Time {
 	return e.doc.DateCreated.UTC()
+}
+
+// ReadOnly returns whether or not the user has write access or only
+// read access to the environment.
+func (e *EnvironmentUser) ReadOnly() bool {
+	return e.doc.ReadOnly
 }
 
 // LastConnection returns when this EnvironmentUser last connected through the API
@@ -143,10 +150,10 @@ func (st *State) EnvironmentUser(user names.UserTag) (*EnvironmentUser, error) {
 	envUsers, closer := st.getCollection(envUsersC)
 	defer closer()
 
-	username := strings.ToLower(user.Username())
+	username := strings.ToLower(user.Canonical())
 	err := envUsers.FindId(username).One(&envUser.doc)
 	if err == mgo.ErrNotFound {
-		return nil, errors.NotFoundf("environment user %q", user.Username())
+		return nil, errors.NotFoundf("environment user %q", user.Canonical())
 	}
 	// DateCreated is inserted as UTC, but read out as local time. So we
 	// convert it back to UTC here.
@@ -154,52 +161,62 @@ func (st *State) EnvironmentUser(user names.UserTag) (*EnvironmentUser, error) {
 	return envUser, nil
 }
 
+// EnvUserSpec defines the attributes that can be set when adding a new
+// environment user.
+type EnvUserSpec struct {
+	User        names.UserTag
+	CreatedBy   names.UserTag
+	DisplayName string
+	ReadOnly    bool
+}
+
 // AddEnvironmentUser adds a new user to the database.
-func (st *State) AddEnvironmentUser(user, createdBy names.UserTag, displayName string) (*EnvironmentUser, error) {
+func (st *State) AddEnvironmentUser(spec EnvUserSpec) (*EnvironmentUser, error) {
 	// Ensure local user exists in state before adding them as an environment user.
-	if user.IsLocal() {
-		localUser, err := st.User(user)
+	if spec.User.IsLocal() {
+		localUser, err := st.User(spec.User)
 		if err != nil {
-			return nil, errors.Annotate(err, fmt.Sprintf("user %q does not exist locally", user.Name()))
+			return nil, errors.Annotate(err, fmt.Sprintf("user %q does not exist locally", spec.User.Name()))
 		}
-		if displayName == "" {
-			displayName = localUser.DisplayName()
+		if spec.DisplayName == "" {
+			spec.DisplayName = localUser.DisplayName()
 		}
 	}
 
 	// Ensure local createdBy user exists.
-	if createdBy.IsLocal() {
-		if _, err := st.User(createdBy); err != nil {
-			return nil, errors.Annotate(err, fmt.Sprintf("createdBy user %q does not exist locally", createdBy.Name()))
+	if spec.CreatedBy.IsLocal() {
+		if _, err := st.User(spec.CreatedBy); err != nil {
+			return nil, errors.Annotatef(err, "createdBy user %q does not exist locally", spec.CreatedBy.Name())
 		}
 	}
 
 	envuuid := st.EnvironUUID()
-	op := createEnvUserOp(envuuid, user, createdBy, displayName)
+	op := createEnvUserOp(envuuid, spec.User, spec.CreatedBy, spec.DisplayName, spec.ReadOnly)
 	err := st.runTransaction([]txn.Op{op})
 	if err == txn.ErrAborted {
-		err = errors.AlreadyExistsf("environment user %q", user.Username())
+		err = errors.AlreadyExistsf("environment user %q", spec.User.Canonical())
 	}
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	// Re-read from DB to get the multi-env updated values.
-	return st.EnvironmentUser(user)
+	return st.EnvironmentUser(spec.User)
 }
 
 // envUserID returns the document id of the environment user
 func envUserID(user names.UserTag) string {
-	username := user.Username()
+	username := user.Canonical()
 	return strings.ToLower(username)
 }
 
-func createEnvUserOp(envuuid string, user, createdBy names.UserTag, displayName string) txn.Op {
-	creatorname := createdBy.Username()
+func createEnvUserOp(envuuid string, user, createdBy names.UserTag, displayName string, readOnly bool) txn.Op {
+	creatorname := createdBy.Canonical()
 	doc := &envUserDoc{
 		ID:          envUserID(user),
 		EnvUUID:     envuuid,
-		UserName:    user.Username(),
+		UserName:    user.Canonical(),
 		DisplayName: displayName,
+		ReadOnly:    readOnly,
 		CreatedBy:   creatorname,
 		DateCreated: nowToTheSecond(),
 	}
@@ -221,7 +238,7 @@ func (st *State) RemoveEnvironmentUser(user names.UserTag) error {
 	}}
 	err := st.runTransaction(ops)
 	if err == txn.ErrAborted {
-		err = errors.NewNotFound(err, fmt.Sprintf("env user %q does not exist", user.Username()))
+		err = errors.NewNotFound(err, fmt.Sprintf("env user %q does not exist", user.Canonical()))
 	}
 	if err != nil {
 		return errors.Trace(err)
@@ -243,10 +260,10 @@ func (e *UserEnvironment) LastConnection() (time.Time, error) {
 	defer lastConnCloser()
 
 	lastConnDoc := envUserLastConnectionDoc{}
-	id := ensureEnvUUID(e.EnvironTag().Id(), strings.ToLower(e.User.Username()))
+	id := ensureEnvUUID(e.EnvironTag().Id(), strings.ToLower(e.User.Canonical()))
 	err := lastConnections.FindId(id).Select(bson.D{{"last-connection", 1}}).One(&lastConnDoc)
 	if (err != nil && err != mgo.ErrNotFound) || lastConnDoc.LastConnection.IsZero() {
-		return time.Time{}, errors.Trace(NeverConnectedError(e.User.Username()))
+		return time.Time{}, errors.Trace(NeverConnectedError(e.User.Canonical()))
 	}
 
 	return lastConnDoc.LastConnection, nil
@@ -264,7 +281,7 @@ func (st *State) EnvironmentsForUser(user names.UserTag) ([]*UserEnvironment, er
 
 	// TODO: consider adding an index to the envUsers collection on the username.
 	var userSlice []envUserDoc
-	err := envUsers.Find(bson.D{{"user", user.Username()}}).Select(bson.D{{"env-uuid", 1}, {"_id", 1}}).All(&userSlice)
+	err := envUsers.Find(bson.D{{"user", user.Canonical()}}).Select(bson.D{{"env-uuid", 1}, {"_id", 1}}).All(&userSlice)
 	if err != nil {
 		return nil, err
 	}
@@ -283,9 +300,9 @@ func (st *State) EnvironmentsForUser(user names.UserTag) ([]*UserEnvironment, er
 	return result, nil
 }
 
-// IsSystemAdministrator returns true if the user specified has access to the
+// IsControllerAdministrator returns true if the user specified has access to the
 // state server environment (the system environment).
-func (st *State) IsSystemAdministrator(user names.UserTag) (bool, error) {
+func (st *State) IsControllerAdministrator(user names.UserTag) (bool, error) {
 	ssinfo, err := st.StateServerInfo()
 	if err != nil {
 		return false, errors.Annotate(err, "could not get state server info")
@@ -298,7 +315,7 @@ func (st *State) IsSystemAdministrator(user names.UserTag) (bool, error) {
 
 	count, err := envUsers.Find(bson.D{
 		{"env-uuid", serverUUID},
-		{"user", user.Username()},
+		{"user", user.Canonical()},
 	}).Count()
 	if err != nil {
 		return false, errors.Trace(err)

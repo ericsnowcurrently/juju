@@ -130,16 +130,6 @@ func (s *configSuite) TestValidateConfigWithTildeInRootDir(c *gc.C) {
 	c.Assert(unknownAttrs["root-dir"], gc.Equals, expectedRootDir)
 }
 
-func (s *configSuite) TestValidateConfigWithFloatPort(c *gc.C) {
-	// When the config values get serialized through JSON, the integers
-	// get coerced to float64 values.  The parsing needs to handle this.
-	valid := localConfig(c, map[string]interface{}{
-		"storage-port": float64(8040),
-	})
-	unknownAttrs := valid.UnknownAttrs()
-	c.Assert(unknownAttrs["storage-port"], gc.Equals, int(8040))
-}
-
 func (s *configSuite) TestNamespace(c *gc.C) {
 	s.PatchEnvironment("USER", "tester")
 	testConfig := minimalConfig(c)
@@ -151,7 +141,7 @@ func (s *configSuite) TestBootstrapAsRoot(c *gc.C) {
 	s.PatchValue(local.CheckIfRoot, func() bool { return true })
 	env, err := local.Provider.PrepareForBootstrap(envtesting.BootstrapContext(c), minimalConfig(c))
 	c.Assert(err, jc.ErrorIsNil)
-	_, _, _, err = env.Bootstrap(envtesting.BootstrapContext(c), environs.BootstrapParams{})
+	_, err = env.Bootstrap(envtesting.BootstrapContext(c), environs.BootstrapParams{})
 	c.Assert(err, gc.ErrorMatches, "bootstrapping a local environment must not be done as root")
 }
 

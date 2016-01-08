@@ -12,8 +12,7 @@ import (
 	"gopkg.in/juju/environschema.v1"
 
 	"github.com/juju/juju/agent"
-	"github.com/juju/juju/container/kvm"
-	"github.com/juju/juju/container/lxc"
+	"github.com/juju/juju/container/factory"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/instance"
 )
@@ -29,14 +28,13 @@ const (
 	NamespaceKey     = "namespace"
 	NetworkBridgeKey = "network-bridge"
 	RootDirKey       = "root-dir"
-	StoragePortKey   = "storage-port"
 )
 
 // configSchema defines the schema for the configuration attributes
 // defined by the local provider.
 var configSchema = environschema.Fields{
 	RootDirKey: {
-		Description: `The directory that is used for the storage files and database. The default location is $JUJU_HOME/<env-name>. $JUJU_HOME defaults to ~/.juju. Override if needed.`,
+		Description: `The directory that is used for the database. The default location is $JUJU_HOME/<env-name>. $JUJU_HOME defaults to ~/.juju. Override if needed.`,
 		Type:        environschema.Tstring,
 		Example:     "~/.juju/local",
 	},
@@ -56,10 +54,6 @@ var configSchema = environschema.Fields{
 			string(instance.LXC),
 			string(instance.KVM),
 		},
-	},
-	StoragePortKey: {
-		Description: `The port where the local provider starts the HTTP file server. Override the value if you have multiple local providers, or if the default port is used by another program.`,
-		Type:        environschema.Tint,
 	},
 	NamespaceKey: {
 		Description: `The name space to use for local provider resources. Override if you have multiple local providers`,
@@ -84,7 +78,6 @@ var (
 		NetworkBridgeKey: "",
 		ContainerKey:     string(instance.LXC),
 		BootstrapIpKey:   schema.Omit,
-		StoragePortKey:   8040,
 		NamespaceKey:     "",
 	}
 )
@@ -120,15 +113,8 @@ func (c *environConfig) container() instance.ContainerType {
 // provided. Default network bridge varies based on container type.
 func (c *environConfig) setDefaultNetworkBridge() {
 	name := c.networkBridge()
-	switch c.container() {
-	case instance.LXC:
-		if name == "" {
-			name = lxc.DefaultLxcBridge
-		}
-	case instance.KVM:
-		if name == "" {
-			name = kvm.DefaultKvmBridge
-		}
+	if name == "" {
+		name = factory.DefaultNetworkBridge(c.container())
 	}
 	c.attrs[NetworkBridgeKey] = name
 }
@@ -137,10 +123,6 @@ func (c *environConfig) networkBridge() string {
 	// We don't care if it's not a string, because Validate takes care
 	// of that.
 	return c.attrs[NetworkBridgeKey].(string)
-}
-
-func (c *environConfig) storageDir() string {
-	return filepath.Join(c.rootDir(), "storage")
 }
 
 func (c *environConfig) mongoDir() string {
@@ -163,21 +145,12 @@ func (c *environConfig) stateServerAddr() string {
 	return fmt.Sprintf("localhost:%d", c.Config.APIPort())
 }
 
-func (c *environConfig) storagePort() int {
-	return c.attrs[StoragePortKey].(int)
-}
-
-func (c *environConfig) storageAddr() string {
-	return fmt.Sprintf("%s:%d", c.bootstrapIPAddress(), c.storagePort())
-}
-
 func (c *environConfig) configFile(filename string) string {
 	return filepath.Join(c.rootDir(), filename)
 }
 
 func (c *environConfig) createDirs() error {
 	for _, dirname := range []string{
-		c.storageDir(),
 		c.mongoDir(),
 	} {
 		logger.Tracef("creating directory %s", dirname)

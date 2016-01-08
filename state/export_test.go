@@ -6,10 +6,10 @@ package state
 import (
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"path/filepath"
 	"time"
 
+	"github.com/juju/errors"
 	"github.com/juju/loggo"
 	"github.com/juju/names"
 	jc "github.com/juju/testing/checkers"
@@ -115,21 +115,38 @@ func AddTestingCharm(c *gc.C, st *State, name string) *Charm {
 	return addCharm(c, st, "quantal", testcharms.Repo.CharmDir(name))
 }
 
+func AddTestingCharmForSeries(c *gc.C, st *State, series, name string) *Charm {
+	return addCharm(c, st, series, testcharms.Repo.CharmDir(name))
+}
+
+func AddTestingCharmMultiSeries(c *gc.C, st *State, name string) *Charm {
+	ch := testcharms.Repo.CharmDir(name)
+	ident := fmt.Sprintf("%s-%d", ch.Meta().Name, ch.Revision())
+	curl := charm.MustParseURL("cs:" + ident)
+	sch, err := st.AddCharm(ch, curl, "dummy-path", ident+"-sha256")
+	c.Assert(err, jc.ErrorIsNil)
+	return sch
+}
+
 func AddTestingService(c *gc.C, st *State, name string, ch *Charm, owner names.UserTag) *Service {
-	return addTestingService(c, st, name, ch, owner, nil, nil)
+	return addTestingService(c, st, "", name, ch, owner, nil, nil)
+}
+
+func AddTestingServiceForSeries(c *gc.C, st *State, series, name string, ch *Charm, owner names.UserTag) *Service {
+	return addTestingService(c, st, series, name, ch, owner, nil, nil)
 }
 
 func AddTestingServiceWithNetworks(c *gc.C, st *State, name string, ch *Charm, owner names.UserTag, networks []string) *Service {
-	return addTestingService(c, st, name, ch, owner, networks, nil)
+	return addTestingService(c, st, "", name, ch, owner, networks, nil)
 }
 
 func AddTestingServiceWithStorage(c *gc.C, st *State, name string, ch *Charm, owner names.UserTag, storage map[string]StorageConstraints) *Service {
-	return addTestingService(c, st, name, ch, owner, nil, storage)
+	return addTestingService(c, st, "", name, ch, owner, nil, storage)
 }
 
-func addTestingService(c *gc.C, st *State, name string, ch *Charm, owner names.UserTag, networks []string, storage map[string]StorageConstraints) *Service {
+func addTestingService(c *gc.C, st *State, series, name string, ch *Charm, owner names.UserTag, networks []string, storage map[string]StorageConstraints) *Service {
 	c.Assert(ch, gc.NotNil)
-	service, err := st.AddService(name, owner.String(), ch, networks, storage)
+	service, err := st.AddService(AddServiceArgs{Name: name, Series: series, Owner: owner.String(), Charm: ch, Networks: networks, Storage: storage})
 	c.Assert(err, jc.ErrorIsNil)
 	return service
 }
@@ -247,8 +264,8 @@ func CheckUserExists(st *State, name string) (bool, error) {
 	return st.checkUserExists(name)
 }
 
-func WatcherMergeIds(st *State, changeset *[]string, updates map[interface{}]bool) error {
-	return mergeIds(st, changeset, updates)
+func WatcherMergeIds(st *State, changeset *[]string, updates map[interface{}]bool, idconv func(string) string) error {
+	return mergeIds(st, changeset, updates, idconv)
 }
 
 func WatcherEnsureSuffixFn(marker string) func(string) string {
@@ -339,12 +356,11 @@ func RemoveEnvironment(st *State, uuid string) error {
 	return st.runTransaction(ops)
 }
 
-func SetEnvLifeDying(st *State, envUUID string) error {
+func SetEnvLifeDead(st *State, envUUID string) error {
 	ops := []txn.Op{{
 		C:      environmentsC,
 		Id:     envUUID,
-		Update: bson.D{{"$set", bson.D{{"life", Dying}}}},
-		Assert: isEnvAliveDoc,
+		Update: bson.D{{"$set", bson.D{{"life", Dead}}}},
 	}}
 	return st.runTransaction(ops)
 }
@@ -371,7 +387,7 @@ var (
 )
 
 func AssertAddressConversion(c *gc.C, netAddr network.Address) {
-	addr := fromNetworkAddress(netAddr)
+	addr := fromNetworkAddress(netAddr, OriginUnknown)
 	newNetAddr := addr.networkAddress()
 	c.Assert(netAddr, gc.DeepEquals, newNetAddr)
 
@@ -380,7 +396,7 @@ func AssertAddressConversion(c *gc.C, netAddr network.Address) {
 	for i := 0; i < size; i++ {
 		netAddrs[i] = netAddr
 	}
-	addrs := fromNetworkAddresses(netAddrs)
+	addrs := fromNetworkAddresses(netAddrs, OriginUnknown)
 	newNetAddrs := networkAddresses(addrs)
 	c.Assert(netAddrs, gc.DeepEquals, newNetAddrs)
 }
@@ -403,10 +419,8 @@ func AssertHostPortConversion(c *gc.C, netHostPort network.HostPort) {
 	c.Assert(netHostsPorts, gc.DeepEquals, newNetHostsPorts)
 }
 
-// WriteLogWithOplog writes out a log record to the a (probably fake)
-// oplog collection and the logs collection.
-func WriteLogWithOplog(
-	oplog *mgo.Collection,
+// MakeLogDoc creates a database document for a single log message.
+func MakeLogDoc(
 	envUUID string,
 	entity names.Tag,
 	t time.Time,
@@ -414,8 +428,8 @@ func WriteLogWithOplog(
 	location string,
 	level loggo.Level,
 	msg string,
-) error {
-	doc := &logDoc{
+) *logDoc {
+	return &logDoc{
 		Id:       bson.NewObjectId(),
 		Time:     t,
 		EnvUUID:  envUUID,
@@ -425,22 +439,18 @@ func WriteLogWithOplog(
 		Level:    level,
 		Message:  msg,
 	}
-	err := oplog.Insert(bson.D{
-		{"ts", bson.MongoTimestamp(time.Now().Unix() << 32)}, // an approximation which will do
-		{"h", rand.Int63()},                                  // again, a suitable fake
-		{"op", "i"},                                          // this will always be an insert
-		{"ns", "logs.logs"},
-		{"o", doc},
-	})
-	if err != nil {
-		return err
-	}
-
-	session := oplog.Database.Session
-	logs := session.DB("logs").C("logs")
-	return logs.Insert(doc)
 }
 
 func SpaceDoc(s *Space) spaceDoc {
 	return s.doc
 }
+
+func ForceDestroyMachineOps(m *Machine) ([]txn.Op, error) {
+	return m.forceDestroyOps()
+}
+
+func IsManagerMachineError(err error) bool {
+	return errors.Cause(err) == managerMachineError
+}
+
+var ActionNotificationIdToActionId = actionNotificationIdToActionId

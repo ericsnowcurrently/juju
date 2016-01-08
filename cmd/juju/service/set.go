@@ -4,7 +4,6 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,21 +11,28 @@ import (
 	"unicode/utf8"
 
 	"github.com/juju/cmd"
+	"github.com/juju/errors"
 	"github.com/juju/utils/keyvalues"
 	"launchpad.net/gnuflag"
 
+	"github.com/juju/juju/api/service"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/cmd/envcmd"
 	"github.com/juju/juju/cmd/juju/block"
 )
 
-// SetCommand updates the configuration of a service.
-type SetCommand struct {
+func NewSetCommand() cmd.Command {
+	return envcmd.Wrap(&setCommand{})
+}
+
+// setCommand updates the configuration of a service.
+type setCommand struct {
 	envcmd.EnvCommandBase
 	ServiceName     string
 	SettingsStrings map[string]string
 	SettingsYAML    cmd.FileVar
-	api             SetServiceAPI
+	clientApi       ClientAPI
+	serviceApi      ServiceAPI
 }
 
 const setDoc = `
@@ -44,7 +50,7 @@ line and in configuration files.
 
 const maxValueSize = 5242880
 
-func (c *SetCommand) Info() *cmd.Info {
+func (c *setCommand) Info() *cmd.Info {
 	return &cmd.Info{
 		Name:    "set",
 		Args:    "<service> name=value ...",
@@ -53,11 +59,11 @@ func (c *SetCommand) Info() *cmd.Info {
 	}
 }
 
-func (c *SetCommand) SetFlags(f *gnuflag.FlagSet) {
+func (c *setCommand) SetFlags(f *gnuflag.FlagSet) {
 	f.Var(&c.SettingsYAML, "config", "path to yaml-formatted service config")
 }
 
-func (c *SetCommand) Init(args []string) error {
+func (c *setCommand) Init(args []string) error {
 	if len(args) == 0 || len(strings.Split(args[0], "=")) > 1 {
 		return errors.New("no service name specified")
 	}
@@ -73,36 +79,62 @@ func (c *SetCommand) Init(args []string) error {
 	return nil
 }
 
-// SetServiceAPI defines the methods on the client API
+// ClientAPI defines the methods on the client API
 // that the service set command calls.
-type SetServiceAPI interface {
+// TODO(wallyworld) - Juju 2.0 move remaining methods to service facade
+type ClientAPI interface {
 	Close() error
-	ServiceSetYAML(service string, yaml string) error
 	ServiceGet(service string) (*params.ServiceGetResults, error)
 	ServiceSet(service string, options map[string]string) error
 }
 
-func (c *SetCommand) getAPI() (SetServiceAPI, error) {
-	if c.api != nil {
-		return c.api, nil
+func (c *setCommand) getClientAPI() (ClientAPI, error) {
+	if c.clientApi != nil {
+		return c.clientApi, nil
 	}
 	return c.NewAPIClient()
 }
 
+// ServiceAPI defines the methods on the client API
+// that the service set command calls.
+type ServiceAPI interface {
+	ServiceUpdate(args params.ServiceUpdate) error
+}
+
+func (c *setCommand) getServiceAPI() (ServiceAPI, error) {
+	if c.serviceApi != nil {
+		return c.serviceApi, nil
+	}
+	root, err := c.NewAPIRoot()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return service.NewClient(root), nil
+}
+
 // Run updates the configuration of a service.
-func (c *SetCommand) Run(ctx *cmd.Context) error {
-	api, err := c.getAPI()
+func (c *setCommand) Run(ctx *cmd.Context) error {
+	// TODO(wallyworld) - once service methods are moved off client, won't need this
+	api, err := c.getClientAPI()
 	if err != nil {
 		return err
 	}
 	defer api.Close()
+
+	serviceApi, err := c.getServiceAPI()
+	if err != nil {
+		return err
+	}
 
 	if c.SettingsYAML.Path != "" {
 		b, err := c.SettingsYAML.Read(ctx)
 		if err != nil {
 			return err
 		}
-		return block.ProcessBlockedError(api.ServiceSetYAML(c.ServiceName, string(b)), block.BlockChange)
+		return block.ProcessBlockedError(serviceApi.ServiceUpdate(params.ServiceUpdate{
+			ServiceName:  c.ServiceName,
+			SettingsYAML: string(b),
+		}), block.BlockChange)
 	} else if len(c.SettingsStrings) == 0 {
 		return nil
 	}

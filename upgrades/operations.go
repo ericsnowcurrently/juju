@@ -16,34 +16,6 @@ import "github.com/juju/juju/version"
 var stateUpgradeOperations = func() []Operation {
 	steps := []Operation{
 		upgradeToVersion{
-			version.MustParse("1.18.0"),
-			stateStepsFor118(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.21.0"),
-			stateStepsFor121(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.22.0"),
-			stateStepsFor122(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.23.0"),
-			stateStepsFor123(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.24.0"),
-			stateStepsFor124(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.24.4"),
-			stateStepsFor1244(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.25.0"),
-			stateStepsFor125(),
-		},
-		upgradeToVersion{
 			version.MustParse("1.26.0"),
 			stateStepsFor126(),
 		},
@@ -56,26 +28,6 @@ var stateUpgradeOperations = func() []Operation {
 // state-based operations above, ordering is important.
 var upgradeOperations = func() []Operation {
 	steps := []Operation{
-		upgradeToVersion{
-			version.MustParse("1.18.0"),
-			stepsFor118(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.22.0"),
-			stepsFor122(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.23.0"),
-			stepsFor123(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.24.0"),
-			stepsFor124(),
-		},
-		upgradeToVersion{
-			version.MustParse("1.25.0"),
-			stepsFor125(),
-		},
 		upgradeToVersion{
 			version.MustParse("1.26.0"),
 			stepsFor126(),
@@ -92,11 +44,11 @@ type opsIterator struct {
 }
 
 func newStateUpgradeOpsIterator(from version.Number) *opsIterator {
-	return newOpsIterator(from, version.Current.Number, stateUpgradeOperations())
+	return newOpsIterator(from, version.Current, stateUpgradeOperations())
 }
 
 func newUpgradeOpsIterator(from version.Number) *opsIterator {
-	return newOpsIterator(from, version.Current.Number, upgradeOperations())
+	return newOpsIterator(from, version.Current, upgradeOperations())
 }
 
 func newOpsIterator(from, to version.Number, ops []Operation) *opsIterator {

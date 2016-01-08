@@ -80,8 +80,9 @@ func (env *environ) SetConfig(cfg *config.Config) error {
 // getSnapshot returns a copy of the environment. This is useful for
 // ensuring the env you are using does not get changed by other code
 // while you are using it.
-func (env environ) getSnapshot() *environ {
-	return &env
+func (env *environ) getSnapshot() *environ {
+	e := *env
+	return &e
 }
 
 // Config returns the configuration data with which the env was created.
@@ -96,7 +97,7 @@ var Bootstrap = common.Bootstrap
 // available tools. The series and arch are returned along with a func
 // that must be called to finalize the bootstrap process by transferring
 // the tools and installing the initial juju state server.
-func (env *environ) Bootstrap(ctx environs.BootstrapContext, params environs.BootstrapParams) (arch, series string, _ environs.BootstrapFinalizer, _ error) {
+func (env *environ) Bootstrap(ctx environs.BootstrapContext, params environs.BootstrapParams) (*environs.BootstrapResult, error) {
 	return Bootstrap(ctx, env, params)
 }
 

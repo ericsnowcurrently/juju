@@ -4,15 +4,22 @@
 package storage
 
 import (
-	"fmt"
-
 	"github.com/juju/cmd"
 	"launchpad.net/gnuflag"
 
 	"github.com/juju/juju/apiserver/params"
+	"github.com/juju/juju/cmd/envcmd"
 )
 
-const ListCommandDoc = `
+func newListCommand() cmd.Command {
+	cmd := &listCommand{}
+	cmd.newAPIFunc = func() (StorageListAPI, error) {
+		return cmd.NewStorageAPI()
+	}
+	return envcmd.Wrap(cmd)
+}
+
+const listCommandDoc = `
 List information about storage instances.
 
 options:
@@ -24,28 +31,29 @@ options:
    specify output format (json|tabular|yaml)
 `
 
-// ListCommand returns storage instances.
-type ListCommand struct {
+// listCommand returns storage instances.
+type listCommand struct {
 	StorageCommandBase
-	out cmd.Output
+	out        cmd.Output
+	newAPIFunc func() (StorageListAPI, error)
 }
 
 // Init implements Command.Init.
-func (c *ListCommand) Init(args []string) (err error) {
+func (c *listCommand) Init(args []string) (err error) {
 	return cmd.CheckEmpty(args)
 }
 
 // Info implements Command.Info.
-func (c *ListCommand) Info() *cmd.Info {
+func (c *listCommand) Info() *cmd.Info {
 	return &cmd.Info{
 		Name:    "list",
 		Purpose: "lists storage",
-		Doc:     ListCommandDoc,
+		Doc:     listCommandDoc,
 	}
 }
 
 // SetFlags implements Command.SetFlags.
-func (c *ListCommand) SetFlags(f *gnuflag.FlagSet) {
+func (c *listCommand) SetFlags(f *gnuflag.FlagSet) {
 	c.StorageCommandBase.SetFlags(f)
 	c.out.AddFlags(f, "tabular", map[string]cmd.Formatter{
 		"yaml":    cmd.FormatYaml,
@@ -55,35 +63,21 @@ func (c *ListCommand) SetFlags(f *gnuflag.FlagSet) {
 }
 
 // Run implements Command.Run.
-func (c *ListCommand) Run(ctx *cmd.Context) (err error) {
-	api, err := getStorageListAPI(c)
+func (c *listCommand) Run(ctx *cmd.Context) (err error) {
+	api, err := c.newAPIFunc()
 	if err != nil {
 		return err
 	}
 	defer api.Close()
 
-	found, err := api.List()
+	results, err := api.ListStorageDetails()
 	if err != nil {
 		return err
 	}
-	// filter out valid output, if any
-	var valid []params.StorageDetails
-	for _, one := range found {
-		if one.Error != nil {
-			fmt.Fprintf(ctx.Stderr, "%v\n", one.Error)
-			continue
-		}
-		if one.Result != nil {
-			valid = append(valid, *one.Result)
-		} else {
-			details := storageDetailsFromLegacy(one.Legacy)
-			valid = append(valid, details)
-		}
-	}
-	if len(valid) == 0 {
+	if len(results) == 0 {
 		return nil
 	}
-	details, err := formatStorageDetails(valid)
+	details, err := formatStorageDetails(results)
 	if err != nil {
 		return err
 	}
@@ -97,16 +91,8 @@ func (c *ListCommand) Run(ctx *cmd.Context) (err error) {
 	return c.out.Write(ctx, output)
 }
 
-var (
-	getStorageListAPI = (*ListCommand).getStorageListAPI
-)
-
 // StorageAPI defines the API methods that the storage commands use.
 type StorageListAPI interface {
 	Close() error
-	List() ([]params.StorageDetailsResult, error)
-}
-
-func (c *ListCommand) getStorageListAPI() (StorageListAPI, error) {
-	return c.NewStorageAPI()
+	ListStorageDetails() ([]params.StorageDetails, error)
 }

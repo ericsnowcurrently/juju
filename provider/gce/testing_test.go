@@ -125,7 +125,7 @@ func (s *BaseSuiteUnpatched) initInst(c *gc.C) {
 
 	cons := constraints.Value{InstanceType: &allInstanceTypes[0].Name}
 
-	instanceConfig, err := instancecfg.NewBootstrapInstanceConfig(cons, "trusty")
+	instanceConfig, err := instancecfg.NewBootstrapInstanceConfig(cons, "trusty", "")
 	c.Assert(err, jc.ErrorIsNil)
 
 	instanceConfig.Tools = tools[0]
@@ -334,13 +334,19 @@ func (fc *fakeCommon) SupportedArchitectures(env environs.Environ, cons *imageme
 	return fc.Arches, fc.err()
 }
 
-func (fc *fakeCommon) Bootstrap(ctx environs.BootstrapContext, env environs.Environ, params environs.BootstrapParams) (string, string, environs.BootstrapFinalizer, error) {
+func (fc *fakeCommon) Bootstrap(ctx environs.BootstrapContext, env environs.Environ, params environs.BootstrapParams) (*environs.BootstrapResult, error) {
 	fc.addCall("Bootstrap", FakeCallArgs{
 		"ctx":    ctx,
 		"env":    env,
 		"params": params,
 	})
-	return fc.Arch, fc.Series, fc.BSFinalizer, fc.err()
+
+	result := &environs.BootstrapResult{
+		Arch:     fc.Arch,
+		Series:   fc.Series,
+		Finalize: fc.BSFinalizer,
+	}
+	return result, fc.err()
 }
 
 func (fc *fakeCommon) Destroy(env environs.Environ) error {

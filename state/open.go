@@ -186,7 +186,7 @@ func (st *State) envSetupOps(cfg *config.Config, envUUID, serverUUID string, own
 	if serverUUID == "" {
 		serverUUID = envUUID
 	}
-	envUserOp := createEnvUserOp(envUUID, owner, owner, owner.Name())
+	envUserOp := createEnvUserOp(envUUID, owner, owner, owner.Name(), false)
 	ops := []txn.Op{
 		createConstraintsOp(st, environGlobalKey, constraints.Value{}),
 		createSettingsOp(environGlobalKey, cfg.AllAttrs()),
@@ -229,7 +229,7 @@ func isUnauthorized(err error) bool {
 }
 
 // newState creates an incomplete *State, with a configured watcher but no
-// pwatcher, leadershipManager, or serverTag. You must start() the returned
+// pwatcher, leadershipManager, or controllerTag. You must start() the returned
 // *State before it will function correctly.
 func newState(environTag names.EnvironTag, session *mgo.Session, mongoInfo *mongo.MongoInfo, policy Policy) (_ *State, resultErr error) {
 	// Set up database.

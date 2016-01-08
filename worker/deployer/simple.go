@@ -11,6 +11,8 @@ import (
 
 	"github.com/juju/errors"
 	"github.com/juju/names"
+	"github.com/juju/utils/arch"
+	"github.com/juju/utils/series"
 	"github.com/juju/utils/shell"
 
 	"github.com/juju/juju/agent"
@@ -108,13 +110,21 @@ func (ctx *SimpleContext) DeployUnit(unitName, initialPassword string) (err erro
 	tag := names.NewUnitTag(unitName)
 	dataDir := ctx.agentConfig.DataDir()
 	logDir := ctx.agentConfig.LogDir()
-	_, err = tools.ChangeAgentTools(dataDir, tag.String(), version.Current)
+	current := version.Binary{
+		Number: version.Current,
+		Arch:   arch.HostArch(),
+		Series: series.HostSeries(),
+	}
 	toolsDir := tools.ToolsDir(dataDir, tag.String())
 	defer removeOnErr(&err, toolsDir)
+	_, err = tools.ChangeAgentTools(dataDir, tag.String(), current)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	result, err := ctx.api.ConnectionInfo()
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	logger.Debugf("state addresses: %q", result.StateAddresses)
 	logger.Debugf("API addresses: %q", result.APIAddresses)
@@ -127,7 +137,7 @@ func (ctx *SimpleContext) DeployUnit(unitName, initialPassword string) (err erro
 				LogDir:          logDir,
 				MetricsSpoolDir: agent.DefaultPaths.MetricsSpoolDir,
 			},
-			UpgradedToVersion: version.Current.Number,
+			UpgradedToVersion: version.Current,
 			Tag:               tag,
 			Password:          initialPassword,
 			Nonce:             "unused",
@@ -142,7 +152,7 @@ func (ctx *SimpleContext) DeployUnit(unitName, initialPassword string) (err erro
 			},
 		})
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	if err := conf.Write(); err != nil {
 		return err

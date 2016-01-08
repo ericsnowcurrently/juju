@@ -10,9 +10,16 @@ import (
 	"launchpad.net/gnuflag"
 
 	"github.com/juju/juju/apiserver/params"
+	"github.com/juju/juju/cmd/envcmd"
 )
 
-const VolumeListCommandDoc = `
+// VolumeListAPI defines the API methods that the volume list command use.
+type VolumeListAPI interface {
+	Close() error
+	ListVolumes(machines []string) ([]params.VolumeDetailsListResult, error)
+}
+
+const volumeListCommandDoc = `
 List volumes (disks) in the environment.
 
 options:
@@ -25,31 +32,41 @@ options:
 
 `
 
-// VolumeListCommand lists storage volumes.
-type VolumeListCommand struct {
+func newVolumeListCommand() cmd.Command {
+	cmd := &volumeListCommand{}
+	cmd.newAPIFunc = func() (VolumeListAPI, error) {
+		return cmd.NewStorageAPI()
+	}
+	return envcmd.Wrap(cmd)
+}
+
+// volumeListCommand lists storage volumes.
+type volumeListCommand struct {
 	VolumeCommandBase
-	Ids []string
-	out cmd.Output
+	api        VolumeListAPI
+	Ids        []string
+	out        cmd.Output
+	newAPIFunc func() (VolumeListAPI, error)
 }
 
 // Init implements Command.Init.
-func (c *VolumeListCommand) Init(args []string) (err error) {
+func (c *volumeListCommand) Init(args []string) (err error) {
 	c.Ids = args
 	return nil
 }
 
 // Info implements Command.Info.
-func (c *VolumeListCommand) Info() *cmd.Info {
+func (c *volumeListCommand) Info() *cmd.Info {
 	return &cmd.Info{
 		Name:    "list",
 		Purpose: "list storage volumes",
-		Doc:     VolumeListCommandDoc,
+		Doc:     volumeListCommandDoc,
 	}
 }
 
 // SetFlags implements Command.SetFlags.
-func (c *VolumeListCommand) SetFlags(f *gnuflag.FlagSet) {
-	c.StorageCommandBase.SetFlags(f)
+func (c *volumeListCommand) SetFlags(f *gnuflag.FlagSet) {
+	c.VolumeCommandBase.SetFlags(f)
 
 	c.out.AddFlags(f, "tabular", map[string]cmd.Formatter{
 		"yaml":    cmd.FormatYaml,
@@ -59,26 +76,26 @@ func (c *VolumeListCommand) SetFlags(f *gnuflag.FlagSet) {
 }
 
 // Run implements Command.Run.
-func (c *VolumeListCommand) Run(ctx *cmd.Context) (err error) {
-	api, err := getVolumeListAPI(c)
+func (c *volumeListCommand) Run(ctx *cmd.Context) (err error) {
+	api, err := c.newAPIFunc()
 	if err != nil {
 		return err
 	}
 	defer api.Close()
 
-	found, err := api.ListVolumes(c.Ids)
+	results, err := api.ListVolumes(c.Ids)
 	if err != nil {
 		return err
 	}
 	// filter out valid output, if any
-	var valid []params.VolumeDetailsResult
-	for _, one := range found {
-		if one.Error == nil {
-			valid = append(valid, one)
+	var valid []params.VolumeDetails
+	for _, result := range results {
+		if result.Error == nil {
+			valid = append(valid, result.Result...)
 			continue
 		}
 		// display individual error
-		fmt.Fprintf(ctx.Stderr, "%v\n", one.Error)
+		fmt.Fprintf(ctx.Stderr, "%v\n", result.Error)
 	}
 	if len(valid) == 0 {
 		return nil
@@ -97,16 +114,4 @@ func (c *VolumeListCommand) Run(ctx *cmd.Context) (err error) {
 		output = info
 	}
 	return c.out.Write(ctx, output)
-}
-
-var getVolumeListAPI = (*VolumeListCommand).getVolumeListAPI
-
-// VolumeListAPI defines the API methods that the volume list command use.
-type VolumeListAPI interface {
-	Close() error
-	ListVolumes(machines []string) ([]params.VolumeDetailsResult, error)
-}
-
-func (c *VolumeListCommand) getVolumeListAPI() (VolumeListAPI, error) {
-	return c.NewStorageAPI()
 }
