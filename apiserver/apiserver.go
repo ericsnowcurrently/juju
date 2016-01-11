@@ -426,8 +426,7 @@ func (srv *Server) run(lis net.Listener) {
 
 	mux := pat.New()
 
-	endpoints := srv.httpEndpoints()
-	for _, ep := range endpoints {
+	for _, ep := range srv.httpEndpoints() {
 		registerEndpoint(ep, mux)
 	}
 
