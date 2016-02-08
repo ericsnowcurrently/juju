@@ -5,6 +5,8 @@ package charmcmd
 
 import (
 	"github.com/juju/cmd"
+
+	//corecmd "github.com/juju/juju/cmd"
 )
 
 var charmDoc = `
@@ -16,13 +18,24 @@ const charmPurpose = "interact with charms"
 
 // Command is the top-level command wrapping all backups functionality.
 type Command struct {
-	cmd.SuperCommand
+	*cmd.SuperCommand
+
+	//apiCtx   *corecmd.APIContext
 }
 
 // NewSuperCommand returns a new charm super-command.
-func NewSuperCommand() *Command {
+func NewSuperCommand() (*Command, error) {
+	//apiCtx, err := corecmd.NewAPIContext()
+	//if err != nil {
+	//	return errors.Trace(err)
+	//}
+
+	//httpClient, err := apiCtx.HTTPClient()
+	//csClient := newCharmStoreClient(httpClient)
+
 	charmCmd := &Command{
-		SuperCommand: *cmd.NewSuperCommand(
+		// TODO(ericsnow) Use juju/juju/cmd.NewSuperCommand()?
+		SuperCommand: cmd.NewSuperCommand(
 			cmd.SuperCommandParams{
 				Name:        "charm",
 				Doc:         charmDoc,
@@ -30,7 +43,14 @@ func NewSuperCommand() *Command {
 				Purpose:     charmPurpose,
 			},
 		),
+		//apiCtx: apiCtx,
 	}
 	//charmCmd.Register(newXXXCommand())
-	return charmCmd
+	return charmCmd, nil
+}
+
+// Run implements cmd.Command.
+func (c *Command) Run(ctx *cmd.Context) error {
+	//defer c.apiCtx.Close()
+	return c.SuperCommand.Run(ctx)
 }

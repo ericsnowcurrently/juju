@@ -5,15 +5,13 @@ package envcmd
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
-	"github.com/juju/persistent-cookiejar"
-	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"launchpad.net/gnuflag"
 
 	"github.com/juju/juju/api"
+	corecmd "github.com/juju/juju/cmd"
 	"github.com/juju/juju/juju"
 )
 
@@ -119,32 +117,16 @@ func (w *baseCommandWrapper) Init(args []string) error {
 	return w.CommandBase.Init(args)
 }
 
-// cookieFile returns the path to the cookie used to store authorization
-// macaroons. The returned value can be overridden by setting the
-// JUJU_COOKIEFILE or GO_COOKIEFILE environment variables.
-func cookieFile() string {
-	if file := os.Getenv("JUJU_COOKIEFILE"); file != "" {
-		return file
-	}
-	return cookiejar.DefaultCookieFile()
-}
-
 // newAPIContext returns a new api context, which should be closed
 // when done with.
 func newAPIContext() (*apiContext, error) {
-	jar, err := cookiejar.New(&cookiejar.Options{
-		Filename: cookieFile(),
-	})
+	base, err := corecmd.NewAPIContext()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	client := httpbakery.NewClient()
-	client.Jar = jar
-	client.VisitWebPage = httpbakery.OpenWebBrowser
 
 	return &apiContext{
-		jar:    jar,
-		client: client,
+		base: base,
 	}, nil
 }
 
@@ -154,16 +136,12 @@ func newAPIContext() (*apiContext, error) {
 // to be used using macaroons to authenticate. It stores
 // obtained macaroons and discharges in a cookie jar file.
 type apiContext struct {
-	jar    *cookiejar.Jar
-	client *httpbakery.Client
+	base *corecmd.APIContext
 }
 
-// Close saves the embedded cookie jar.
+// close saves the embedded cookie jar.
 func (c *apiContext) close() error {
-	if err := c.jar.Save(); err != nil {
-		return errors.Annotatef(err, "cannot save cookie jar")
-	}
-	return nil
+	return c.base.Close()
 }
 
 // apiOpen establishes a connection to the API server using the
@@ -178,7 +156,8 @@ func (ctx *apiContext) newAPIRoot(name string) (api.Connection, error) {
 	if name == "" {
 		return nil, errors.Trace(errNoNameSpecified)
 	}
-	return juju.NewAPIFromName(name, ctx.client)
+	client := ctx.base.BakeryClient()
+	return juju.NewAPIFromName(name, client)
 }
 
 // newAPIClient returns an api.Client connecte to the API server
@@ -194,5 +173,5 @@ func (ctx *apiContext) newAPIClient(name string) (*api.Client, error) {
 // httpClient returns an http.Client that contains the loaded
 // persistent cookie jar.
 func (ctx *apiContext) httpClient() *http.Client {
-	return ctx.client.Client
+	return ctx.base.HTTPClient()
 }
