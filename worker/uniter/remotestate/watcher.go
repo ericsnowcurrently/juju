@@ -31,7 +31,6 @@ type RemoteStateWatcher struct {
 	relationUnitsChanges      chan relationUnitsChange
 	storageAttachmentWatchers map[names.StorageTag]*storageAttachmentWatcher
 	storageAttachmentChanges  chan storageAttachmentChange
-	resources                 map[string]Resource
 	leadershipTracker         leadership.Tracker
 	updateStatusChannel       func() <-chan time.Time
 	commandChannel            <-chan string
@@ -160,16 +159,6 @@ func (w *RemoteStateWatcher) setUp(unitTag names.UnitTag) (err error) {
 	if err != nil {
 		return errors.Trace(err)
 	}
-
-	resources, err := w.service.Resources()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	w.resources = make(map[string]Resource)
-	for name, entity := range resources {
-		w.resources[name] = entity
-	}
-
 	return nil
 }
 
@@ -196,16 +185,6 @@ func (w *RemoteStateWatcher) loop(unitTag names.UnitTag) (err error) {
 		return errors.Trace(err)
 	}
 	if err := w.catacomb.Add(servicew); err != nil {
-		return errors.Trace(err)
-	}
-	requiredEvents++
-
-	var seenResourcesChange bool
-	resourcesw, err := watchResources(c.resources)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	if err := w.catacomb.Add(resourcesw); err != nil {
 		return errors.Trace(err)
 	}
 	requiredEvents++
@@ -337,16 +316,6 @@ func (w *RemoteStateWatcher) loop(unitTag names.UnitTag) (err error) {
 				return errors.Trace(err)
 			}
 			observedEvent(&seenServiceChange)
-
-		case names, ok := <-resourcesw.Changes():
-			logger.Debugf("got service change")
-			if !ok {
-				return errors.New("service watcher closed")
-			}
-			if err := w.resourcesChanged(names); err != nil {
-				return errors.Trace(err)
-			}
-			observedEvent(&seenResourcesChange)
 
 		case _, ok := <-configw.Changes():
 			logger.Debugf("got config change: ok=%t", ok)
@@ -514,41 +483,6 @@ func (w *RemoteStateWatcher) serviceChanged() error {
 	w.current.ForceCharmUpgrade = force
 	w.mu.Unlock()
 	return nil
-}
-
-func (w *RemoteStateWatcher) resourcesChanged(names []string) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	changes := make(map[string]resource.Resource)
-	for _, name := range names {
-		res, err := w.getResourceChange(name)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		changes[name] = res
-	}
-	for name, res := range changes {
-		w.current.Resources[name] = res
-	}
-	return nil
-}
-
-func (w *RemoteStateWatcher) getResource(name string) (resource.Resource, error) {
-	var res resource.Resource
-
-	entity, ok := w.resources[name]
-	if !ok {
-		// This shouldn't happen, but just in case...
-		return res, errors.NotFoundf("resource %q", name)
-	}
-
-	if err := entity.Refresh(); err != nil {
-		return res, errors.Trace(err)
-	}
-
-	res = entity.Info()
-	return res, nil
 }
 
 func (w *RemoteStateWatcher) configChanged() error {

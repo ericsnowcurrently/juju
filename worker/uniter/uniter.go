@@ -165,7 +165,7 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 	opState := u.operationExecutor.State()
 	if opState.Kind == operation.Install {
 		logger.Infof("resuming charm install")
-		op, err := u.operationFactory.NewInstall(opState.CharmURL, opState.Resources)
+		op, err := u.operationFactory.NewInstall(opState.CharmURL)
 		if err != nil {
 			return errors.Trace(err)
 		}
