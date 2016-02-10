@@ -18,10 +18,11 @@ import (
 type deploy struct {
 	DoesNotRequireMachineLock
 
-	kind     Kind
-	charmURL *corecharm.URL
-	revert   bool
-	resolved bool
+	kind      Kind
+	charmURL  *corecharm.URL
+	resources map[string]resource.Resource
+	revert    bool
+	resolved  bool
 
 	callbacks Callbacks
 	deployer  charm.Deployer

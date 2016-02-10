@@ -36,12 +36,21 @@ type Unit interface {
 
 type Service interface {
 	CharmURL() (*charm.URL, bool, error)
+	Resources() (map[string]Resource, error)
 	Life() params.Life
 	Refresh() error
 	Tag() names.ServiceTag
 	Watch() (watcher.NotifyWatcher, error)
 	WatchLeadershipSettings() (watcher.NotifyWatcher, error)
 	WatchRelations() (watcher.StringsWatcher, error)
+}
+
+type Resource interface {
+	Info() resource.Resource
+	Life() params.Life
+	Refresh() error
+	Tag() names.ResourceTag
+	Watch() (watcher.NotifyWatcher, error)
 }
 
 type Relation interface {

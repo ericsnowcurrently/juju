@@ -24,6 +24,9 @@ type Snapshot struct {
 	// states of each of the unit's storage attachments.
 	Storage map[names.StorageTag]StorageSnapshot
 
+	// Resources is the set of resources for the service.
+	Resources map[string]resource.Resource
+
 	// CharmURL is the charm URL that the unit is
 	// expected to run.
 	CharmURL *charm.URL
