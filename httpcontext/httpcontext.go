@@ -1,0 +1,64 @@
+// Copyright 2016 Canonical Ltd.
+// Licensed under the AGPLv3, see LICENCE file for details.
+
+package httpcontext
+
+import (
+	"net/http"
+	"net/url"
+
+	"github.com/juju/errors"
+	"github.com/juju/persistent-cookiejar"
+	"gopkg.in/macaroon-bakery.v1/httpbakery"
+	"gopkg.in/macaroon.v1"
+)
+
+// Based on:
+// - apiserver/service/charmstore.go
+// - cmd/juju/charmcmd/store.go
+// - cmd/modelcmd/base.go
+// - cmd/juju/service/store.go
+// - cmd/juju/service/deploy.go
+
+// Context provides support for HTTP connections in Juju that use
+// macaroons, particularly for authentication. It stores obtained
+// macaroons and discharges in a cookie jar file.
+type Context struct {
+	jar          *cookiejar.Jar
+	visitWebPage func(*url.URL) error
+	csURL        *url.URL
+}
+
+func (ctx *Context) setAuth(url *url.URL, auth *macaroon.Macaroon) {
+	// Set the provided authorizing macaroon as a cookie in the context.
+	// TODO discharge any third party caveats in the macaroon.
+	ms := []*macaroon.Macaroon{auth}
+	httpbakery.SetCookie(ctx.jar, url, ms)
+
+	// TODO(ericsnow) Are there other reasons to visit than auth?
+	ctx.visitWebPage = nil
+}
+
+// Close saves the embedded cookie jar.
+func (ctx *Context) Close() error {
+	if err := ctx.jar.Save(); err != nil {
+		return errors.Annotatef(err, "cannot save cookie jar")
+	}
+	return nil
+}
+
+// Connect returns an http.Client that contains the loaded
+// persistent cookie jar.
+func (ctx Context) Connect() *http.Client {
+	client := httpbakery.NewHTTPClient()
+	client.Jar = ctx.jar
+	return client
+}
+
+// ConnectToBakery returns a new HTTP (macaroon) bakery client.
+func (ctx Context) ConnectToBakery() BakeryClient {
+	client := httpbakery.NewClient()
+	client.Jar = ctx.jar
+	client.VisitWebPage = ctx.visitWebPage
+	return client
+}
