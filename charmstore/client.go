@@ -3,6 +3,10 @@
 
 package charmstore
 
+import (
+	"gopkg.in/juju/charm.v6-unstable"
+)
+
 // Client exposes the functionality of the charm store, as provided
 // by github.com/juju/charmrepo/csclient.Client.
 type Client interface {
@@ -15,6 +19,8 @@ type Client interface {
 	// data, but may be nil if no result is desired.
 	Get(path string, result interface{}) error
 }
+
+// TODO(ericsnow) How to wrap charmrepo.NewCharmStoreFromClient()?
 
 // TestingClient expands Client with methods needed during testing.
 type TestingClient interface {

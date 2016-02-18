@@ -10,6 +10,8 @@ import (
 	"github.com/juju/errors"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
+
+	"github.com/juju/juju/charmstore"
 )
 
 // Based on:
@@ -83,7 +85,7 @@ func (ctx Context) ConnectToBakery() BakeryClient {
 }
 
 // ConnectToCharmStore returns a new charm store client.
-func (ctx Context) ConnectToCharmStore() *CharmStoreClient {
+func (ctx Context) ConnectToCharmStore() charmstore.Client {
 	args := csClientArgs{
 		URL: ctx.csURL,
 	}

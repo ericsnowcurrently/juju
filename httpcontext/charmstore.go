@@ -12,11 +12,13 @@ import (
 	"gopkg.in/juju/charm.v6-unstable"
 	"gopkg.in/juju/charmrepo.v2-unstable/csclient"
 	"gopkg.in/macaroon.v1"
+
+	"github.com/juju/juju/charmstore"
 )
 
 // NewCharmStoreClient returns a new charm store client for the given
 // auth token. The default HTTP context spec is used.
-func NewCharmStoreClient(auth *macaroon.Macaroon) (*CharmStoreClient, error) {
+func NewCharmStoreClient(auth *macaroon.Macaroon) (charmstore.Client, error) {
 	spec := NewSpec()
 	ctx, err := spec.NewContext()
 	if err != nil {
@@ -38,34 +40,27 @@ func NewCharmStoreClient(auth *macaroon.Macaroon) (*CharmStoreClient, error) {
 	return client, nil
 }
 
-// CharmStoreClient gives access to the charm store server.
-type CharmStoreClient struct {
-	*csclient.Client
-}
-
-// TODO(ericsnow) Add AsRepo() method?
-
 type csClientArgs struct {
 	csclient.Params
 	// URL is the root endpoint URL of the charm store.
 	URL *url.URL
 }
 
-func newCharmStoreClient(args csClientArgs) *CharmStoreClient {
+func newCharmStoreClient(args csClientArgs) charmstore.Client {
 	csArgs := args.Params // a copy
 	if args.URL != nil {
 		csArgs.URL = args.URL.String()
 	}
 	client := csclient.New(csArgs)
 
-	return &CharmStoreClient{client}
+	return client
 }
 
-// Authorize acquires and returns the charm store delegatable macaroon
+// AuthorizeForCharm acquires and returns the charm store delegatable macaroon
 // to be used to add the charm corresponding to the given URL. The
 // macaroon is properly attenuated so that it can only be used to deploy
 // the given charm URL.
-func (client CharmStoreClient) Authorize(curl *charm.URL) (*macaroon.Macaroon, error) {
+func AuthorizeForCharm(client charmstore.Client, curl *charm.URL) (*macaroon.Macaroon, error) {
 	if curl == nil {
 		return nil, errors.New("empty charm url not allowed")
 	}
