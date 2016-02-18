@@ -36,6 +36,18 @@ type Context struct {
 	csURL        *url.URL
 }
 
+// NewContext returns a new Juju HTTP context that uses the provided
+// cookie jar. The default charm store URL is used and the
+// "visit web page" func is left unset. Use Spec.NewContext() if
+// further customization is required.
+func NewContext(jar CookieJar) *Context {
+	return &Context{
+		jar:          jar,
+		visitWebPage: nil,
+		csURL:        nil, // Use the default.
+	}
+}
+
 func (ctx *Context) setAuth(url *url.URL, auth *macaroon.Macaroon) {
 	// Set the provided authorizing macaroon as a cookie in the context.
 	// TODO discharge any third party caveats in the macaroon.
