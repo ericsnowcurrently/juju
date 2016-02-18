@@ -6,7 +6,6 @@ package httpcontext
 // TODO(ericsnow) Move this file to a separate package?
 
 import (
-	"net/http"
 	"net/url"
 
 	"github.com/juju/errors"
@@ -47,17 +46,18 @@ type CharmStoreClient struct {
 // TODO(ericsnow) Add AsRepo() method?
 
 type csClientArgs struct {
-	csURL        *url.URL
-	httpClient   *http.Client
-	visitWebPage func(*url.URL) error
+	csclient.Params
+	// URL is the root endpoint URL of the charm store.
+	URL *url.URL
 }
 
 func newCharmStoreClient(args csClientArgs) *CharmStoreClient {
-	client := csclient.New(csclient.Params{
-		URL:          args.csURL.String(),
-		HTTPClient:   args.httpClient,
-		VisitWebPage: args.visitWebPage,
-	})
+	csArgs := args.Params // a copy
+	if args.URL != nil {
+		csArgs.URL = args.URL.String()
+	}
+	client := csclient.New(csArgs)
+
 	return &CharmStoreClient{client}
 }
 

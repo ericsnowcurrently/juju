@@ -84,11 +84,11 @@ func (ctx Context) ConnectToBakery() BakeryClient {
 
 // ConnectToCharmStore returns a new charm store client.
 func (ctx Context) ConnectToCharmStore() *CharmStoreClient {
-	httpClient := ctx.Connect()
-	client := newCharmStoreClient(csClientArgs{
-		csURL:        ctx.csURL,
-		httpClient:   httpClient,
-		visitWebPage: ctx.visitWebPage,
-	})
+	args := csClientArgs{
+		URL: ctx.csURL,
+	}
+	args.HTTPClient = ctx.Connect()
+	args.VisitWebPage = ctx.visitWebPage
+	client := newCharmStoreClient(args)
 	return client
 }
