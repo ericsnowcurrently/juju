@@ -5,11 +5,15 @@ package charmstore
 
 import (
 	"gopkg.in/juju/charm.v6-unstable"
+	"gopkg.in/juju/charmrepo.v2-unstable"
 )
 
 // Client exposes the functionality of the charm store, as provided
 // by github.com/juju/charmrepo/csclient.Client.
 type Client interface {
+	// AsRepo converts the charm store client into a charm repo client.
+	AsRepo() charmrepo.Interface
+
 	// TODO(ericsnow) Replace use of Get with use of more specific API methods?
 
 	// Get makes a GET request to the given path in the charm store. The

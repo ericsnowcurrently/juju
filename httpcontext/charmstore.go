@@ -10,6 +10,7 @@ import (
 
 	"github.com/juju/errors"
 	"gopkg.in/juju/charm.v6-unstable"
+	"gopkg.in/juju/charmrepo.v2-unstable"
 	"gopkg.in/juju/charmrepo.v2-unstable/csclient"
 	"gopkg.in/macaroon.v1"
 
@@ -67,4 +68,18 @@ func AuthorizeForCharm(client charmstore.Client, curl *charm.URL) (*macaroon.Mac
 	}
 
 	return m, nil
+}
+
+func newCharmStoreClient(args csclient.Params) charmstore.Client {
+	client := csclient.New(args)
+	return &charmStoreClient{client}
+}
+
+type charmStoreClient struct {
+	*csclient.Client
+}
+
+// AsRepo implements charmstore.Client.
+func (client charmStoreClient) AsRepo() charmrepo.Interface {
+	return charmrepo.NewCharmStoreFromClient(client.Client)
 }

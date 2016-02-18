@@ -10,6 +10,7 @@ import (
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/juju/charm.v6-unstable"
+	"gopkg.in/juju/charmrepo.v2-unstable"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/juju/juju/httpcontext"
@@ -48,10 +49,28 @@ func (s *CharmStoreSuite) TestAuthorize(c *gc.C) {
 	c.Check(auth, jc.DeepEquals, expected)
 }
 
+func (s *CharmStoreSuite) TestAsRepo(c *gc.C) {
+	client, err := httpcontext.NewCharmStoreClient(nil)
+	c.Assert(err, jc.ErrorIsNil)
+
+	repo := client.AsRepo()
+
+	// TODO(ericsnow) How to test the repo?
+	c.Check(repo, gc.NotNil)
+}
+
 type stubCharmStoreClient struct {
 	*testing.Stub
 
-	ReturnGet *macaroon.Macaroon
+	ReturnAsRepo charmrepo.Interface
+	ReturnGet    *macaroon.Macaroon
+}
+
+func (s *stubCharmStoreClient) AsRepo() charmrepo.Interface {
+	s.AddCall("AsRepo")
+	s.NextErr() // Pop one off.
+
+	return s.ReturnAsRepo
 }
 
 func (s *stubCharmStoreClient) Get(path string, result interface{}) error {

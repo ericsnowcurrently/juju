@@ -128,5 +128,5 @@ func (contextDeps) NewBakeryClient(jar CookieJar, visit func(*url.URL) error) Ba
 
 // NewCharmStoreClient implements ContextDeps.
 func (contextDeps) NewCharmStoreClient(args csclient.Params) charmstore.Client {
-	return csclient.New(args)
+	return newCharmStoreClient(args)
 }
