@@ -16,6 +16,9 @@ import (
 // rely on macaroons. This includes connections to the Juju API and to
 // the charm store.
 type Spec struct {
+	// Deps is the spec's external dependencies.
+	Deps SpecDeps
+
 	// CookieJarOptions holds the arguments for cookiejar.New().
 	CookieJarOptions *cookiejar.Options
 
@@ -37,6 +40,7 @@ func NewSpec() Spec {
 	}
 
 	spec := Spec{
+		Deps:             &specDeps{},
 		CookieJarOptions: options,
 		VisitWebPage:     httpbakery.OpenWebBrowser,
 	}
@@ -45,17 +49,35 @@ func NewSpec() Spec {
 
 // NewContext generates a new HTTP context based on the spec.
 func (spec Spec) NewContext() (*Context, error) {
-	jar, err := cookiejar.New(spec.CookieJarOptions)
+	jar, err := spec.Deps.NewCookieJar(spec.CookieJarOptions)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	ctx := &Context{
+		deps:         spec.Deps,
 		jar:          jar,
 		visitWebPage: spec.VisitWebPage,
 		csURL:        spec.CharmStoreURL,
 	}
 	return ctx, nil
+}
+
+// SpecDeps exposes the external dependencies of Spec.
+type SpecDeps interface {
+	ContextDeps
+
+	// NewCookieJar returns a new HTTP cookie jar for the options.
+	NewCookieJar(*cookiejar.Options) (CookieJar, error)
+}
+
+type specDeps struct {
+	contextDeps
+}
+
+// NewCookieJar implements SpecDeps.
+func (specDeps) NewCookieJar(opts *cookiejar.Options) (CookieJar, error) {
+	return cookiejar.New(opts)
 }
 
 // cookieFile returns the path to the cookie used to store authorization

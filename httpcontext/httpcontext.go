@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/juju/errors"
+	"gopkg.in/juju/charmrepo.v2-unstable/csclient"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
 
@@ -33,6 +34,7 @@ type CookieJar interface {
 // macaroons, particularly for authentication. It stores obtained
 // macaroons and discharges in a cookie jar file.
 type Context struct {
+	deps         ContextDeps
 	jar          CookieJar
 	visitWebPage func(*url.URL) error
 	csURL        *url.URL
@@ -44,6 +46,7 @@ type Context struct {
 // further customization is required.
 func NewContext(jar CookieJar) *Context {
 	return &Context{
+		deps:         &contextDeps{},
 		jar:          jar,
 		visitWebPage: nil,
 		csURL:        nil, // Use the default.
@@ -71,26 +74,59 @@ func (ctx *Context) Close() error {
 // Connect returns an http.Client that contains the loaded
 // persistent cookie jar.
 func (ctx Context) Connect() *http.Client {
-	client := httpbakery.NewHTTPClient()
+	client := ctx.deps.NewHTTPClient()
 	client.Jar = ctx.jar
 	return client
 }
 
 // ConnectToBakery returns a new HTTP (macaroon) bakery client.
 func (ctx Context) ConnectToBakery() BakeryClient {
-	client := httpbakery.NewClient()
-	client.Jar = ctx.jar
-	client.VisitWebPage = ctx.visitWebPage
+	client := ctx.deps.NewBakeryClient(ctx.jar, ctx.visitWebPage)
 	return client
 }
 
 // ConnectToCharmStore returns a new charm store client.
 func (ctx Context) ConnectToCharmStore() charmstore.Client {
-	args := csClientArgs{
-		URL: ctx.csURL,
+	httpClient := ctx.Connect()
+	args := csclient.Params{
+		HTTPClient:   httpClient,
+		VisitWebPage: ctx.visitWebPage,
 	}
-	args.HTTPClient = ctx.Connect()
-	args.VisitWebPage = ctx.visitWebPage
-	client := newCharmStoreClient(args)
+	if ctx.csURL != nil {
+		args.URL = ctx.csURL.String()
+	}
+	client := ctx.deps.NewCharmStoreClient(args)
 	return client
+}
+
+// ContextDeps exposes the external dependencies of Context.
+type ContextDeps interface {
+	// NewHTTPClient returns a new HTTP client.
+	NewHTTPClient() *http.Client
+
+	// NewBakeryClient returns a new HTTP bakery client.
+	NewBakeryClient(CookieJar, func(*url.URL) error) BakeryClient
+
+	// NewCharmStoreClient returns a new charm store client.
+	NewCharmStoreClient(csclient.Params) charmstore.Client
+}
+
+type contextDeps struct{}
+
+// NewHTTPClient implements ContextDeps.
+func (contextDeps) NewHTTPClient() *http.Client {
+	return httpbakery.NewHTTPClient()
+}
+
+// NewBakeryClient implements ContextDeps.
+func (contextDeps) NewBakeryClient(jar CookieJar, visit func(*url.URL) error) BakeryClient {
+	client := httpbakery.NewClient()
+	client.Jar = jar
+	client.VisitWebPage = visit
+	return client
+}
+
+// NewCharmStoreClient implements ContextDeps.
+func (contextDeps) NewCharmStoreClient(args csclient.Params) charmstore.Client {
+	return csclient.New(args)
 }

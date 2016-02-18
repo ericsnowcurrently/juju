@@ -40,22 +40,6 @@ func NewCharmStoreClient(auth *macaroon.Macaroon) (charmstore.Client, error) {
 	return client, nil
 }
 
-type csClientArgs struct {
-	csclient.Params
-	// URL is the root endpoint URL of the charm store.
-	URL *url.URL
-}
-
-func newCharmStoreClient(args csClientArgs) charmstore.Client {
-	csArgs := args.Params // a copy
-	if args.URL != nil {
-		csArgs.URL = args.URL.String()
-	}
-	client := csclient.New(csArgs)
-
-	return client
-}
-
 // AuthorizeForCharm acquires and returns the charm store delegatable macaroon
 // to be used to add the charm corresponding to the given URL. The
 // macaroon is properly attenuated so that it can only be used to deploy
