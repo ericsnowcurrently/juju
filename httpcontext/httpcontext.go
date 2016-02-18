@@ -8,7 +8,6 @@ import (
 	"net/url"
 
 	"github.com/juju/errors"
-	"github.com/juju/persistent-cookiejar"
 	"gopkg.in/macaroon-bakery.v1/httpbakery"
 	"gopkg.in/macaroon.v1"
 )
@@ -20,11 +19,19 @@ import (
 // - cmd/juju/service/store.go
 // - cmd/juju/service/deploy.go
 
+// CookieJar exposes the cookie jar functionality needed for Context.
+type CookieJar interface {
+	http.CookieJar
+
+	// Save copies the jar into persistent storage.
+	Save() error
+}
+
 // Context provides support for HTTP connections in Juju that use
 // macaroons, particularly for authentication. It stores obtained
 // macaroons and discharges in a cookie jar file.
 type Context struct {
-	jar          *cookiejar.Jar
+	jar          CookieJar
 	visitWebPage func(*url.URL) error
 	csURL        *url.URL
 }
