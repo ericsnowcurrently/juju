@@ -194,7 +194,7 @@ func (s *UpgradeCharmStoreResourceSuite) TestDeployStarsaySuccess(c *gc.C) {
 	err = ioutil.WriteFile(resourceFile, data, 0644)
 	c.Assert(err, jc.ErrorIsNil)
 
-	ctx, err := testing.RunCommand(c, service.NewDeployCommand(), "trusty/starsay", "--resource", "upload-resource="+resourceFile)
+	ctx, err := testing.RunCommand(c, service.NewDeployCommand(), "trusty/starsay", "--resource", "for-upload="+resourceFile)
 	c.Assert(err, jc.ErrorIsNil)
 	output := testing.Stderr(ctx)
 
@@ -224,37 +224,37 @@ Deploying charm "cs:trusty/starsay-1" with the charm series "trusty".
 		{
 			Resource: charmresource.Resource{
 				Meta: charmresource.Meta{
-					Name:        "install-resource",
+					Name:        "for-install",
 					Type:        charmresource.TypeFile,
-					Path:        "gotta-have-it.txt",
+					Path:        "initial.tgz",
 					Description: "get things started",
 				},
 				Origin:   charmresource.OriginStore,
 				Revision: -1,
 			},
-			ID:        "starsay/install-resource",
+			ID:        "starsay/for-install",
 			ServiceID: "starsay",
 		},
 		{
 			Resource: charmresource.Resource{
 				Meta: charmresource.Meta{
-					Name:        "store-resource",
+					Name:        "for-store",
 					Type:        charmresource.TypeFile,
-					Path:        "filename.tgz",
+					Path:        "dummy.tgz",
 					Description: "One line that is useful when operators need to push it.",
 				},
 				Origin:   charmresource.OriginStore,
 				Revision: -1,
 			},
-			ID:        "starsay/store-resource",
+			ID:        "starsay/for-store",
 			ServiceID: "starsay",
 		},
 		{
 			Resource: charmresource.Resource{
 				Meta: charmresource.Meta{
-					Name:        "upload-resource",
+					Name:        "for-upload",
 					Type:        charmresource.TypeFile,
-					Path:        "somename.xml",
+					Path:        "config.xml",
 					Description: "Who uses xml anymore?",
 				},
 				Origin:      charmresource.OriginUpload,
@@ -262,7 +262,7 @@ Deploying charm "cs:trusty/starsay-1" with the charm series "trusty".
 				Fingerprint: fp,
 				Size:        int64(len(data)),
 			},
-			ID:        "starsay/upload-resource",
+			ID:        "starsay/for-upload",
 			ServiceID: "starsay",
 			Username:  "admin@local",
 			// Timestamp is checked above

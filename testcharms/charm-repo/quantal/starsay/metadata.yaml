@@ -5,15 +5,15 @@ description: Doesn't do anything at all.
 tags:
   - application
 resources:
-  store-resource:
+  for-store:
     type: file
-    filename: filename.tgz
+    filename: dummy.tgz
     description: One line that is useful when operators need to push it.
-  install-resource:
+  for-install:
     type: file
-    filename: gotta-have-it.txt
+    filename: initial.tgz
     description: get things started
-  upload-resource:
+  for-upload:
     type: file
-    filename: somename.xml
+    filename: config.xml
     description: Who uses xml anymore?

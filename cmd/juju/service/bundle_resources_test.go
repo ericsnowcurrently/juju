@@ -36,9 +36,9 @@ func (s *ResourcesBundleSuite) TestDeployBundleResources(c *gc.C) {
                 charm: cs:starsay
                 num_units: 1
                 resources:
-                    store-resource: 3
-                    install-resource: 17
-                    upload-resource: 42
+                    for-store: 3
+                    for-install: 17
+                    for-upload: 42
     `
 	output, err := s.DeployBundleYAML(c, bundleMeta)
 	c.Assert(err, jc.ErrorIsNil)
@@ -46,50 +46,50 @@ func (s *ResourcesBundleSuite) TestDeployBundleResources(c *gc.C) {
 	c.Check(output, gc.Equals, strings.TrimSpace(`
 added charm cs:trusty/starsay-42
 service starsay deployed (charm: cs:trusty/starsay-42)
-added resource install-resource
-added resource store-resource
-added resource upload-resource
+added resource for-install
+added resource for-store
+added resource for-upload
 added starsay/0 unit to new machine
 deployment of bundle "local:bundle/example-0" completed
     `))
 	s.checkResources(c, "starsay", []resource.Resource{{
 		Resource: charmresource.Resource{
 			Meta: charmresource.Meta{
-				Name:        "install-resource",
+				Name:        "for-install",
 				Type:        charmresource.TypeFile,
-				Path:        "gotta-have-it.txt",
+				Path:        "initial.tgz",
 				Description: "get things started",
 			},
 			Origin:   charmresource.OriginStore,
 			Revision: 17,
 		},
-		ID:        "starsay/install-resource",
+		ID:        "starsay/for-install",
 		ServiceID: "starsay",
 	}, {
 		Resource: charmresource.Resource{
 			Meta: charmresource.Meta{
-				Name:        "store-resource",
+				Name:        "for-store",
 				Type:        charmresource.TypeFile,
-				Path:        "filename.tgz",
+				Path:        "dummy.tgz",
 				Description: "One line that is useful when operators need to push it.",
 			},
 			Origin:   charmresource.OriginStore,
 			Revision: 3,
 		},
-		ID:        "starsay/store-resource",
+		ID:        "starsay/for-store",
 		ServiceID: "starsay",
 	}, {
 		Resource: charmresource.Resource{
 			Meta: charmresource.Meta{
-				Name:        "upload-resource",
+				Name:        "for-upload",
 				Type:        charmresource.TypeFile,
-				Path:        "somename.xml",
+				Path:        "config.xml",
 				Description: "Who uses xml anymore?",
 			},
 			Origin:   charmresource.OriginStore,
 			Revision: 42,
 		},
-		ID:        "starsay/upload-resource",
+		ID:        "starsay/for-upload",
 		ServiceID: "starsay",
 	}})
 }
