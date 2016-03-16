@@ -6,12 +6,18 @@
 package testcharms
 
 import (
+	"os"
+	"path/filepath"
+
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
 	"gopkg.in/juju/charm.v6-unstable"
+	charmresource "gopkg.in/juju/charm.v6-unstable/resource"
 	"gopkg.in/juju/charmrepo.v2-unstable/csclient"
 	"gopkg.in/juju/charmrepo.v2-unstable/csclient/params"
 	"gopkg.in/juju/charmrepo.v2-unstable/testing"
+
+	"github.com/juju/juju/resource"
 )
 
 // Repo provides access to the test charm repository.
@@ -86,4 +92,62 @@ func UploadBundle(c *gc.C, client *csclient.Client, url, name string) (*charm.UR
 
 	// Return the bundle and its URL.
 	return id, b
+}
+
+// ExtractResourceInfo gathers up the resources in the provided charm
+// dir. Only the resource info is returned, though the size and
+// fingerprint of the resource files are included. The origin and
+// revision default to "store" and 0, respectively.
+//
+// The files must be in the charm dir and match the filename
+// in the charm metadata.
+func ExtractResourceInfo(c *gc.C, ch *charm.CharmDir) []charmresource.Resource {
+	var resources []charmresource.Resource
+	for _, opened := range ExtractResources(c, ch) {
+		opened.Close()
+		resources = append(resources, opened.Resource.Resource)
+	}
+	return resources
+}
+
+// TODO(ericsnow) Return []charmresource.Opened once it exists.
+
+// ExtractResources gathers up the resources in the provided charm dir.
+// This includes both the full resource info and the resource files
+// themselves. The origin and revision default to "store" and 0,
+// respectively.
+//
+// The files must be in the charm dir and match the filename
+// in the charm metadata.
+func ExtractResources(c *gc.C, ch *charm.CharmDir) []resource.Opened {
+	var resources []resource.Opened
+	for _, meta := range ch.Meta().Resources {
+		resFile, chRes := openResource(c, ch.Path, meta)
+		resources = append(resources, resource.Opened{
+			Resource:   resource.Resource{Resource: chRes},
+			ReadCloser: resFile,
+		})
+	}
+	return resources
+}
+
+func openResource(c *gc.C, rootDir string, meta charmresource.Meta) (*os.File, charmresource.Resource) {
+	resFile, err := os.Open(filepath.Join(rootDir, meta.Path))
+	c.Assert(err, jc.ErrorIsNil)
+
+	finfo, err := resFile.Stat()
+	c.Assert(err, jc.ErrorIsNil)
+	fp, err := charmresource.GenerateFingerprint(resFile)
+	c.Assert(err, jc.ErrorIsNil)
+	chRes := charmresource.Resource{
+		Meta:        meta,
+		Origin:      charmresource.OriginStore,
+		Revision:    0,
+		Fingerprint: fp,
+		Size:        finfo.Size(),
+	}
+
+	_, err = resFile.Seek(0, os.SEEK_SET)
+	c.Assert(err, jc.ErrorIsNil)
+	return resFile, chRes
 }
