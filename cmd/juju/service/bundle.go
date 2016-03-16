@@ -293,6 +293,14 @@ func (h *bundleHandler) addService(id string, p bundlechanges.AddServiceParams, 
 		resources:     resIDs,
 	}); err == nil {
 		h.log.Infof("service %s deployed (charm: %s)", p.Service, ch)
+		var resNames []string
+		for resName := range resIDs {
+			resNames = append(resNames, resName)
+		}
+		sort.Strings(resNames) // for the sake of testing...
+		for _, resName := range resNames {
+			h.log.Infof("added resource %s", resName)
+		}
 		return nil
 	} else if !isErrServiceExists(err) {
 		return errors.Annotatef(err, "cannot deploy service %q", p.Service)
@@ -737,6 +745,14 @@ func (h *bundleHandler) upgradeCharm(service string, cURL *charm.URL, csMac *mac
 		return errors.Annotatef(err, "cannot upgrade charm to %q", id)
 	}
 	h.log.Infof("upgraded charm for existing service %s (from %s to %s)", service, existing, id)
+	var resNames []string
+	for resName := range resIDs {
+		resNames = append(resNames, resName)
+	}
+	sort.Strings(resNames) // for the sake of testing...
+	for _, resName := range resNames {
+		h.log.Infof("added resource %s", resName)
+	}
 	return nil
 }
 
