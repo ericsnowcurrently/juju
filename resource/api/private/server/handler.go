@@ -10,10 +10,13 @@ import (
 	"net/http"
 
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 
 	"github.com/juju/juju/resource"
 	"github.com/juju/juju/resource/api"
 )
+
+var logger = loggo.GetLogger("juju.resource.api.private.server")
 
 // TODO(ericsnow) Define the HTTPHandlerConstraints here? Perhaps
 // even the HTTPHandlerSpec?
