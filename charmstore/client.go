@@ -171,6 +171,7 @@ func (c Client) GetResource(req ResourceRequest) (data ResourceData, err error) 
 		return ResourceData{}, errors.Trace(err)
 	}
 	defer c.jar.Deactivate()
+	logger.Debugf("requesting info for (%s) %s/%s-%d", req.Channel, req.Charm, req.Name, req.Revision)
 	meta, err := c.csWrapper.ResourceMeta(req.Channel, req.Charm, req.Name, req.Revision)
 
 	if err != nil {
@@ -180,6 +181,7 @@ func (c Client) GetResource(req ResourceRequest) (data ResourceData, err error) 
 	if err != nil {
 		return ResourceData{}, errors.Trace(err)
 	}
+	logger.Debugf("requesting blob for (%s) %s/%s-%d", req.Channel, req.Charm, req.Name, req.Revision)
 	resData, err := c.csWrapper.GetResource(req.Channel, req.Charm, req.Name, req.Revision)
 	if err != nil {
 		return ResourceData{}, errors.Trace(err)
@@ -199,6 +201,7 @@ func (c Client) GetResource(req ResourceRequest) (data ResourceData, err error) 
 		return ResourceData{},
 			errors.Errorf("size for data (%d) does not match size in metadata (%d)", resData.Size, data.Resource.Size)
 	}
+	logger.Debugf("got blob for (%s) %s/%s-%d", req.Channel, req.Charm, req.Name, req.Revision)
 	return data, nil
 }
 

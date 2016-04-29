@@ -7,11 +7,14 @@ import (
 	"io"
 
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 	charmresource "gopkg.in/juju/charm.v6-unstable/resource"
 
 	"github.com/juju/juju/charmstore"
 	"github.com/juju/juju/resource"
 )
+
+var logger = loggo.GetLogger("juju.resource.charmstore")
 
 // StoreResourceGetter provides the functionality for getting a resource
 // file from the charm store.
@@ -79,6 +82,7 @@ func GetResource(args GetResourceArgs) (resource.Resource, io.ReadCloser, error)
 	}
 	if reader != nil {
 		// Both the info *and* the data were found in the cache.
+		logger.Debugf("resource blob found in cache")
 		return res, reader, nil
 	}
 
@@ -89,6 +93,7 @@ func GetResource(args GetResourceArgs) (resource.Resource, io.ReadCloser, error)
 	if res.Origin != charmresource.OriginStore {
 		return resource.Resource{}, nil, errors.NotFoundf("resource %q", res.Name)
 	}
+	logger.Debugf("resource blob not found in cache, downloading from charm store")
 
 	req := charmstore.ResourceRequest{
 		Charm:    args.CharmID.URL,
@@ -104,11 +109,13 @@ func GetResource(args GetResourceArgs) (resource.Resource, io.ReadCloser, error)
 	if err != nil {
 		return resource.Resource{}, nil, errors.Trace(err)
 	}
+	logger.Debugf("resource blob downloaded from charm store, storing in cache")
 
 	res, reader, err = cache.set(data.Resource, data)
 	if err != nil {
 		return resource.Resource{}, nil, errors.Trace(err)
 	}
+	logger.Debugf("resource blob stored in cache")
 
 	return res, reader, nil
 }
